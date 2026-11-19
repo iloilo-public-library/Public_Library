@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Bell, LogOut, Menu, Settings } from "lucide-react";
 import { LibraryTooltip } from "@/components/ui/tooltip";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils";
 
 interface StaffTopbarProps {
@@ -45,6 +46,7 @@ export function StaffTopbar({ title, collapsed, onOpenMobile }: StaffTopbarProps
       </div>
 
       <div className="flex items-center gap-2">
+        <ThemeToggle />
         <LibraryTooltip label="Notifications">
           <Link
             href="/admin/announcements"

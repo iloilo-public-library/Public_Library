@@ -3,18 +3,19 @@
 import type { ReactNode } from "react";
 import { motion, type Variants } from "framer-motion";
 
-const libraryEase = [0.22, 0.68, 0, 1.2] as const;
+const libraryEase = [0.22, 0.68, 0, 1] as const;
 
 type RevealDirection = "up" | "down" | "left" | "right" | "zoom" | "flip" | "slide";
 
+// Strictly GPU-composited properties (translate, scale, opacity) to prevent layout/paint lag
 const hiddenByDirection: Record<RevealDirection, Record<string, number>> = {
-  up: { opacity: 0, y: 40 },
-  down: { opacity: 0, y: -28 },
-  left: { opacity: 0, x: -48 },
-  right: { opacity: 0, x: 48 },
-  zoom: { opacity: 0, scale: 0.85 },
-  flip: { opacity: 0, y: 24, rotateX: -16 },
-  slide: { opacity: 0, y: 52, scale: 0.96 },
+  up: { opacity: 0, y: 24 },
+  down: { opacity: 0, y: -20 },
+  left: { opacity: 0, x: -28 },
+  right: { opacity: 0, x: 28 },
+  zoom: { opacity: 0, scale: 0.94 },
+  flip: { opacity: 0, y: 20, scale: 0.97 },
+  slide: { opacity: 0, y: 28, scale: 0.98 },
 };
 
 export function Reveal({
@@ -31,9 +32,9 @@ export function Reveal({
   return (
     <motion.div
       initial={hiddenByDirection[direction]}
-      whileInView={{ opacity: 1, x: 0, y: 0, scale: 1, rotateX: 0 }}
-      viewport={{ once: true, amount: 0.15 }}
-      transition={{ duration: 0.68, delay, ease: libraryEase }}
+      whileInView={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+      viewport={{ once: true, amount: 0.1, margin: "0px 0px -30px 0px" }}
+      transition={{ duration: 0.42, delay: Math.min(delay, 0.2), ease: libraryEase }}
       className={className}
     >
       {children}
@@ -45,18 +46,18 @@ const staggerContainer: Variants = {
   hidden: {},
   visible: {
     transition: {
-      staggerChildren: 0.07,
-      delayChildren: 0.04,
+      staggerChildren: 0.045,
+      delayChildren: 0.02,
     },
   },
 };
 
 const staggerChild: Variants = {
-  hidden: { opacity: 0, x: -16 },
+  hidden: { opacity: 0, y: 14 },
   visible: {
     opacity: 1,
-    x: 0,
-    transition: { duration: 0.52, ease: libraryEase },
+    y: 0,
+    transition: { duration: 0.34, ease: libraryEase },
   },
 };
 
@@ -72,7 +73,7 @@ export function StaggerGroup({
       variants={staggerContainer}
       initial="hidden"
       whileInView="visible"
-      viewport={{ once: true, amount: 0.12 }}
+      viewport={{ once: true, amount: 0.08 }}
       className={className}
     >
       {children}

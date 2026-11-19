@@ -25,7 +25,7 @@ export default function AdminDashboardPage() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const { data: stats, error, isLoading, mutate } = useSWR<DashboardStats>(
-    "/dashboard/stats",
+    "/api/dashboard/stats",
     swrPrivateConfig
   );
 

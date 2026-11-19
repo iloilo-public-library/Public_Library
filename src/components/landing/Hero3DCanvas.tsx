@@ -12,17 +12,30 @@ export function Hero3DCanvas() {
     const canvas = canvasRef.current;
     if (!container || !canvas) return;
 
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const isLowPowerDevice =
+      (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ||
+      window.innerWidth < 768;
+
     const getSize = () => ({
       w: container.clientWidth || window.innerWidth,
       h: container.clientHeight || window.innerHeight,
     });
 
     const { w, h } = getSize();
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: !isLowPowerDevice,
+      alpha: true,
+      powerPreference: "high-performance",
+    });
     renderer.setSize(w, h);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Cap pixel ratio to balance visual crispness & GPU load
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, isLowPowerDevice ? 1 : 1.5));
+    renderer.shadowMap.enabled = !isLowPowerDevice;
+    if (!isLowPowerDevice) {
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    }
     renderer.setClearColor(0x1e2d3d, 1);
 
     const scene = new THREE.Scene();
@@ -31,7 +44,7 @@ export function Hero3DCanvas() {
     scene.add(new THREE.AmbientLight(0x3a5068, 1.4));
     const sun = new THREE.DirectionalLight(0xc8e0f5, 0.9);
     sun.position.set(6, 12, 8);
-    sun.castShadow = true;
+    sun.castShadow = !isLowPowerDevice;
     scene.add(sun);
 
     const warm1 = new THREE.PointLight(0xffcc77, 3.5, 10);
@@ -50,7 +63,7 @@ export function Hero3DCanvas() {
 
     const floor = new THREE.Mesh(new THREE.BoxGeometry(22, 0.15, 22), lmat(0x243344));
     floor.position.y = -0.08;
-    floor.receiveShadow = true;
+    floor.receiveShadow = !isLowPowerDevice;
     scene.add(floor);
 
     const rug = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.04, 4.5), lmat(0x1e4d6b));
@@ -66,8 +79,8 @@ export function Hero3DCanvas() {
     const makeShelf = (x: number, z: number, ry: number) => {
       const g = new THREE.Group();
       const back = new THREE.Mesh(new THREE.BoxGeometry(4.4, 3.6, 0.28), lmat(0x4a2e10));
-      back.castShadow = true;
-      back.receiveShadow = true;
+      back.castShadow = !isLowPowerDevice;
+      back.receiveShadow = !isLowPowerDevice;
       g.add(back);
 
       const sm = lmat(0x5a3818);
@@ -88,7 +101,7 @@ export function Hero3DCanvas() {
           );
           bk.position.set(bx + bw / 2, -0.9 + s * 0.9 + 0.05 + bh / 2, 0.05);
           bk.rotation.z = (((s + b) % 5) - 2) * 0.015;
-          bk.castShadow = true;
+          bk.castShadow = !isLowPowerDevice;
           g.add(bk);
           bx += bw + 0.01;
           if (bx > 1.85) break;
@@ -106,22 +119,21 @@ export function Hero3DCanvas() {
 
     const tbl = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.12, 1.6), lmat(0x6b3d18));
     tbl.position.set(0, 0.88, 1.9);
-    tbl.castShadow = true;
-    tbl.receiveShadow = true;
+    tbl.castShadow = !isLowPowerDevice;
+    tbl.receiveShadow = !isLowPowerDevice;
     scene.add(tbl);
 
     [-1.4, 1.4].forEach((lx) => {
       const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.88, 8), lmat(0x5a3010));
       leg.position.set(lx, 0.44, 1.9);
-      leg.castShadow = true;
       scene.add(leg);
     });
 
     const deskLamp = (x: number, z: number) => {
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.07, 12), lmat(0x8b6914));
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.72, 8), lmat(0x7a5c10));
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.07, 10), lmat(0x8b6914));
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.72, 6), lmat(0x7a5c10));
       pole.position.y = 0.39;
-      const shade = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.32, 12, 1, true), lmat(0xc89830));
+      const shade = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.32, 10, 1, true), lmat(0xc89830));
       shade.position.y = 0.8;
       const g = new THREE.Group();
       g.add(base, pole, shade);
@@ -145,21 +157,20 @@ export function Hero3DCanvas() {
       scene.add(p);
     });
 
-    const globe = new THREE.Mesh(new THREE.SphereGeometry(0.34, 16, 16), lmat(0x2255aa));
+    const globe = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 14), lmat(0x2255aa));
     globe.position.set(-2.6, 1.25, 1.3);
-    globe.castShadow = true;
     scene.add(globe);
 
-    const gStand = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.13, 0.5, 10), lmat(0x6b4010));
+    const gStand = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.13, 0.5, 8), lmat(0x6b4010));
     gStand.position.set(-2.6, 0.75, 1.3);
     scene.add(gStand);
 
     const plant = (x: number, z: number) => {
-      const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.15, 0.3, 10), lmat(0xb05020));
+      const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.15, 0.3, 8), lmat(0xb05020));
       pot.position.set(x, 0.16, z);
       scene.add(pot);
       for (let i = 0; i < 6; i++) {
-        const lf = new THREE.Mesh(new THREE.SphereGeometry(0.14 + (i % 3) * 0.03, 8, 8), lmat(0x2a7a2a));
+        const lf = new THREE.Mesh(new THREE.SphereGeometry(0.14 + (i % 3) * 0.03, 7, 7), lmat(0x2a7a2a));
         lf.position.set(x + Math.cos(i) * 0.12, 0.58 + (i % 3) * 0.11, z + Math.sin(i) * 0.12);
         scene.add(lf);
       }
@@ -174,7 +185,6 @@ export function Hero3DCanvas() {
       const fb = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.33, 0.07), lmat(fbCols[i]));
       fb.userData = { bx: Math.cos(a) * 2.3, bz: Math.sin(a) * 2.3, by: 2.55 + i * 0.28, a };
       fb.position.set(fb.userData.bx, fb.userData.by, fb.userData.bz);
-      fb.castShadow = true;
       scene.add(fb);
       floaters.push(fb);
     }
@@ -185,6 +195,8 @@ export function Hero3DCanvas() {
     let theta = 0.18;
     let phi = 0.52;
     let radius = 13;
+    let isInViewport = true;
+    let isTabVisible = !document.hidden;
     const target = new THREE.Vector3(0, 1.3, 0);
 
     const onMouseDown = (e: MouseEvent) => {
@@ -227,21 +239,26 @@ export function Hero3DCanvas() {
       camera.updateProjectionMatrix();
     };
 
-    canvas.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("mouseup", onMouseUp);
-    window.addEventListener("mousemove", onMouseMove);
-    canvas.addEventListener("touchstart", onTouchStart, { passive: true });
-    window.addEventListener("touchend", onTouchEnd);
-    window.addEventListener("touchmove", onTouchMove, { passive: true });
-    canvas.addEventListener("wheel", onWheel, { passive: true });
-    window.addEventListener("resize", onResize);
-
+    // Pause WebGL rendering when scrolled offscreen or when tab is inactive
     let rafId = 0;
     let t = 0;
-    const animate = () => {
-      rafId = requestAnimationFrame(animate);
-      t += 0.01;
-      if (!isDrag) theta += 0.0018;
+    let lastFrameTime = 0;
+    const minFrameMs = isLowPowerDevice ? 33 : 16; // ~30fps on low-power, 60fps on desktop
+
+    const renderFrame = (now: number) => {
+      if (!isInViewport || !isTabVisible) {
+        rafId = 0;
+        return;
+      }
+      rafId = requestAnimationFrame(renderFrame);
+      if (now - lastFrameTime < minFrameMs) return;
+      lastFrameTime = now;
+
+      if (!prefersReducedMotion) {
+        t += 0.01;
+        if (!isDrag) theta += 0.0018;
+      }
+
       camera.position.x = target.x + radius * Math.sin(phi) * Math.sin(theta);
       camera.position.y = target.y + radius * Math.cos(phi);
       camera.position.z = target.z + radius * Math.sin(phi) * Math.cos(theta);
@@ -257,10 +274,42 @@ export function Hero3DCanvas() {
       warm2.intensity = 1.8 + Math.sin(t * 0.85 + 1) * 0.35;
       renderer.render(scene, camera);
     };
-    animate();
+
+    const startLoop = () => {
+      if (!rafId && isInViewport && isTabVisible) {
+        rafId = requestAnimationFrame(renderFrame);
+      }
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        isInViewport = entries[0]?.isIntersecting ?? true;
+        if (isInViewport) startLoop();
+      },
+      { threshold: 0.05 }
+    );
+    observer.observe(container);
+
+    const onVisibilityChange = () => {
+      isTabVisible = !document.hidden;
+      if (isTabVisible) startLoop();
+    };
+
+    canvas.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("mousemove", onMouseMove);
+    canvas.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchend", onTouchEnd);
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    canvas.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("resize", onResize);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    startLoop();
 
     return () => {
-      cancelAnimationFrame(rafId);
+      if (rafId) cancelAnimationFrame(rafId);
+      observer.disconnect();
       canvas.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("mouseup", onMouseUp);
       window.removeEventListener("mousemove", onMouseMove);
@@ -269,12 +318,13 @@ export function Hero3DCanvas() {
       window.removeEventListener("touchmove", onTouchMove);
       canvas.removeEventListener("wheel", onWheel);
       window.removeEventListener("resize", onResize);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       renderer.dispose();
     };
   }, []);
 
   return (
-    <div ref={containerRef} className="absolute inset-0 h-full w-full">
+    <div ref={containerRef} className="absolute inset-0 h-full w-full [contain:strict]">
       <canvas ref={canvasRef} className="h-full w-full cursor-grab active:cursor-grabbing" />
     </div>
   );

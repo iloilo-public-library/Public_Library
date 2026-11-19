@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Pause, Play } from "lucide-react";
@@ -116,10 +116,12 @@ interface OfferingsSectionProps {
 }
 
 export function OfferingsSection({ catalogHref = "/browse" }: OfferingsSectionProps) {
+  const sectionRef = useRef<HTMLElement>(null);
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
 
   const goTo = useCallback(
     (nextIndex: number, dir?: number) => {
@@ -133,7 +135,29 @@ export function OfferingsSection({ catalogHref = "/browse" }: OfferingsSectionPr
   const next = useCallback(() => goTo(index + 1, 1), [goTo, index]);
   const prev = useCallback(() => goTo(index - 1, -1), [goTo, index]);
 
-  const activeAuto = isPlaying && !isHovered;
+  // Pause auto-cycling when scrolled out of view or tab is hidden to eliminate background CPU/GPU work
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => setIsVisible(Boolean(entries[0]?.isIntersecting)),
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+
+    const onVis = () => {
+      if (document.hidden) setIsVisible(false);
+    };
+    document.addEventListener("visibilitychange", onVis);
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
+  const activeAuto = isPlaying && !isHovered && isVisible;
 
   useEffect(() => {
     if (!activeAuto) return;
@@ -149,8 +173,9 @@ export function OfferingsSection({ catalogHref = "/browse" }: OfferingsSectionPr
 
   return (
     <section
+      ref={sectionRef}
       id="offerings"
-      className="border-y border-white/8 bg-[#121e2b]/85 px-5 py-16 md:px-10 md:py-24"
+      className="border-y border-white/8 bg-[#121e2b]/85 px-5 py-16 [content-visibility:auto] md:px-10 md:py-24"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >

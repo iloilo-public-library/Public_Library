@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { LibraryTooltip } from "@/components/ui/tooltip";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils";
 
 interface PublicTopbarProps {
@@ -112,6 +113,7 @@ export function PublicTopbar({ onOpenMemberModal, activePath = "/" }: PublicTopb
 
         {/* Right Actions with shadcn Tooltips */}
         <div className="flex shrink-0 items-center gap-2">
+          <ThemeToggle />
           {isAndroid && (
             <LibraryTooltip label="Download for Android">
               <a

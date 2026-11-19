@@ -1,23 +1,98 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, Eye, EyeOff, Lock, LogIn, Mail, QrCode, ShieldCheck } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Loader2,
+  Lock,
+  LogIn,
+  Mail,
+  QrCode,
+  ShieldCheck,
+  User,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LibraryTooltip } from "@/components/ui/tooltip";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [firstname, setFirstname] = useState("");
+  const [lastname, setLastname] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setLoading(true);
+
+    try {
+      const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/signup";
+      const payload =
+        mode === "login"
+          ? { email, password }
+          : { firstname, lastname, email, password };
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        message?: string;
+        redirectTo?: string;
+      };
+
+      if (!res.ok || !data.ok) {
+        setError(data.error || "Authentication failed. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      if (mode === "login" && data.redirectTo) {
+        router.push(data.redirectTo);
+        router.refresh();
+      } else {
+        setSuccess(
+          data.message || "Registration submitted! Waiting for administrator approval."
+        );
+        setFirstname("");
+        setLastname("");
+        setPassword("");
+        setMode("login");
+      }
+    } catch {
+      setError("Network error while connecting to Supabase authentication.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen">
-      {/* Topbar Strip matching templates/admins/login.html */}
+      {/* Topbar Strip */}
       <header className="fixed inset-x-0 top-0 z-[1100] flex h-[60px] items-center justify-between bg-[#2f3f4d] px-4 shadow-[0_2px_10px_rgba(0,0,0,0.3)] md:px-10">
-        <Link href="/" className="flex min-w-0 items-center gap-2.5 text-white transition hover:opacity-85">
+        <Link
+          href="/"
+          className="flex min-w-0 items-center gap-2.5 text-white transition hover:opacity-85"
+        >
           <img
             src="/static/images/logo.png"
             alt="Logo"
@@ -29,9 +104,14 @@ export default function LoginPage() {
         </Link>
 
         <div className="flex shrink-0 items-center gap-2">
+          <ThemeToggle />
           <button
             type="button"
-            onClick={() => setMode("login")}
+            onClick={() => {
+              setMode("login");
+              setError(null);
+              setSuccess(null);
+            }}
             className={`rounded-full border px-4 py-1.5 text-[0.83rem] font-semibold transition cursor-pointer ${
               mode === "login"
                 ? "border-accent bg-accent text-on-accent"
@@ -42,7 +122,11 @@ export default function LoginPage() {
           </button>
           <button
             type="button"
-            onClick={() => setMode("signup")}
+            onClick={() => {
+              setMode("signup");
+              setError(null);
+              setSuccess(null);
+            }}
             className={`rounded-full border px-4 py-1.5 text-[0.83rem] font-semibold transition cursor-pointer ${
               mode === "signup"
                 ? "border-accent bg-accent text-on-accent"
@@ -59,8 +143,8 @@ export default function LoginPage() {
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="w-full max-w-[440px] rounded-[22px] border border-accent/20 bg-modal/90 p-7 shadow-[0_24px_72px_rgba(0,0,0,0.5)] backdrop-blur-xl sm:p-8"
+          transition={{ duration: 0.38 }}
+          className="w-full max-w-[440px] rounded-[22px] border border-accent/20 bg-modal/95 p-7 shadow-[0_24px_72px_rgba(0,0,0,0.45)] backdrop-blur-md sm:p-8"
         >
           <div className="mb-6 text-center">
             <div className="mx-auto mb-3.5 flex h-12 w-12 items-center justify-center rounded-2xl border border-accent/25 bg-accent/12 text-accent">
@@ -71,16 +155,56 @@ export default function LoginPage() {
             </h1>
             <p className="mt-1 text-[0.82rem] text-tl/70">
               {mode === "login"
-                ? "Protected by CAPTCHA, Email OTP & PIN verification."
+                ? "Sign in with your Supabase-backed Iloilo Library account."
                 : "Register with your Iloilo City Public Library credentials."}
             </p>
           </div>
 
-          <form
-            action={mode === "login" ? "/api/login" : "/signup"}
-            method="POST"
-            className="space-y-4"
-          >
+          {error && (
+            <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-danger/30 bg-danger/12 px-3.5 py-2.5 text-xs leading-relaxed text-danger">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {success && (
+            <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-accent2/30 bg-accent2/12 px-3.5 py-2.5 text-xs leading-relaxed text-accent2">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{success}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === "signup" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-tl">First Name</label>
+                  <div className="relative">
+                    <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-accent/65" />
+                    <input
+                      type="text"
+                      required
+                      value={firstname}
+                      onChange={(e) => setFirstname(e.target.value)}
+                      placeholder="Juan"
+                      className="w-full rounded-xl border border-white/12 bg-bg1/80 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-white/35 focus:border-accent/55 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-tl">Last Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={lastname}
+                    onChange={(e) => setLastname(e.target.value)}
+                    placeholder="Dela Cruz"
+                    className="w-full rounded-xl border border-white/12 bg-bg1/80 px-3.5 py-2.5 text-sm text-white placeholder:text-white/35 focus:border-accent/55 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="mb-1.5 block text-xs font-semibold text-tl">Email Address</label>
               <div className="relative">
@@ -123,9 +247,17 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <Button type="submit" variant="accent" size="lg" className="w-full">
-              <LogIn className="h-4 w-4" />
-              {mode === "login" ? "Continue to Verification" : "Submit Registration"}
+            <Button type="submit" variant="accent" size="lg" disabled={loading} className="w-full">
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <LogIn className="h-4 w-4" />
+              )}
+              {loading
+                ? "Connecting..."
+                : mode === "login"
+                  ? "Log In"
+                  : "Submit Registration"}
             </Button>
           </form>
 
