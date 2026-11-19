@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
+import { FloatingLibraryProps } from "@/components/landing/FloatingLibraryProps";
 
 export interface ShelfItem {
   id: string;
@@ -171,6 +172,56 @@ function makeCoverTexture(
   return tex;
 }
 
+function makeWoodFloorTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext("2d");
+
+  if (ctx) {
+    ctx.fillStyle = "#3a2214";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const rows = 4;
+    const cols = 2;
+    const tileH = canvas.height / rows;
+    const tileW = canvas.width / cols;
+    const shades = ["#4b2d1b", "#573621", "#422717", "#613d26"];
+
+    for (let r = 0; r < rows; r++) {
+      const stagger = (r % 2) * (tileW / 2);
+      for (let c = -1; c <= cols; c++) {
+        const x = c * tileW + stagger;
+        const y = r * tileH;
+        const shade = shades[(r * 3 + Math.abs(c)) % shades.length];
+
+        ctx.fillStyle = shade;
+        ctx.fillRect(x + 2, y + 2, tileW - 4, tileH - 4);
+
+        // Wood grain streaks
+        for (let g = 0; g < 18; g++) {
+          const gy = y + 6 + ((g * 7) % (tileH - 12));
+          ctx.fillStyle = g % 2 === 0 ? "rgba(0,0,0,0.12)" : "rgba(255,215,170,0.06)";
+          ctx.fillRect(x + 4, gy, tileW - 8, 2);
+        }
+
+        // Subtle plank joint bevel
+        ctx.strokeStyle = "rgba(15, 8, 4, 0.72)";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x + 1.5, y + 1.5, tileW - 3, tileH - 3);
+      }
+    }
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(7, 5);
+  tex.anisotropy = 8;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 interface ShelfBookProps {
   spec: BookSpec;
   isSelected: boolean;
@@ -279,6 +330,9 @@ export default function BookShelf({ items, selectedId, onSelect }: BookShelfProp
   const reducedRef = usePrefersReducedMotion();
   const { size, pointer } = useThree();
   const rootGroupRef = useRef<THREE.Group>(null);
+  const floorTex = useMemo(() => makeWoodFloorTexture(), []);
+
+  useEffect(() => () => floorTex.dispose(), [floorTex]);
 
   useEffect(() => {
     document.body.style.cursor = hoveredId ? "pointer" : "auto";
@@ -362,6 +416,7 @@ export default function BookShelf({ items, selectedId, onSelect }: BookShelfProp
 
   return (
     <>
+      <fog attach="fog" args={["#152332", 11.5, 22]} />
       <hemisphereLight args={[0xc8e0f5, 0x182434, 0.95]} />
       <directionalLight
         color={0xffe0b2}
@@ -372,13 +427,27 @@ export default function BookShelf({ items, selectedId, onSelect }: BookShelfProp
         shadow-mapSize-height={1024}
         shadow-camera-near={1}
         shadow-camera-far={24}
-        shadow-camera-left={-5}
-        shadow-camera-right={5}
-        shadow-camera-top={5}
-        shadow-camera-bottom={-3}
+        shadow-camera-left={-8}
+        shadow-camera-right={8}
+        shadow-camera-top={6}
+        shadow-camera-bottom={-4}
       />
       <directionalLight color={0x8bb8e8} intensity={0.75} position={[-5, 4, -4]} />
       <pointLight color={0xffcb80} intensity={1.6} distance={12} position={[1.2, 3.8, 2.8]} />
+
+      {/* Wooden Library Parquet Floor Tile */}
+      <mesh
+        position={[0, 0.215, -1.5]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+      >
+        <planeGeometry args={[28, 18]} />
+        <meshStandardMaterial
+          map={floorTex}
+          roughness={0.62}
+          metalness={0.05}
+        />
+      </mesh>
 
       <group ref={rootGroupRef} position={[desktopOffsetX, 0, 0]}>
         {/* Wooden Bookcase Frame */}
@@ -443,6 +512,9 @@ export default function BookShelf({ items, selectedId, onSelect }: BookShelfProp
           />
         ))}
       </group>
+
+      {/* Spread Floating Library Background Props in World Space */}
+      <FloatingLibraryProps reducedRef={reducedRef} />
     </>
   );
 }

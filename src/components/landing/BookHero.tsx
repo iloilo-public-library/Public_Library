@@ -1,30 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   ArrowRight,
   BookOpen,
   Building2,
+  ChevronLeft,
+  ChevronRight,
   MousePointerClick,
-  RotateCcw,
-  X,
 } from "lucide-react";
-import type { ShelfItem } from "@/components/BookShelf";
+import type { TableItem } from "@/components/EnchantTable";
 import { cn } from "@/lib/utils";
 
-const BookShelfHeroCanvas = dynamic(
+const EnchantTableHeroCanvas = dynamic(
   () =>
-    import("@/components/landing/BookShelfHeroCanvas").then(
-      (mod) => mod.BookShelfHeroCanvas
+    import("@/components/landing/EnchantTableHeroCanvas").then(
+      (mod) => mod.EnchantTableHeroCanvas
     ),
   { ssr: false }
 );
 
-const ITEMS: ShelfItem[] = [
+const ITEMS: TableItem[] = [
   {
     id: "offerings",
     title: "Library Offerings",
@@ -94,25 +94,44 @@ export function BookHero({
   secondaryCta,
 }: BookHeroProps) {
   const router = useRouter();
-  const [selected, setSelected] = useState<string | null>(null);
+  const [spread, setSpreadState] = useState(0);
 
+  const setSpread = useCallback((n: number) => {
+    const clamped = Math.max(0, Math.min(ITEMS.length - 1, n));
+    setSpreadState(clamped);
+  }, []);
+
+  // Keyboard support: ArrowLeft / ArrowRight turns pages
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setSelected(null);
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.key === "ArrowRight") {
+        setSpreadState((prev) => Math.min(ITEMS.length - 1, prev + 1));
+      } else if (e.key === "ArrowLeft") {
+        setSpreadState((prev) => Math.max(0, prev - 1));
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const selectedItem = useMemo(
-    () => ITEMS.find((item) => item.id === selected) ?? null,
-    [selected]
-  );
+  // Automatically flip pages every 4.5s (paused when user prefers reduced motion)
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (mq.matches) return;
+
+    const timer = window.setInterval(() => {
+      setSpreadState((prev) => (prev + 1) % ITEMS.length);
+    }, 4500);
+
+    return () => window.clearInterval(timer);
+  }, [spread]);
+
+  const currentItem = ITEMS[spread] ?? ITEMS[0];
 
   const handleOpenSection = useCallback(
-    (item: ShelfItem) => {
+    (item: TableItem) => {
       if (item.id === "browse") {
         router.push(primaryCta.href);
         return;
@@ -129,10 +148,10 @@ export function BookHero({
             ? "offerings"
             : item.id;
 
-      const el =
+      const targetEl =
         document.getElementById(item.id) || document.getElementById(fallbackId);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     },
     [primaryCta.href, router]
@@ -141,15 +160,15 @@ export function BookHero({
   return (
     <section className="hero-preserve-dark relative flex min-h-screen flex-col justify-between overflow-hidden bg-[radial-gradient(ellipse_at_68%_45%,#283b4f_0%,#1a2837_60%,#121e2b_100%)] pt-[60px] md:justify-center">
       {/* Left gradient scrim on desktop for contrast over the 3D scene */}
-      <div className="pointer-events-none hidden md:block md:absolute md:inset-0 md:z-[2] md:bg-[linear-gradient(to_right,rgba(15,25,36,0.92)_0%,rgba(15,25,36,0.68)_42%,rgba(15,25,36,0.18)_72%,transparent_100%)]" />
+      <div className="pointer-events-none hidden md:block md:absolute md:inset-0 md:z-[2] md:bg-[linear-gradient(to_right,rgba(15,25,36,0.92)_0%,rgba(15,25,36,0.68)_42%,rgba(15,25,36,0.16)_72%,transparent_100%)]" />
 
-      {/* Real DOM Hero Content (Stacked above canvas on < 768px, overlaid left on >= 768px) */}
-      <div className="relative z-[3] w-full max-w-[650px] px-6 pb-4 pt-8 md:px-[60px] md:py-12">
+      {/* Real DOM Hero Content */}
+      <div className="relative z-[3] w-full max-w-[650px] px-6 pb-2 pt-6 md:px-[60px] md:py-10">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.05, ease: HERO_EASE }}
-          className="mb-5 inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/15 px-4 py-1.5 text-[0.75rem] font-bold uppercase tracking-[0.09em] text-accent shadow-[0_4px_20px_rgba(0,0,0,0.25)] backdrop-blur-md"
+          className="mb-4 inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/15 px-4 py-1.5 text-[0.75rem] font-bold uppercase tracking-[0.09em] text-accent shadow-[0_4px_20px_rgba(0,0,0,0.25)] backdrop-blur-md"
         >
           <Building2 className="h-3.5 w-3.5" />
           {eyebrow}
@@ -159,7 +178,7 @@ export function BookHero({
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.14, ease: HERO_EASE }}
-          className="mb-4 text-[clamp(2.15rem,4.6vw,3.5rem)] font-bold leading-[1.08] tracking-[-0.03em] text-white drop-shadow-[0_6px_28px_rgba(0,0,0,0.55)]"
+          className="mb-3 text-[clamp(2rem,4.4vw,3.4rem)] font-bold leading-[1.08] tracking-[-0.03em] text-white drop-shadow-[0_6px_28px_rgba(0,0,0,0.55)]"
         >
           {headlineTop}
           <br />
@@ -172,7 +191,7 @@ export function BookHero({
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.22, ease: HERO_EASE }}
-          className="mb-7 max-w-[460px] text-[1rem] leading-[1.7] text-tl/90 drop-shadow-[0_2px_14px_rgba(0,0,0,0.5)]"
+          className="mb-5 max-w-[460px] text-[0.95rem] leading-[1.65] text-tl/90 drop-shadow-[0_2px_14px_rgba(0,0,0,0.5)]"
         >
           {description}
         </motion.p>
@@ -181,37 +200,37 @@ export function BookHero({
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.3, ease: HERO_EASE }}
-          className="mb-7 flex flex-wrap gap-3.5"
+          className="mb-5 flex flex-wrap gap-3"
         >
           <Link
             href={primaryCta.href}
-            className="inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3 text-[0.92rem] font-bold text-on-accent shadow-[0_8px_28px_rgba(159,193,225,0.28)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#b8d4ec]"
+            className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-[0.9rem] font-bold text-on-accent shadow-[0_8px_28px_rgba(159,193,225,0.28)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#b8d4ec]"
           >
             <BookOpen className="h-4 w-4" /> {primaryCta.label}
           </Link>
           <a
             href={secondaryCta.href}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/28 bg-white/6 px-[22px] py-[11px] text-[0.92rem] font-semibold text-white backdrop-blur-md transition duration-200 hover:border-white/55 hover:bg-white/12"
+            className="inline-flex items-center gap-2 rounded-xl border border-white/28 bg-white/6 px-5 py-2.5 text-[0.9rem] font-semibold text-white backdrop-blur-md transition duration-200 hover:border-white/55 hover:bg-white/12"
           >
             {secondaryCta.icon}
             {secondaryCta.label}
           </a>
         </motion.div>
 
-        {/* Accessible Keyboard & Screen-Reader Shelf Selector Buttons */}
+        {/* Accessible Section Spread Buttons */}
         <div
           role="group"
-          aria-label="Interactive library bookshelf volumes"
-          className="flex flex-wrap gap-1.5"
+          aria-label="Open library guide sections"
+          className="mb-4 flex flex-wrap gap-1.5"
         >
-          {ITEMS.map((item) => {
-            const active = selected === item.id;
+          {ITEMS.map((item, idx) => {
+            const active = spread === idx;
             return (
               <button
                 key={item.id}
                 type="button"
                 aria-pressed={active}
-                onClick={() => setSelected(item.id)}
+                onClick={() => setSpread(idx)}
                 className={cn(
                   "rounded-full border px-3 py-1 font-mono text-[0.7rem] font-semibold transition cursor-pointer",
                   active
@@ -224,78 +243,59 @@ export function BookHero({
             );
           })}
         </div>
+
+        {/* Active Page Spread Summary & Open Section CTA */}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-accent/25 bg-[#121e2b]/82 px-4 py-3 backdrop-blur-md max-w-[520px]">
+          <div className="min-w-0 flex-1">
+            <div className="font-mono text-[0.65rem] font-bold tracking-[0.12em] text-accent2 uppercase">
+              Page {spread + 1} of {ITEMS.length} · {currentItem.title}
+            </div>
+            <p className="mt-0.5 truncate text-[0.8rem] text-tl/85">
+              {currentItem.blurb}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              aria-label="Previous page"
+              disabled={spread === 0}
+              onClick={() => setSpread(spread - 1)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-white/6 text-white/75 transition hover:border-accent/45 hover:text-white disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Next page"
+              disabled={spread === ITEMS.length - 1}
+              onClick={() => setSpread(spread + 1)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-white/6 text-white/75 transition hover:border-accent/45 hover:text-white disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenSection(currentItem)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[0.78rem] font-bold text-on-accent transition hover:bg-[#b8d4ec] cursor-pointer"
+            >
+              Open section <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Selected Book Real DOM Info Card */}
-      <AnimatePresence>
-        {selectedItem && (
-          <motion.div
-            key={selectedItem.id}
-            initial={{ opacity: 0, y: 16, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.97 }}
-            transition={{ duration: 0.22 }}
-            role="region"
-            aria-label={selectedItem.title}
-            className="relative z-[4] mx-6 mb-4 rounded-2xl border border-accent/30 bg-[#142230]/92 p-5 shadow-[0_18px_48px_rgba(0,0,0,0.55)] backdrop-blur-xl md:absolute md:bottom-16 md:right-10 md:mx-0 md:mb-0 md:w-[360px]"
-          >
-            <div className="mb-2 flex items-start justify-between gap-2">
-              <div>
-                <span className="font-mono text-[0.66rem] font-bold tracking-[0.14em] text-accent2 uppercase">
-                  SHELF VOLUME
-                </span>
-                <h2 className="mt-0.5 text-[1.08rem] font-bold text-white">
-                  {selectedItem.title}
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                aria-label="Put back"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/6 text-white/65 transition hover:bg-white/14 hover:text-white cursor-pointer"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-
-            {selectedItem.blurb && (
-              <p className="mb-4 text-[0.83rem] leading-relaxed text-tl/85">
-                {selectedItem.blurb}
-              </p>
-            )}
-
-            <div className="flex items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => handleOpenSection(selectedItem)}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-[0.82rem] font-bold text-on-accent transition hover:bg-[#b8d4ec] cursor-pointer"
-              >
-                Open section <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/18 bg-white/6 px-3.5 py-2 text-[0.82rem] font-semibold text-white/85 transition hover:border-white/35 hover:bg-white/12 cursor-pointer"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> Put back
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Interactive 3D Bookshelf Canvas (60vh stacked on <768px, full hero behind/right on >=768px) */}
+      {/* Interactive 3D Library Reading Table & Book Canvas */}
       <div className="relative z-[1] w-full md:static">
-        <BookShelfHeroCanvas
+        <EnchantTableHeroCanvas
           items={ITEMS}
-          selected={selected}
-          setSelected={setSelected}
+          spread={spread}
+          onSpreadChange={setSpread}
         />
       </div>
 
       {/* Bottom-right Interaction Hint */}
       <div className="pointer-events-none absolute bottom-4 right-4 z-[4] inline-flex items-center gap-2 rounded-full border border-accent/22 bg-bg1/75 px-4 py-1.5 text-[0.74rem] font-semibold tracking-[0.03em] text-accent/80 backdrop-blur-md md:bottom-6 md:right-10">
-        <MousePointerClick className="h-3.5 w-3.5" /> Hover a book, click to pull it out
+        <MousePointerClick className="h-3.5 w-3.5" /> Click the book to turn pages
       </div>
     </section>
   );
