@@ -207,3 +207,77 @@ html[data-theme="light"] .hero-preserve-dark .border-white\/25 {
 ::-webkit-scrollbar-corner {
   background: var(--scroll-track);
 }
+
+/* ══ LAMP INTERACTION & FLICKER ANIMATIONS ══ */
+@keyframes lamp-flicker-on {
+  0% {
+    opacity: 0.08;
+  }
+  14% {
+    opacity: 0.76;
+  }
+  24% {
+    opacity: 0.26;
+  }
+  38% {
+    opacity: 0.94;
+  }
+  50% {
+    opacity: 0.52;
+  }
+  68% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes lamp-hint-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+.lamp-flicker-active {
+  animation: lamp-flicker-on 700ms ease-out forwards;
+}
+
+.lamp-hint-bounce {
+  animation: lamp-hint-bounce 1.8s ease-in-out infinite;
+}
+
+/* Responsive optical geometry:
+   - Mobile & Tablet (< 1024px): lamp sits above text -> shade aims downward (52deg)
+   - Desktop (>= 1024px): lamp sits left of text -> shade aims across text (20deg) */
+.lamp-shade-group {
+  transform: translate(128px, 60px) rotate(52deg);
+  transition: transform 0.3s ease;
+}
+
+@media (min-width: 1024px) {
+  .lamp-shade-group {
+    transform: translate(128px, 60px) rotate(20deg);
+  }
+}
+
+/* Hide verbose hero paragraph on short mobile viewports (e.g. 360x640, landscape phones) so login stays above the fold */
+@media (max-width: 767px) and (max-height: 700px) {
+  .mobile-hide-short {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lamp-flicker-active {
+    animation: none;
+  }
+
+  .lamp-hint-bounce {
+    animation: none;
+  }
+}
