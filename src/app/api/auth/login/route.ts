@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
+import { recordErrorLog } from "@/lib/admin/error-logger";
 import {
   createSessionToken,
   emailBlindIndex,
@@ -60,6 +61,18 @@ export async function POST(request: Request) {
       .limit(1);
 
     if (queryError) {
+      await recordErrorLog(
+        {
+          level: "error",
+          source: "Database",
+          route: "/api/auth/login",
+          method: "POST",
+          status_code: 500,
+          message: `Login query failed: ${queryError.message}`,
+          user_email: email,
+        },
+        supabase
+      );
       return NextResponse.json(
         {
           ok: false,
@@ -71,6 +84,18 @@ export async function POST(request: Request) {
 
     const user = (users?.[0] ?? null) as DbUser | null;
     if (!user) {
+      await recordErrorLog(
+        {
+          level: "warning",
+          source: "Auth",
+          route: "/api/auth/login",
+          method: "POST",
+          status_code: 401,
+          message: "Failed login attempt for unknown account",
+          user_email: email,
+        },
+        supabase
+      );
       return NextResponse.json(
         { ok: false, error: "Invalid email or password." },
         { status: 401 }
@@ -78,6 +103,18 @@ export async function POST(request: Request) {
     }
 
     if (!user.is_active) {
+      await recordErrorLog(
+        {
+          level: "security",
+          source: "Auth",
+          route: "/api/auth/login",
+          method: "POST",
+          status_code: 403,
+          message: `Blocked sign-in to deactivated account #${user.id}`,
+          user_email: email,
+        },
+        supabase
+      );
       return NextResponse.json(
         { ok: false, error: "This account has been deactivated. Contact library staff." },
         { status: 403 }
@@ -85,6 +122,18 @@ export async function POST(request: Request) {
     }
 
     if (!user.is_approved) {
+      await recordErrorLog(
+        {
+          level: "warning",
+          source: "Auth",
+          route: "/api/auth/login",
+          method: "POST",
+          status_code: 403,
+          message: `Sign-in attempted while pending approval (User #${user.id})`,
+          user_email: email,
+        },
+        supabase
+      );
       return NextResponse.json(
         {
           ok: false,
@@ -123,6 +172,19 @@ export async function POST(request: Request) {
           .from("users")
           .update({ failed_attempts: nextAttempts, is_locked: true, lock_until: lockUntil })
           .eq("id", user.id);
+        await recordErrorLog(
+          {
+            level: "security",
+            source: "Auth",
+            route: "/api/auth/login",
+            method: "POST",
+            status_code: 423,
+            message: `Account #${user.id} locked after ${nextAttempts} failed login attempts`,
+            details: `Locked until ${lockUntil}`,
+            user_email: email,
+          },
+          supabase
+        );
         return NextResponse.json(
           { ok: false, error: "Too many failed attempts. Account locked for 15 minutes." },
           { status: 423 }
@@ -133,6 +195,19 @@ export async function POST(request: Request) {
         .from("users")
         .update({ failed_attempts: nextAttempts })
         .eq("id", user.id);
+
+      await recordErrorLog(
+        {
+          level: "warning",
+          source: "Auth",
+          route: "/api/auth/login",
+          method: "POST",
+          status_code: 401,
+          message: `Invalid password attempt (${nextAttempts}/5) for User #${user.id}`,
+          user_email: email,
+        },
+        supabase
+      );
 
       return NextResponse.json(
         { ok: false, error: "Invalid email or password." },
@@ -194,6 +269,15 @@ export async function POST(request: Request) {
     return response;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Login failed";
+    await recordErrorLog({
+      level: "error",
+      source: "Auth",
+      route: "/api/auth/login",
+      method: "POST",
+      status_code: 500,
+      message,
+      details: err instanceof Error ? err.stack || "" : "",
+    });
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

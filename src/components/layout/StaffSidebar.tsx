@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  AlertTriangle,
   BookOpen,
   CalendarDays,
   CreditCard,
@@ -48,6 +49,7 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/admin/account-requests", label: "Account Requests", icon: UserCheck, section: "Accounts" },
   { href: "/admin/calendar", label: "Calendar Events", icon: CalendarDays, section: "Community" },
   { href: "/admin/announcements", label: "Announcements", icon: Megaphone, section: "Community" },
+  { href: "/admin/error-logs", label: "Error Logs", icon: AlertTriangle, section: "System" },
   { href: "/system-settings", label: "System Settings", icon: Sliders, section: "System" },
   { href: "/admin-settings", label: "Admin Settings", icon: Settings, section: "System" },
 ];
