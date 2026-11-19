@@ -1,11 +1,41 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowLeft, BookOpen, Compass, Home, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function NotFoundPage() {
+  const [logRef, setLogRef] = useState<string | null>(null);
+
+  useEffect(() => {
+    const path =
+      typeof window !== "undefined" ? window.location.pathname + window.location.search : "/unknown";
+
+    fetch("/api/error-logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        level: "warning",
+        source: "404",
+        route: path,
+        method: "GET",
+        status_code: 404,
+        message: `404 Not Found: ${path}`,
+        details:
+          typeof document !== "undefined" && document.referrer
+            ? `Referrer: ${document.referrer}`
+            : "Direct navigation to missing route",
+      }),
+    })
+      .then((r) => r.json())
+      .then((d: { ok?: boolean; id?: string }) => {
+        if (d.ok && d.id) setLogRef(d.id);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <main className="flex min-h-screen items-center justify-center px-5 py-12">
       <motion.div
@@ -28,10 +58,16 @@ export default function NotFoundPage() {
           404 <span className="text-accent">Missing Shelf</span>
         </h1>
 
-        <p className="mx-auto mb-8 max-w-[400px] text-[0.88rem] leading-[1.7] text-tl/80">
+        <p className="mx-auto mb-6 max-w-[400px] text-[0.88rem] leading-[1.7] text-tl/80">
           The page or section you&apos;re looking for doesn&apos;t exist or may have been moved
           during our Next.js &amp; Supabase upgrade.
         </p>
+
+        {logRef && (
+          <div className="mb-6 font-mono text-[0.7rem] text-tl/60">
+            Logged Reference: <span className="text-accent">{logRef}</span>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center justify-center gap-2.5">
           <Button variant="accent" size="md" asChild>

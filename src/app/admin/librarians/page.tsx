@@ -9,10 +9,12 @@ export default function AdminLibrariansPage() {
       resource="librarians"
       columns={[
         { key: "id", label: "ID", mono: true },
-        { key: "username", label: "Account / Hash", mono: true },
-        { key: "status", label: "Status" },
+        { key: "fullname", label: "Full Name" },
+        { key: "email", label: "Email", mono: true },
+        { key: "status", label: "Session" },
         { key: "is_approved", label: "Approved" },
         { key: "is_active", label: "Active" },
+        { key: "is_locked", label: "Locked" },
         { key: "last_seen", label: "Last Seen", mono: true },
       ]}
     />

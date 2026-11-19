@@ -8,8 +8,9 @@ export default function AdminInventoryPage() {
       subtitle="Live physical stock counts, shelf locations, damaged and lost copies from Supabase."
       resource="inventory"
       columns={[
-        { key: "id", label: "ID", mono: true },
-        { key: "book_id", label: "Book ID", mono: true },
+        { key: "id", label: "Inv #", mono: true },
+        { key: "book_title", label: "Book Title" },
+        { key: "book_author", label: "Author" },
         { key: "volumes", label: "Volumes", mono: true },
         { key: "available_copies", label: "Available", mono: true },
         { key: "damaged_copies", label: "Damaged", mono: true },

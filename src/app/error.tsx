@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { AlertTriangle, Home, RotateCcw } from "lucide-react";
@@ -13,8 +13,35 @@ export default function GlobalErrorPage({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const [errorRef, setErrorRef] = useState<string | null>(null);
+
   useEffect(() => {
     console.error("Application error boundary caught:", error);
+
+    const route = typeof window !== "undefined" ? window.location.pathname : "/";
+    fetch("/api/error-logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        level: "error",
+        source: "Client",
+        route,
+        method: "RENDER",
+        status_code: 500,
+        message: error?.message || "Unhandled React Error Boundary crash",
+        details: [
+          error?.digest ? `Digest: ${error.digest}` : "",
+          error?.stack || "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      }),
+    })
+      .then((r) => r.json())
+      .then((d: { ok?: boolean; id?: string }) => {
+        if (d.ok && d.id) setErrorRef(d.id);
+      })
+      .catch(() => {});
   }, [error]);
 
   return (
@@ -40,13 +67,20 @@ export default function GlobalErrorPage({
         </h1>
 
         <p className="mx-auto mb-4 max-w-[420px] text-[0.86rem] leading-[1.7] text-tl/80">
-          An unexpected error occurred while loading this page. You can retry safely or return to
-          the homepage.
+          An unexpected error occurred while loading this page. This event has been recorded for
+          administrators.
         </p>
 
         {error?.message && (
-          <div className="mb-6 rounded-xl border border-white/8 bg-bg1/70 px-4 py-2.5 font-mono text-[0.74rem] text-danger/90 break-words">
+          <div className="mb-4 rounded-xl border border-white/8 bg-bg1/70 px-4 py-2.5 font-mono text-[0.74rem] text-danger/90 break-words">
             {error.message}
+          </div>
+        )}
+
+        {(errorRef || error?.digest) && (
+          <div className="mb-6 font-mono text-[0.7rem] text-tl/60">
+            Reference:{" "}
+            <span className="text-accent">{errorRef || error?.digest}</span>
           </div>
         )}
 

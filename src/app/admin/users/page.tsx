@@ -5,16 +5,18 @@ export default function AdminUsersPage() {
     <AdminResourceView
       title="User"
       accentWord="Management"
-      subtitle="Registered patron accounts, approval flags, and session status."
+      subtitle="Registered patron accounts, demographics, approval flags, and lock controls."
       resource="users"
       columns={[
         { key: "id", label: "ID", mono: true },
-        { key: "username", label: "Account / Hash", mono: true },
-        { key: "status", label: "Status" },
+        { key: "fullname", label: "Full Name" },
+        { key: "email", label: "Email", mono: true },
+        { key: "phone_number", label: "Phone", mono: true },
+        { key: "city", label: "City" },
+        { key: "status", label: "Session" },
         { key: "is_approved", label: "Approved" },
         { key: "is_active", label: "Active" },
         { key: "is_locked", label: "Locked" },
-        { key: "last_seen", label: "Last Seen", mono: true },
       ]}
     />
   );

@@ -4,6 +4,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { motion } from "framer-motion";
 import {
+  AlertTriangle,
   ArrowUpRight,
   BookOpen,
   CalendarDays,
@@ -30,6 +31,7 @@ const QUICK_MODULES = [
   { href: "/admin/account-requests", label: "Account Requests", desc: "Review pending registrations and card renewals", icon: UserCheck },
   { href: "/admin/calendar", label: "Calendar Events", desc: "Library programs, workshops, and community schedules", icon: CalendarDays },
   { href: "/admin/announcements", label: "Announcements", desc: "Publish notices and urgent maintenance bulletins", icon: Megaphone },
+  { href: "/admin/error-logs", label: "Error & Security Logs", desc: "Inspect API failures, 404 hits, locked accounts, and backup errors", icon: AlertTriangle },
   { href: "/system-settings", label: "System Settings", desc: "Lockdown mode, maintenance gate, and backup logs", icon: Sliders },
 ];
 
