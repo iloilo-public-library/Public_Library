@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+:root {
+  --accent: #9fc1e1;
+  --accent-rgb: 159, 193, 225;
+  --accent2: #48c78e;
+  --accent2-rgb: 72, 199, 142;
+  --bg1: #1e2d3d;
+  --bg2: #2f3f4d;
+  --bg3: #42586b;
+  --card: rgba(255, 255, 255, 0.06);
+  --card-b: rgba(255, 255, 255, 0.1);
+  --tl: #dae8f5;
+  --danger: #ff6363;
+  --danger-rgb: 255, 99, 99;
+  --warn: #ff9800;
+  --warn-rgb: 255, 152, 0;
+  --gold: #f5c842;
+  --fg: #ffffff;
+  --fg-rgb: 255, 255, 255;
+  --on-accent: #0d1a24;
+  --topbar-bg: #192736;
+  --topbar-bg-rgb: 25, 39, 54;
+  --sb-bg: #192736;
+  --sb-bg-deep: #0f1e2c;
+  --tip-bg: #0d1a24;
+  --modal-bg: #1b2a35;
+  --sb-w: 240px;
+  --sb-w-mini: 64px;
+  --c-blue: #5b9bd5;
+  --c-green: #3ecf8e;
+  --c-orange: #f5a623;
+  --c-red: #e05454;
+  --c-purple: #9b78e8;
+  --c-teal: #2dd4bf;
+  --c-gold: #f7c948;
+}
+
+@theme inline {
+  --color-accent: var(--accent);
+  --color-accent2: var(--accent2);
+  --color-bg1: var(--bg1);
+  --color-bg2: var(--bg2);
+  --color-bg3: var(--bg3);
+  --color-card-glass: var(--card);
+  --color-card-glass-hover: var(--card-b);
+  --color-tl: var(--tl);
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --color-gold: var(--gold);
+  --color-on-accent: var(--on-accent);
+  --color-topbar: var(--topbar-bg);
+  --color-sidebar: var(--sb-bg);
+  --color-sidebar-deep: var(--sb-bg-deep);
+  --color-tooltip-bg: var(--tip-bg);
+  --color-modal: var(--modal-bg);
+  --font-sans: var(--font-dm-sans), "DM Sans", sans-serif;
+  --font-mono: var(--font-dm-mono), "DM Mono", monospace;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-dm-sans), "DM Sans", sans-serif;
+    background: linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 55%, var(--bg3) 100%);
+    background-attachment: fixed;
+    color: var(--fg);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom subtle scrollbars matching existing design */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(159, 193, 225, 0.22);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(159, 193, 225, 0.4);
+}

@@ -1,8 +1,12 @@
 .env
+.env*.local
 __pycache__/
 *.pyc
 logs/
 cert.pem
-key.pemlogs/
-__pycache__/
-*.pyc
+key.pem
+.next/
+out/
+node_modules/
+next-env.d.ts
+.vercel/
