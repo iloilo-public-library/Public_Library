@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const FLASK_BACKEND = process.env.FLASK_BACKEND_URL || "http://127.0.0.1:5000";
+const FLASK_BACKEND = process.env.FLASK_BACKEND_URL;
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -14,24 +14,20 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-    // Using `fallback` ensures native Next.js + Supabase routes in src/app/api/*
-    // always take priority, while unmigrated legacy Flask endpoints still work locally.
+    // Only fall back to legacy Flask backend if FLASK_BACKEND_URL is explicitly configured.
+    // On Vercel, public/static/* and src/app/api/* (Supabase) are served natively.
+    if (!FLASK_BACKEND) {
+      return { beforeFiles: [], afterFiles: [], fallback: [] };
+    }
+
     return {
       beforeFiles: [],
       afterFiles: [],
       fallback: [
         { source: "/api/:path*", destination: `${FLASK_BACKEND}/api/:path*` },
-        { source: "/static/:path*", destination: `${FLASK_BACKEND}/static/:path*` },
         { source: "/cover/:path*", destination: `${FLASK_BACKEND}/cover/:path*` },
         { source: "/download/:path*", destination: `${FLASK_BACKEND}/download/:path*` },
         { source: "/qr/:path*", destination: `${FLASK_BACKEND}/qr/:path*` },
-        { source: "/verify_captcha", destination: `${FLASK_BACKEND}/verify_captcha` },
-        { source: "/verify_otp", destination: `${FLASK_BACKEND}/verify_otp` },
-        { source: "/verify_pin", destination: `${FLASK_BACKEND}/verify_pin` },
-        { source: "/resend_otp", destination: `${FLASK_BACKEND}/resend_otp` },
-        { source: "/signup", destination: `${FLASK_BACKEND}/signup` },
-        { source: "/forgot_password", destination: `${FLASK_BACKEND}/forgot_password` },
-        { source: "/forgot_pin/:path*", destination: `${FLASK_BACKEND}/forgot_pin/:path*` },
       ],
     };
   },
@@ -39,15 +35,6 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/static/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
-          },
-        ],
-      },
-      {
-        source: "/cover/:path*",
         headers: [
           {
             key: "Cache-Control",
