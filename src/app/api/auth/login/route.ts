@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 import {
   createSessionToken,
   emailBlindIndex,
@@ -33,13 +33,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const secretKey = process.env.SUPABASE_SECRET_KEY || "";
-    if (!secretKey || secretKey.startsWith("REPLACE_")) {
+    if (!getSupabaseSecretKey()) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            "SUPABASE_SECRET_KEY is not set in .env.local yet. Paste your full secret key from Supabase Dashboard → Project Settings → API Keys and restart the server.",
+            "SUPABASE_SECRET_KEY is missing in this runtime. Locally: stop (Ctrl+C) and restart `npm run dev` after saving .env.local. On Vercel: add SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY) in Project Settings → Environment Variables and Redeploy.",
         },
         { status: 503 }
       );
