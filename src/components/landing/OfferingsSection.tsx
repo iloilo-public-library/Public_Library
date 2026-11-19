@@ -75,14 +75,14 @@ const OFFERING_SLIDES: OfferingSlide[] = [
     image: "/static/images/library4.png",
   },
   {
-    id: "thesis",
+    id: "theses",
     code: "LIB-06",
     badge: "ACADEMIC RESEARCH",
     sectionTag: "06",
-    title: "THESIS & DISSERTATIONS",
+    title: "THESES & DISSERTATIONS",
     subtitle: "GRADUATE & UNDERGRADUATE RESEARCH REPOSITORY",
     description:
-      "Catering to students, educators, and researchers with a comprehensive catalog of local academic studies, capstone projects, thesis, and dissertations.",
+      "Catering to students, educators, and researchers with a comprehensive catalog of local academic studies, capstone projects, theses, and dissertations.",
     image: "/static/images/library3.png",
   },
   {
