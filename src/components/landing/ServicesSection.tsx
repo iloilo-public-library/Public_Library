@@ -14,20 +14,20 @@ const READERS_SERVICES = [
   {
     num: "01",
     icon: Wifi,
-    title: "Study & Coworking Space",
-    desc: "Free, quiet reading and working areas equipped with high-speed WiFi for students and professionals.",
+    title: "Free study and work space with WiFi",
+    desc: "Free study and work space with WiFi",
   },
   {
     num: "02",
     icon: BookMarked,
-    title: "Curated Book Collections",
-    desc: "Reference, Filipiniana, General Collection, Rare Books, Children's Corner, Fiction, and Periodicals.",
+    title: "Book Collections",
+    desc: "Book Collections: Reference, Filipiniana, General Collection, Rare Books, Children's Corner, Fiction, and Periodicals",
   },
   {
     num: "03",
     icon: HeartHandshake,
-    title: "Community Literacy Outreach",
-    desc: "Regular outreach programs to local schools and barangay libraries through literacy drives and book donations.",
+    title: "Literacy Outreach",
+    desc: "Regular outreach to schools and libraries through literacy programs and book donations",
   },
 ];
 
@@ -35,20 +35,20 @@ const ARCHIVE_SERVICES = [
   {
     num: "01",
     icon: FolderKanban,
-    title: "Provincial Records Management",
-    desc: "Systematic inventory and disposal of records for Iloilo Provincial Government Offices and district hospitals.",
+    title: "Records Inventory & Disposal",
+    desc: "Inventory and disposal of records for Iloilo Provincial Government Offices and district hospitals",
   },
   {
     num: "02",
     icon: ScanLine,
-    title: "Digitization & Preservation",
-    desc: "Modern digital archiving workflows protecting fragile manuscripts and historical volumes from deterioration.",
+    title: "Digitization and preservation",
+    desc: "Digitization and preservation",
   },
   {
     num: "03",
     icon: Landmark,
-    title: "Cultural Heritage Safekeeping",
-    desc: "Dedicated stewardship of historical, documentary, and cultural resources representing Iloilo Province.",
+    title: "Historical & Cultural Safekeeping",
+    desc: "Safekeeping of historical and cultural resources of Iloilo Province",
   },
 ];
 
@@ -70,7 +70,7 @@ export function ServicesSection() {
             </h2>
           </div>
           <p className="max-w-[360px] text-[0.86rem] leading-relaxed text-tl/80">
-            Dedicated public facilities and archival programs serving Iloilo City and Province.
+            What we provide for our community.
           </p>
         </Reveal>
 
@@ -145,7 +145,7 @@ export function ServicesSection() {
                 DIVISION // 02
               </span>
               <h3 className="mt-3 text-[1.65rem] font-bold tracking-[-0.02em] text-white">
-                Provincial <span className="text-accent">Archives</span>
+                <span className="text-accent">Archives</span>
               </h3>
             </Reveal>
 

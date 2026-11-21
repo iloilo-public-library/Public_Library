@@ -147,7 +147,7 @@ Tracking migration of the Iloilo Public Library system from **Flask + Jinja** (`
 | `routes/user_routes.py` — `/user/borrowed` (`templates/users/borrowed_books.html`) | page | `src/app/user/borrowed/page.tsx` | Done in Next.js |
 | `routes/user_routes.py` — `/user/borrow-history` (`templates/users/borrow_history.html`) | page | `src/app/user/borrow-history/page.tsx` | Done in Next.js |
 | `routes/user_routes.py` — `/user/edit_profile` (`templates/users/edit_profile.html`) | page | `src/app/user/edit_profile/page.tsx` | Done in Next.js |
-| `routes/user_routes.py` — `/about` (`templates/users/aboutus.html`) | page | `src/app/(public)/no_user_about/page.tsx` | Done in Next.js |
+| `routes/user_routes.py` — `/about` (`templates/users/aboutus.html`) | page | `src/app/user/about/page.tsx` | Done in Next.js |
 | `routes/user_routes.py` — `/user/settings` (`templates/users/settings.html`) | page | `src/app/user/settings/page.tsx` | Done in Next.js |
 | `templates/user_template/{topbar,footer,profile_sidebar}_template.html` | page | `src/components/layout/MemberShell.tsx` | Done in Next.js |
 | `routes/user_routes.py` — member APIs (`/api/user/daily-active-count`, `/user/upload_valid_id`, `/user/valid-id/view`, `/api/user/notifications*`, `/api/books`, `/api/user/favorites*`, `/user/update_profile`, `/user/change_password`, `/user/scan_valid_id`, `/api/user/search-history`, `/user/clear_search_history`, `/user/clear_favorites`, `/api/user/appearance`, `/api/user/storage*`, `/user/submit-account-request`, `/api/user/account-request/status`, `/api/user/borrowed-books`, `/api/user/return-history`, `/api/user/renew/<id>`, `/api/user/card/<id>/download-pdf`, `/api/user/recent-activity`, `/api/user/mfa/*`) | api | `src/app/api/user/**/route.ts` | Not started |

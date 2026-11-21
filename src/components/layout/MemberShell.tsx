@@ -14,6 +14,7 @@ const MEMBER_NAV = [
   { href: "/user/borrowed", label: "Borrowed" },
   { href: "/user/borrow-history", label: "History" },
   { href: "/user/event", label: "Events" },
+  { href: "/user/about", label: "About Us" },
 ];
 
 export function MemberShell({ children }: { children: ReactNode }) {

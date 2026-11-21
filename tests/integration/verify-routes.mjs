@@ -83,6 +83,7 @@ const PROTECTED_PAGES = [
   "/user/notifications",
   "/user/edit_profile",
   "/user/settings",
+  "/user/about",
 ];
 
 const API_CHECKS = [
