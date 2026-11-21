@@ -239,7 +239,11 @@ export async function POST(request: Request) {
     ]);
 
     const redirectTo =
-      user.role === "admin" || user.role === "librarian" ? "/dashboard" : "/user/home";
+      user.role === "admin"
+        ? "/dashboard"
+        : user.role === "librarian"
+          ? "/librarian/dashboard"
+          : "/user/home";
 
     const signedCookie = signSession({
       userId: user.id,

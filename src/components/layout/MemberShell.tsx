@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, CalendarDays, LogOut, User } from "lucide-react";
+import { Bell, CalendarDays, LogOut, Settings, User } from "lucide-react";
 import { LibraryTooltip } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,7 @@ const MEMBER_NAV = [
   { href: "/user/borrowed", label: "Borrowed" },
   { href: "/user/borrow-history", label: "History" },
   { href: "/user/event", label: "Events" },
+  { href: "/user/about", label: "About Us" },
 ];
 
 export function MemberShell({ children }: { children: ReactNode }) {
@@ -68,7 +69,15 @@ export function MemberShell({ children }: { children: ReactNode }) {
               <Bell className="h-[18px] w-[18px]" />
             </Link>
           </LibraryTooltip>
-          <LibraryTooltip label="Profile & Settings">
+          <LibraryTooltip label="Settings">
+            <Link
+              href="/user/settings"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-white/70 transition hover:bg-white/8 hover:text-accent"
+            >
+              <Settings className="h-[18px] w-[18px]" />
+            </Link>
+          </LibraryTooltip>
+          <LibraryTooltip label="Profile">
             <Link
               href="/user/edit_profile"
               className="flex h-[34px] w-[34px] items-center justify-center rounded-full border-2 border-accent/35 bg-accent/15 text-accent transition hover:border-accent"

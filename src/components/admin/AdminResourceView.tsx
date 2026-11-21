@@ -43,6 +43,7 @@ interface AdminResourceViewProps {
   subtitle: string;
   resource: string;
   columns: ColumnDef[];
+  role?: "admin" | "librarian";
 }
 
 const CREATE_BUTTON_LABELS: Record<string, string> = {
@@ -62,7 +63,9 @@ export function AdminResourceView({
   subtitle,
   resource,
   columns,
+  role = "admin",
 }: AdminResourceViewProps) {
+  const isLibrarian = role === "librarian";
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortCol, setSortCol] = useState<string | null>(null);
@@ -91,7 +94,13 @@ export function AdminResourceView({
     swrPrivateConfig
   );
 
-  const rows = data?.rows ?? [];
+  const rows = useMemo(() => {
+    const raw = data?.rows ?? [];
+    if (isLibrarian && resource === "account_requests") {
+      return raw.filter((row) => String(row.request_type) === "renew");
+    }
+    return raw;
+  }, [data?.rows, isLibrarian, resource]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -254,10 +263,13 @@ export function AdminResourceView({
     return str.length > 52 ? `${str.slice(0, 52)}…` : str;
   };
 
-  const createLabel = CREATE_BUTTON_LABELS[resource];
+  const createLabel =
+    isLibrarian && (resource === "users" || resource === "librarians" || resource === "admins")
+      ? undefined
+      : CREATE_BUTTON_LABELS[resource];
 
   return (
-    <StaffShell title={`${title} ${accentWord}`.trim()}>
+    <StaffShell title={`${title} ${accentWord}`.trim()} role={role}>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-[1.65rem] font-bold tracking-[-0.03em] text-white">
@@ -538,10 +550,11 @@ export function AdminResourceView({
                             </LibraryTooltip>
                           )}
 
-                          {/* Users / Librarians / Admins Actions */}
-                          {(resource === "users" ||
-                            resource === "librarians" ||
-                            resource === "admins") && (
+                          {/* Users / Librarians / Admins Actions (admin only) */}
+                          {!isLibrarian &&
+                            (resource === "users" ||
+                              resource === "librarians" ||
+                              resource === "admins") && (
                             <>
                               {!row.is_approved && (
                                 <LibraryTooltip label="Approve Account">

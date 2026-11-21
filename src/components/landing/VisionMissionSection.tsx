@@ -24,8 +24,7 @@ export function VisionMissionSection() {
             </h2>
           </div>
           <p className="max-w-[360px] text-[0.86rem] leading-relaxed text-tl/80">
-            Guided by national legislation and a shared commitment to lifelong learning in Iloilo
-            City.
+            The values that guide everything we do.
           </p>
         </Reveal>
 

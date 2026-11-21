@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { StaffSidebar } from "@/components/layout/StaffSidebar";
 import { StaffTopbar } from "@/components/layout/StaffTopbar";
+import { AdminFooter } from "@/components/layout/AdminFooter";
 import { Button } from "@/components/ui/button";
 import { LibraryTooltip } from "@/components/ui/tooltip";
 import { swrPrivateConfig } from "@/lib/api";
@@ -372,6 +373,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </main>
+      <AdminFooter collapsed={collapsed} />
     </div>
   );
 }

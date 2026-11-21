@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { listErrorLogs } from "@/lib/audit/error-logger";
+import { runSupabaseBackup } from "@/lib/jobs/backup";
 import { AdminMutationError } from "@/repositories/shared";
 
 export async function querySystemSettings(supabase: SupabaseClient) {
@@ -41,24 +42,17 @@ export async function mutateSystemSettings(
   payload: Record<string, unknown>
 ) {
   if (action === "run_backup") {
-    const stamp = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
-    const fileName = `supabase_snapshot_${stamp}.json`;
-    const scope = String(payload.scope ?? "Database Snapshot").trim() || "Database Snapshot";
-    const { data, error } = await supabase
-      .from("backup_logs")
-      .insert({
-        backup_type: "manual",
-        scope,
-        file_name: fileName,
-        file_size_bytes: 0,
-        dropbox_path: `/Supabase_Exports/${fileName}`,
-        status: "success",
-        error_message: "",
-      })
-      .select("*")
-      .single();
-    if (error) throw new AdminMutationError(error.message, 500);
-    return { ok: true, log: data };
+    const scope =
+      String(payload.scope ?? "Supabase Full Database Snapshot").trim() ||
+      "Supabase Full Database Snapshot";
+    const result = await runSupabaseBackup(supabase, {
+      backupType: "manual",
+      scope,
+    });
+    if (!result.ok) {
+      throw new AdminMutationError(result.error || "Backup failed.", 500);
+    }
+    return { ok: true, log: result.log, tableCounts: result.tableCounts };
   }
 
   const validFreqs = new Set(["hourly", "daily", "weekly", "monthly", "off"]);

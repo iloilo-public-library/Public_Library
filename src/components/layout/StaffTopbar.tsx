@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, LogOut, Menu, Settings } from "lucide-react";
+import { Bell, CalendarDays, LogOut, Menu, Settings } from "lucide-react";
 import { LibraryTooltip } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -10,9 +10,23 @@ interface StaffTopbarProps {
   title: string;
   collapsed: boolean;
   onOpenMobile: () => void;
+  role?: "admin" | "librarian";
 }
 
-export function StaffTopbar({ title, collapsed, onOpenMobile }: StaffTopbarProps) {
+export function StaffTopbar({
+  title,
+  collapsed,
+  onOpenMobile,
+  role = "admin",
+}: StaffTopbarProps) {
+  const isLibrarian = role === "librarian";
+  const brandHref = isLibrarian ? "/librarian/dashboard" : "/admin/home";
+  const brandLabel = isLibrarian ? "Iloilo Library" : "Iloilo City Library";
+  const bellHref = isLibrarian ? "/librarian/announcements" : "/admin/account-requests";
+  const bellLabel = isLibrarian ? "Notifications" : "Account Requests";
+  const settingsHref = isLibrarian ? "/librarian/settings" : "/system-settings";
+  const settingsLabel = isLibrarian ? "Librarian Settings" : "System Settings";
+
   return (
     <header
       className={cn(
@@ -25,19 +39,19 @@ export function StaffTopbar({ title, collapsed, onOpenMobile }: StaffTopbarProps
         <button
           type="button"
           onClick={onOpenMobile}
-          aria-label="Open navigation"
+          aria-label="Open menu"
           className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-white/9 bg-white/6 text-white/80 transition hover:bg-white/12 hover:text-white lg:hidden cursor-pointer"
         >
           <Menu className="h-5 w-5" />
         </button>
 
-        <Link href="/dashboard" className="flex items-center gap-2 lg:hidden">
+        <Link href={brandHref} className="flex items-center gap-2 lg:hidden">
           <img
             src="/images/logo.png"
             alt="Logo"
             className="h-7 w-7 rounded-[7px] object-cover"
           />
-          <span className="text-[0.88rem] font-bold text-white">Iloilo Library</span>
+          <span className="text-[0.88rem] font-bold text-white">{brandLabel}</span>
         </Link>
 
         <span className="hidden text-[0.88rem] font-semibold tracking-[-0.01em] text-white/60 lg:inline">
@@ -47,30 +61,43 @@ export function StaffTopbar({ title, collapsed, onOpenMobile }: StaffTopbarProps
 
       <div className="flex items-center gap-2">
         <ThemeToggle />
-        <LibraryTooltip label="Notifications">
+
+        <LibraryTooltip label={bellLabel}>
           <Link
-            href="/admin/announcements"
-            aria-label="Notifications"
+            href={bellHref}
+            aria-label={bellLabel}
             className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-white/8 bg-white/5 text-white/60 transition hover:bg-white/10 hover:text-white"
           >
             <Bell className="h-4 w-4" />
           </Link>
         </LibraryTooltip>
 
-        <LibraryTooltip label="System Settings">
+        {!isLibrarian && (
+          <LibraryTooltip label="Event Calendar">
+            <Link
+              href="/admin/calendar"
+              aria-label="Event Calendar"
+              className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-white/8 bg-white/5 text-white/60 transition hover:bg-white/10 hover:text-white"
+            >
+              <CalendarDays className="h-4 w-4" />
+            </Link>
+          </LibraryTooltip>
+        )}
+
+        <LibraryTooltip label={settingsLabel}>
           <Link
-            href="/system-settings"
-            aria-label="System Settings"
+            href={settingsHref}
+            aria-label={settingsLabel}
             className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-white/8 bg-white/5 text-white/60 transition hover:bg-white/10 hover:text-white"
           >
             <Settings className="h-4 w-4" />
           </Link>
         </LibraryTooltip>
 
-        <LibraryTooltip label="Log Out">
+        <LibraryTooltip label={isLibrarian ? "Log Out" : "Logout"}>
           <a
             href="/logout"
-            aria-label="Log Out"
+            aria-label={isLibrarian ? "Log Out" : "Logout"}
             className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-danger/20 bg-danger/10 text-danger/80 transition hover:bg-danger/20 hover:text-danger"
           >
             <LogOut className="h-4 w-4" />
