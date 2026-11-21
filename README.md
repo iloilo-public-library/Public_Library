@@ -38,49 +38,34 @@ We structured the application around the CIA Triad to balance smooth library ope
 
 *Tool Use: Visual Studio Code
 
-*Backend Logic: Python 3.x using the Flask web framework (chosen for its lightweight routing and quick database integration).
+*Application Framework: Next.js (App Router, TypeScript) with React & Tailwind CSS (migrated from legacy Flask in `legacy-flask/`).
 
-*Frontend Interface: HTML5, CSS3, and JavaScript, styled with the Bootstrap framework for a clean, responsive UI.
+*Database & Storage: Supabase (PostgreSQL + Supabase Storage).
 
-*Libraries used: Packages for password cryptography (hashing handles), secure session creation, and handling mail functions for OTP delivery.
+*Libraries used: Zod validation, `bcryptjs` password hashing, Fernet PII encryption, HMAC-signed HTTP-only sessions, and Supabase SDK.
 
 
 ## How to Set Up and Run the Application:
 
 ### Prerequisites:
-*Make sure you have Python (version 3.8 or higher) installed
-
-*You need XAMPP to run the host of the local base server (SQL database configuration file is handled in our separate database repository)
+* Node.js (v20 or higher) and `npm`
+* A configured Supabase project (run SQL migrations in `supabase/migrations/` in the Supabase SQL Editor)
 
 ### Installation Steps:
 
-##Clone the application repository:##
-   
-   git clone [https://github.com/S-premium/Public_Library_System.git](https://github.com/S-premium/Public_Library_System.git)
-   
-   cd Public_Library_System
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-##Set up a Python virtual environment (recommended):
-# Windows
-python -m venv venv
-venv\Scripts\activate
+2. **Configure environment variables:**
+   Copy `.env.example` to `.env.local` (or `.env`) and set your Supabase credentials (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and `SECRET_KEY`).
 
-# macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
+3. **Run the Next.js development server:**
+   ```bash
+   npm run dev
+   ```
 
-##Install the application dependencies:
-pip install -r requirements.txt
-
-##Connect the Environment Settings:
-*Look for the system configuration file (like config.py or a .env template).
-
-*Ensure the database URI points correctly to your local XAMPP MySQL setup (typically localhost with your custom DB name).
-
-##Run the Flask Server:
-flask run
-
-##Interact with the System:
-*Open your web browser and go to: http://127.0.0.1:5000/
-*You can now test the interface using the default login credentials provided in our testing documentation (or create a new student/borrower account directly from the signup page).
+4. **Interact with the System:**
+   Open `http://localhost:3000` in your browser.
 

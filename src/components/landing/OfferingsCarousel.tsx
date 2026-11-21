@@ -13,22 +13,22 @@ export interface CarouselSlide {
 }
 
 export const LIBRARY_OFFERING_SLIDES: CarouselSlide[] = [
-  { src: "/static/images/library1.png", alt: "Library collection", caption: "Library Collection" },
-  { src: "/static/images/library2.png", alt: "Book shelves", caption: "Book Shelves" },
-  { src: "/static/images/library3.png", alt: "Reading area", caption: "Reading Area" },
-  { src: "/static/images/library4.png", alt: "Children's corner", caption: "Children's Corner" },
-  { src: "/static/images/library5.png", alt: "Archive materials", caption: "Archive Materials" },
-  { src: "/static/images/library6.png", alt: "Study space", caption: "Study Space" },
-  { src: "/static/images/library7.png", alt: "Periodicals", caption: "Magazines & Periodicals" },
+  { src: "/images/library1.png", alt: "Library collection", caption: "Library Collection" },
+  { src: "/images/library2.png", alt: "Book shelves", caption: "Book Shelves" },
+  { src: "/images/library3.png", alt: "Reading area", caption: "Reading Area" },
+  { src: "/images/library4.png", alt: "Children's corner", caption: "Children's Corner" },
+  { src: "/images/library5.png", alt: "Archive materials", caption: "Archive Materials" },
+  { src: "/images/library6.png", alt: "Study space", caption: "Study Space" },
+  { src: "/images/library7.png", alt: "Periodicals", caption: "Magazines & Periodicals" },
   {
-    src: "/static/images/library8.png",
+    src: "/images/library8.png",
     alt: "Philippine history books",
     caption: "Filipiniana & History",
   },
-  { src: "/static/images/library9.png", alt: "General collection", caption: "General Collection" },
-  { src: "/static/images/library10.png", alt: "Library interior", caption: "Library Interior" },
-  { src: "/static/images/library11.jpg", alt: "Historical archives", caption: "Historical Archives" },
-  { src: "/static/images/library12.jpg", alt: "Special collections", caption: "Special Collections" },
+  { src: "/images/library9.png", alt: "General collection", caption: "General Collection" },
+  { src: "/images/library10.png", alt: "Library interior", caption: "Library Interior" },
+  { src: "/images/library11.jpg", alt: "Historical archives", caption: "Historical Archives" },
+  { src: "/images/library12.jpg", alt: "Special collections", caption: "Special Collections" },
 ];
 
 const AUTO_INTERVAL_MS = 4000;

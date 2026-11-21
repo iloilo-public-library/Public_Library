@@ -69,7 +69,7 @@ export function PublicFooter({
           <StaggerItem>
             <div className="mb-4 flex items-center gap-3">
               <img
-                src="/static/images/logo.png"
+                src="/images/logo.png"
                 alt="Logo"
                 className="h-10 w-10 rounded-lg object-cover"
               />

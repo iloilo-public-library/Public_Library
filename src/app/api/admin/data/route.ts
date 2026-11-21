@@ -1,36 +1,23 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 import { getServerSession } from "@/lib/auth/session";
-import { queryAdminResource } from "@/lib/admin/queries";
-import { AdminMutationError, handleAdminMutation } from "@/lib/admin/mutations";
+import { isAdminRole, isStaffRole } from "@/lib/auth/rbac";
+import {
+  AdminMutationError,
+  executeAdminMutation,
+  getAdminResourceData,
+} from "@/services/admin.service";
+import { adminMutationSchema, adminQuerySchema } from "@/validators/admin";
 import {
   clearAllErrorLogs,
   deleteErrorLog,
   recordErrorLog,
   toggleResolveErrorLog,
-} from "@/lib/admin/error-logger";
-
-const ALLOWED_RESOURCES = new Set([
-  "inventory",
-  "books",
-  "library_cards",
-  "returns",
-  "users",
-  "librarians",
-  "admins",
-  "account_requests",
-  "events",
-  "announcements",
-  "system_settings",
-  "backup_logs",
-  "admin_profile",
-  "isbn_lookup",
-  "error_logs",
-]);
+} from "@/lib/audit/error-logger";
 
 async function requireStaffSession() {
   const session = await getServerSession();
-  if (!session || (session.role !== "admin" && session.role !== "librarian")) {
+  if (!session || !isStaffRole(session.role)) {
     return null;
   }
   return session;
@@ -134,17 +121,19 @@ async function lookupByIsbn(rawIsbn: string) {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const resource = searchParams.get("resource") || "";
+  const parsedQuery = adminQuerySchema.safeParse({
+    resource: searchParams.get("resource") || "",
+    isbn: searchParams.get("isbn") || undefined,
+  });
 
-  if (!ALLOWED_RESOURCES.has(resource)) {
+  if (!parsedQuery.success) {
     return NextResponse.json({ error: "Invalid resource parameter" }, { status: 400 });
   }
 
+  const { resource, isbn } = parsedQuery.data;
   const publicResources = new Set(["events", "announcements"]);
   const session = await getServerSession();
-  const isStaff = Boolean(
-    session && (session.role === "admin" || session.role === "librarian")
-  );
+  const isStaff = Boolean(session && isStaffRole(session.role));
 
   if (!publicResources.has(resource) && !isStaff) {
     return NextResponse.json(
@@ -154,8 +143,7 @@ export async function GET(request: Request) {
   }
 
   if (resource === "isbn_lookup") {
-    const isbn = searchParams.get("isbn") || "";
-    const result = await lookupByIsbn(isbn);
+    const result = await lookupByIsbn(isbn || "");
     return NextResponse.json(result);
   }
 
@@ -168,7 +156,7 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createSupabaseServerClient(true);
-    const payload = await queryAdminResource(
+    const payload = await getAdminResourceData(
       supabase,
       resource,
       isStaff && session ? session.userId : null
@@ -213,24 +201,19 @@ async function processMutationRequest(
   let action = defaultAction;
 
   try {
-    const body = (await request.json()) as {
-      resource?: string;
-      action?: string;
-      id?: string | number | null;
-      payload?: Record<string, unknown>;
-    };
-
-    resource = (body.resource ?? "").trim();
-    if (!ALLOWED_RESOURCES.has(resource)) {
+    const rawBody = await request.json();
+    const parsedBody = adminMutationSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
       return NextResponse.json({ error: "Invalid resource parameter" }, { status: 400 });
     }
 
-    action = (body.action ?? defaultAction).trim();
-    const payload = body.payload ?? {};
+    const { resource: validatedResource, id: rawId, payload } = parsedBody.data;
+    resource = validatedResource;
+    action = (parsedBody.data.action ?? defaultAction).trim();
     const supabase = createSupabaseServerClient(true);
 
     if (resource === "error_logs") {
-      if (session.role !== "admin") {
+      if (!isAdminRole(session.role)) {
         return NextResponse.json(
           { error: "Only Administrators can manage error logs." },
           { status: 403 }
@@ -253,10 +236,10 @@ async function processMutationRequest(
         return NextResponse.json({ ok: true, entry });
       }
       if (action === "resolve") {
-        if (!body.id) {
+        if (!rawId) {
           return NextResponse.json({ error: "Log ID is required." }, { status: 400 });
         }
-        await toggleResolveErrorLog(supabase, String(body.id), Boolean(payload.resolved));
+        await toggleResolveErrorLog(supabase, String(rawId), Boolean(payload.resolved));
         return NextResponse.json({ ok: true });
       }
       if (action === "clear") {
@@ -264,23 +247,22 @@ async function processMutationRequest(
         return NextResponse.json({ ok: true });
       }
       if (action === "delete") {
-        if (!body.id) {
+        if (!rawId) {
           return NextResponse.json({ error: "Log ID is required." }, { status: 400 });
         }
-        await deleteErrorLog(supabase, String(body.id));
+        await deleteErrorLog(supabase, String(rawId));
         return NextResponse.json({ ok: true });
       }
     }
 
-    const id = body.id !== undefined && body.id !== null ? Number(body.id) : null;
-    const result = await handleAdminMutation(
-      supabase,
-      session,
-      resource,
+    const id = rawId !== null ? Number(rawId) : null;
+    const result = await executeAdminMutation(supabase, session, {
+      resource: validatedResource,
       action,
       id,
-      payload
-    );
+      payload,
+      method: request.method,
+    });
     return NextResponse.json(result);
   } catch (err) {
     if (err instanceof AdminMutationError) {

@@ -1,12 +1,27 @@
-.env
-.env*.local
+# Environment & secrets
+.env*
+!.env.example
+cert.pem
+key.pem
+
+# Sensitive data, vaults, backups & releases
+valid_id_vault/
+backups/
+restore/
+restore.zip
+*.zip.enc
+*.apk
+
+# Flask / Python
 __pycache__/
 *.pyc
 logs/
-cert.pem
-key.pem
+legacy-flask/static/uploads/
+
+# Next.js / Node
+node_modules/
 .next/
 out/
-node_modules/
 next-env.d.ts
 .vercel/
+*.tsbuildinfo

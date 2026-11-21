@@ -28,7 +28,7 @@ const OFFERING_SLIDES: OfferingSlide[] = [
     subtitle: "MAIN READING HALL · CONDUCIVE LEARNING ENVIRONMENT",
     description:
       "The library provides a quiet, comfortable space for studying, research, and remote work — complete with free high-speed WiFi connectivity for every visitor.",
-    image: "/static/images/library6.png",
+    image: "/images/library6.png",
   },
   {
     id: "iloilo-archives",
@@ -39,7 +39,7 @@ const OFFERING_SLIDES: OfferingSlide[] = [
     subtitle: "HISTORICAL RECORDS & CULTURAL PRESERVATION",
     description:
       "Delve into the past with our extensive collection of historical documents, photographs, and rare manuscripts preserving the rich heritage of Iloilo Province.",
-    image: "/static/images/library5.png",
+    image: "/images/library5.png",
   },
   {
     id: "filipiniana",
@@ -50,7 +50,7 @@ const OFFERING_SLIDES: OfferingSlide[] = [
     subtitle: "PHILIPPINE CULTURE, HISTORY & LITERATURE",
     description:
       "Explore a curated collection of books and reference works about the Philippines, encompassing the nation's history, arts, society, and classic literature.",
-    image: "/static/images/library8.png",
+    image: "/images/library8.png",
   },
   {
     id: "rizaliana",
@@ -61,7 +61,7 @@ const OFFERING_SLIDES: OfferingSlide[] = [
     subtitle: "WORKS & LEGACY OF DR. JOSE RIZAL",
     description:
       "Immerse yourself in dedicated literary works, biographies, and scholarly studies honoring the life, writings, and enduring legacy of our national hero.",
-    image: "/static/images/library1.png",
+    image: "/images/library1.png",
   },
   {
     id: "childrens-corner",
@@ -72,7 +72,7 @@ const OFFERING_SLIDES: OfferingSlide[] = [
     subtitle: "EARLY LITERACY & STORYTELLING SPACE",
     description:
       "Nurturing the love for reading from a young age with illustrated storybooks, educational activities, and a welcoming reading corner built for young learners.",
-    image: "/static/images/library4.png",
+    image: "/images/library4.png",
   },
   {
     id: "thesis",
@@ -83,7 +83,7 @@ const OFFERING_SLIDES: OfferingSlide[] = [
     subtitle: "GRADUATE & UNDERGRADUATE RESEARCH REPOSITORY",
     description:
       "Catering to students, educators, and researchers with a comprehensive catalog of local academic studies, capstone projects, thesis, and dissertations.",
-    image: "/static/images/library3.png",
+    image: "/images/library3.png",
   },
   {
     id: "general-collection",
@@ -94,7 +94,7 @@ const OFFERING_SLIDES: OfferingSlide[] = [
     subtitle: "FICTION, NON-FICTION & REFERENCE VOLUMES",
     description:
       "Dive into thousands of books spanning science, literature, arts, technology, and contemporary fiction — ensuring there is something for every curious mind.",
-    image: "/static/images/library2.png",
+    image: "/images/library2.png",
   },
   {
     id: "periodicals",
@@ -105,7 +105,7 @@ const OFFERING_SLIDES: OfferingSlide[] = [
     subtitle: "DAILY PRESS, JOURNALS & PERIODICALS",
     description:
       "Stay informed with current local and national newspapers, educational journals, and curated magazines updated regularly in our periodicals lounge.",
-    image: "/static/images/library7.png",
+    image: "/images/library7.png",
   },
 ];
 
