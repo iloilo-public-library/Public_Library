@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description:
     "Dr. Graciano Lopez Jaena Learning Resource Center and Museum — Cybersecurity-Enhanced Public Library Management System.",
   icons: {
-    icon: "/static/images/logo.png",
+    icon: "/images/logo.png",
   },
 };
 

@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const FLASK_BACKEND = process.env.FLASK_BACKEND_URL;
+const FLASK_BACKEND = (process.env.FLASK_BACKEND_URL || "http://localhost:5000").replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -14,15 +14,17 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-    // Only fall back to legacy Flask backend if FLASK_BACKEND_URL is explicitly configured.
-    // On Vercel, public/static/* and src/app/api/* (Supabase) are served natively.
-    if (!FLASK_BACKEND) {
-      return { beforeFiles: [], afterFiles: [], fallback: [] };
+    const flaskBridge = [
+      { source: "/flask/:path*", destination: `${FLASK_BACKEND}/api/:path*` },
+    ];
+
+    if (!process.env.FLASK_BACKEND_URL) {
+      return { beforeFiles: [], afterFiles: flaskBridge, fallback: [] };
     }
 
     return {
       beforeFiles: [],
-      afterFiles: [],
+      afterFiles: flaskBridge,
       fallback: [
         { source: "/api/:path*", destination: `${FLASK_BACKEND}/api/:path*` },
         { source: "/cover/:path*", destination: `${FLASK_BACKEND}/cover/:path*` },

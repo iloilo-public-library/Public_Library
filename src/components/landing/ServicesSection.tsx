@@ -109,7 +109,7 @@ export function ServicesSection() {
           <Reveal direction="right">
             <div className="relative aspect-[4/3] overflow-hidden rounded-[22px] border border-white/12 bg-bg1 shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
               <img
-                src="/static/images/readers1.jpg"
+                src="/images/readers1.jpg"
                 alt="Readers' Services"
                 loading="lazy"
                 className="h-full w-full object-cover"
@@ -127,7 +127,7 @@ export function ServicesSection() {
           <Reveal direction="left" className="order-2 lg:order-1">
             <div className="relative aspect-[4/3] overflow-hidden rounded-[22px] border border-white/12 bg-bg1 shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
               <img
-                src="/static/images/readers2.jpg"
+                src="/images/readers2.jpg"
                 alt="Provincial Archives"
                 loading="lazy"
                 className="h-full w-full object-cover"

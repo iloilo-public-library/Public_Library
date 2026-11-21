@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth/session";
-import { recordErrorLog, type ErrorLogLevel } from "@/lib/admin/error-logger";
+import { recordErrorLog, type ErrorLogLevel } from "@/lib/audit/error-logger";
 
 export async function POST(request: Request) {
   try {

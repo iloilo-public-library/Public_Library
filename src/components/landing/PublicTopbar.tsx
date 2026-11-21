@@ -79,7 +79,7 @@ export function PublicTopbar({ onOpenMemberModal, activePath = "/" }: PublicTopb
       <header className="fixed inset-x-0 top-0 z-[1100] flex h-[60px] items-center justify-between border-b border-accent/12 bg-bg1/95 px-4 backdrop-blur-md lg:px-10">
         <Link href="/" className="flex shrink-0 items-center gap-2.5 text-white no-underline">
           <img
-            src="/static/images/logo.png"
+            src="/images/logo.png"
             alt="Iloilo City Public Library Logo"
             className="h-[34px] w-[34px] shrink-0 rounded-lg object-cover"
           />

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
-import { recordErrorLog } from "@/lib/admin/error-logger";
+import { recordErrorLog } from "@/lib/audit/error-logger";
 import {
   createSessionToken,
   emailBlindIndex,

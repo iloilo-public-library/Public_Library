@@ -33,7 +33,7 @@ export function StaffTopbar({ title, collapsed, onOpenMobile }: StaffTopbarProps
 
         <Link href="/dashboard" className="flex items-center gap-2 lg:hidden">
           <img
-            src="/static/images/logo.png"
+            src="/images/logo.png"
             alt="Logo"
             className="h-7 w-7 rounded-[7px] object-cover"
           />

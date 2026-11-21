@@ -109,7 +109,7 @@ export function StaffSidebar({
           >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-accent to-accent2">
               <img
-                src="/static/images/logo.png"
+                src="/images/logo.png"
                 alt="Logo"
                 className="h-full w-full rounded-lg object-cover"
               />

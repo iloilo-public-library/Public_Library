@@ -100,3 +100,40 @@ export const swrPrivateConfig: SWRConfiguration = {
   dedupingInterval: 10_000,
   shouldRetryOnError: false,
 };
+
+/**
+ * Bridge helper for calling legacy-flask JSON endpoints through the Next.js
+ * `/flask/:path*` -> `http://localhost:5000/api/:path*` rewrite (temporary during migration).
+ */
+export async function flaskFetch<T = unknown>(
+  path: string,
+  init: RequestInit = {}
+): Promise<T> {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  const url = normalized.startsWith("/flask/") ? normalized : `/flask${normalized}`;
+  const res = await fetch(url, {
+    credentials: "include",
+    ...init,
+    headers: {
+      Accept: "application/json",
+      ...(init.headers ?? {}),
+    },
+  });
+
+  let data: unknown = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+
+  if (!res.ok) {
+    throw new ApiError(
+      extractErrorMessage(data, `Flask bridge request failed (${res.status})`),
+      res.status,
+      data
+    );
+  }
+
+  return data as T;
+}

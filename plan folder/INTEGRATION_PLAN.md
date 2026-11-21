@@ -166,9 +166,10 @@ Users open only port 3000. When the last feature is ported, delete `legacy-flask
 |---|---|---|---|
 | 1 | Security cleanup: rotate `cert.pem` and `key.pem`, move vault and backups out of the repo, create `pre-migration` tag | **Owner, by hand** | In progress |
 | 2 | Restructure: move Flask into `legacy-flask/`, reorganize `src/`, merge assets | Agent | Blocked until tag exists and tree is clean |
-| 3 | Skeleton: `config`, `services`, `middleware`, `rbac`, audit, Flask `api/`, `next.config.ts` rewrite, remove `server.js` | Agent | Not written |
+| 3 | Skeleton: `config`, `services`, `middleware`, `rbac`, audit, Flask `api/`, `next.config.ts` rewrite, remove `server.js` | Agent | Complete |
+| 3.5 | MySQL check: confirm nothing important exists only in MySQL (owner compares row counts). No migration. | Owner | Complete |
 | 4 | Port the librarian module (11 pages) in batches of about 3 | Agent | Not written |
-| 5 | Remaining features: password/PIN reset, email, QR auth, uploads to Supabase Storage, backup and cron jobs, thumbnails | Agent, one feature at a time | Not written |
+| 5 | Remaining features: password/PIN reset, email, QR auth, uploads to Supabase Storage, backup and cron jobs, thumbnails. *(Note: Backup job must target Supabase (the real data), not MySQL.)* | Agent, one feature at a time | Not written |
 | 6 | Verify and cut over: tests, side-by-side run, delete `legacy-flask/` | Agent and owner | Not written |
 
 ### Known environment issue
@@ -281,7 +282,9 @@ Make sure it ignores: `.env*`, `cert.pem`, `key.pem`, `valid_id_vault/`, `backup
 ## 10. Open questions (owner to answer before Phase 3)
 
 1. Does `legacy-flask/conn.py` connect to the **same Supabase database** that `src/lib/supabase` uses, or to a separate database? If separate, a data-migration step is added before Phase 4.
+   - **Answered:** Source of truth = Supabase Postgres. Flask = MySQL (`flask_mysqldb`; vars `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DB`), old data only, used as a UI and logic reference. `isbn_cache` is MySQL only (rebuildable cache). `error_logs` is Supabase only. Next.js owns login.
 2. Who owns login during the bridge period? Recommended: Next.js owns login as early as possible, so Flask does not hold session state.
+   - **Answered:** Next.js owns login during the bridge period (custom HMAC-signed `icpl_session` cookie verified against the Supabase `public.users` table).
 3. Keep `legacy-flask/` as the folder name? (Currently yes.)
 
 ---
@@ -290,9 +293,9 @@ Make sure it ignores: `.env*`, `cert.pem`, `key.pem`, `valid_id_vault/`, `backup
 
 Update this section at the end of every phase.
 
-- [ ] Phase 1: `pre-migration` tag created, tree clean
-- [ ] Phase 2: restructure complete, gates passed
-- [ ] Phase 3: skeleton complete
+- [x] Phase 1: `pre-migration` tag created, tree clean
+- [x] Phase 2: restructure complete, gates passed
+- [x] Phase 3: skeleton complete
 - [ ] Phase 4: librarian module ported
 - [ ] Phase 5: remaining features ported
 - [ ] Phase 6: verified, `legacy-flask/` removed
