@@ -2,12 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 import { emailBlindIndex, getServerSession } from "@/lib/auth/session";
-import {
-  maybeEncryptEmail,
-  maybeEncryptPii,
-  nameBlindIndex,
-  phoneBlindIndex,
-} from "@/lib/crypto/fernet";
+import { maybeEncryptPii } from "@/lib/crypto/fernet";
 
 const PW_ALLOWED_RE = /^[A-Za-z\d@$!%*?&_#^]{8,64}$/;
 const PW_COMPLEXITY_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&_#^]).{8,64}$/;
@@ -135,9 +130,12 @@ export async function POST(request: Request) {
     }
 
     const supabase = createSupabaseServerClient(true);
-    const usernameKey = emailBlindIndex(email) ?? email;
+    // Keep username and profile fields in plaintext; only hash/encrypt credentials & sensitive ID path
+    const usernameKey = email;
 
-    const lookupKeys = Array.from(new Set([usernameKey, email]));
+    const lookupKeys = Array.from(
+      new Set([email, emailBlindIndex(email)].filter((k): k is string => Boolean(k)))
+    );
     const { data: existing } = await supabase
       .from("users")
       .select("id")
@@ -159,23 +157,21 @@ export async function POST(request: Request) {
       .from("users")
       .insert({
         username: usernameKey,
-        email_display: maybeEncryptEmail(email),
-        firstname: maybeEncryptPii(firstname),
-        lastname: maybeEncryptPii(lastname),
-        name_index: nameBlindIndex(firstname, lastname),
+        email_display: email,
+        firstname,
+        lastname,
         password: hashedPassword,
         role: requestedRole,
-        age: age ? maybeEncryptPii(age) : null,
-        gender: gender ? maybeEncryptPii(gender) : null,
-        phone_number: phone ? maybeEncryptPii(phone) : null,
-        phone_index: phone ? phoneBlindIndex(phone) : null,
-        school: school ? maybeEncryptPii(school) : null,
-        city: city ? maybeEncryptPii(city) : null,
-        province: province ? maybeEncryptPii(province) : null,
-        education_level: educationLevel ? maybeEncryptPii(educationLevel) : null,
-        occupation: occupation ? maybeEncryptPii(occupation) : null,
+        age: age || null,
+        gender: gender || null,
+        phone_number: phone || null,
+        school: school || null,
+        city: city || null,
+        province: province || null,
+        education_level: educationLevel || null,
+        occupation: occupation || null,
         is_government: isGovernment,
-        office_phone: isGovernment && officePhone ? maybeEncryptPii(officePhone) : null,
+        office_phone: isGovernment && officePhone ? officePhone : null,
         valid_id_path: validIdName ? maybeEncryptPii(validIdName) : null,
         is_active: true,
         is_approved: isStaffCreation,

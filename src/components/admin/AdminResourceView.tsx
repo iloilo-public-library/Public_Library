@@ -5,6 +5,9 @@ import useSWR from "swr";
 import Link from "next/link";
 import {
   AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   CheckCircle2,
   Database,
   Edit3,
@@ -62,11 +65,26 @@ export function AdminResourceView({
 }: AdminResourceViewProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sortCol, setSortCol] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [modal, setModal] = useState<AdminModalState>({ type: "none" });
   const [actionBanner, setActionBanner] = useState<{
     type: "ok" | "err";
     text: string;
   } | null>(null);
+
+  const toggleSort = (colKey: string) => {
+    if (sortCol === colKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortCol(colKey);
+      setSortDir(
+        colKey === "available_copies" || colKey === "damaged_copies" || colKey === "lost_copies"
+          ? "desc"
+          : "asc"
+      );
+    }
+  };
 
   const { data, error, isLoading, mutate } = useSWR<{ rows?: Record<string, unknown>[] }>(
     `/api/admin/data?resource=${encodeURIComponent(resource)}`,
@@ -77,9 +95,18 @@ export function AdminResourceView({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rows.filter((row) => {
+    const list = rows.filter((row) => {
       if (resource === "account_requests" && statusFilter !== "all") {
         if (String(row.status) !== statusFilter) return false;
+      }
+      if ((resource === "inventory" || resource === "books") && statusFilter !== "all") {
+        const avail = Number(row.available_copies ?? 0);
+        const dmg = Number(row.damaged_copies ?? 0);
+        const lost = Number(row.lost_copies ?? 0);
+        if (statusFilter === "available" && avail <= 0) return false;
+        if (statusFilter === "damaged" && dmg <= 0) return false;
+        if (statusFilter === "lost" && lost <= 0) return false;
+        if (statusFilter === "out_of_stock" && avail > 0) return false;
       }
       if (
         (resource === "users" || resource === "librarians" || resource === "admins") &&
@@ -92,7 +119,30 @@ export function AdminResourceView({
       if (!q) return true;
       return Object.values(row).some((v) => String(v ?? "").toLowerCase().includes(q));
     });
-  }, [rows, search, resource, statusFilter]);
+
+    if (!sortCol) return list;
+
+    return [...list].sort((a, b) => {
+      const av = a[sortCol];
+      const bv = b[sortCol];
+      const aNum = Number(av);
+      const bNum = Number(bv);
+      let cmp = 0;
+      if (
+        av !== null &&
+        bv !== null &&
+        av !== "" &&
+        bv !== "" &&
+        !Number.isNaN(aNum) &&
+        !Number.isNaN(bNum)
+      ) {
+        cmp = aNum - bNum;
+      } else {
+        cmp = String(av ?? "").localeCompare(String(bv ?? ""), undefined, { numeric: true });
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [rows, search, resource, statusFilter, sortCol, sortDir]);
 
   const runQuickAction = async (
     method: "POST" | "PUT" | "DELETE",
@@ -142,19 +192,47 @@ export function AdminResourceView({
         </LibraryTooltip>
       );
     }
-    if (colKey === "status") {
+    if (colKey === "status" || colKey === "condition_status") {
       const low = str.toLowerCase();
       const tone =
-        low === "approved" || low === "active" || low === "available"
+        low === "approved" || low === "active" || low === "available" || low === "all good"
           ? "border-accent2/30 bg-accent2/15 text-accent2"
-          : low === "pending" || low === "low stock"
+          : low === "pending" || low === "low stock" || low.includes("damaged")
             ? "border-warn/35 bg-warn/15 text-warn"
-            : low === "rejected" || low === "out of stock"
+            : low === "rejected" || low === "out of stock" || low.includes("lost")
               ? "border-danger/30 bg-danger/15 text-danger"
               : "border-white/12 bg-white/8 text-tl/80";
       return (
         <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[0.68rem] font-bold capitalize ${tone}`}>
           {str}
+        </span>
+      );
+    }
+    if (colKey === "damaged_copies") {
+      const num = Number(str);
+      return (
+        <span
+          className={`inline-flex rounded-md px-2 py-0.5 font-mono text-[0.72rem] font-bold ${
+            num > 0
+              ? "border border-warn/35 bg-warn/15 text-warn"
+              : "text-white/45"
+          }`}
+        >
+          {num}
+        </span>
+      );
+    }
+    if (colKey === "available_copies") {
+      const num = Number(str);
+      return (
+        <span
+          className={`inline-flex rounded-md px-2 py-0.5 font-mono text-[0.72rem] font-bold ${
+            num > 0
+              ? "border border-accent2/30 bg-accent2/12 text-accent2"
+              : "border border-danger/30 bg-danger/12 text-danger"
+          }`}
+        >
+          {num}
         </span>
       );
     }
@@ -269,6 +347,40 @@ export function AdminResourceView({
           </div>
         )}
 
+        {(resource === "inventory" || resource === "books") && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { id: "all", label: "All Conditions" },
+              { id: "available", label: "Available Copies (>0)" },
+              { id: "damaged", label: "Has Damaged Copies" },
+              { id: "lost", label: "Has Lost Copies" },
+              { id: "out_of_stock", label: "Out of Stock" },
+            ].map((pill) => (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => {
+                  setStatusFilter(pill.id);
+                  if (pill.id === "damaged") {
+                    setSortCol("damaged_copies");
+                    setSortDir("desc");
+                  } else if (pill.id === "available") {
+                    setSortCol("available_copies");
+                    setSortDir("desc");
+                  }
+                }}
+                className={`rounded-lg border px-2.5 py-1 text-[0.7rem] font-semibold transition cursor-pointer ${
+                  statusFilter === pill.id
+                    ? "border-accent bg-accent/20 text-accent"
+                    : "border-white/10 bg-white/5 text-tl/70 hover:text-white"
+                }`}
+              >
+                {pill.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {(resource === "users" || resource === "librarians" || resource === "admins") && (
           <div className="flex items-center gap-1.5">
             {[
@@ -329,11 +441,29 @@ export function AdminResourceView({
             <table className="w-full border-collapse text-left text-xs">
               <thead>
                 <tr className="border-b border-white/10 bg-white/4 font-mono text-[0.7rem] uppercase tracking-[0.08em] text-accent">
-                  {columns.map((col) => (
-                    <th key={col.key} className="px-4 py-3 font-semibold whitespace-nowrap">
-                      {col.label}
-                    </th>
-                  ))}
+                  {columns.map((col) => {
+                    const isSorted = sortCol === col.key;
+                    return (
+                      <th key={col.key} className="px-4 py-3 font-semibold whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(col.key)}
+                          className="inline-flex cursor-pointer items-center gap-1 text-left uppercase tracking-[0.08em] transition hover:text-white"
+                        >
+                          <span>{col.label}</span>
+                          {isSorted ? (
+                            sortDir === "asc" ? (
+                              <ArrowUp className="h-3 w-3 text-accent2" />
+                            ) : (
+                              <ArrowDown className="h-3 w-3 text-accent2" />
+                            )
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-35" />
+                          )}
+                        </button>
+                      </th>
+                    );
+                  })}
                   <th className="px-4 py-3 text-right font-semibold whitespace-nowrap">
                     Actions
                   </th>

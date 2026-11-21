@@ -2,18 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import type { SessionPayload } from "@/lib/auth/session";
 import { emailBlindIndex } from "@/lib/auth/session";
-import {
-  authorBlindIndex,
-  isbnBlindIndex,
-  maybeEncryptData,
-  maybeEncryptEmail,
-  maybeEncryptPii,
-  nameBlindIndex,
-  phoneBlindIndex,
-  safeDecryptData,
-  safeDecryptPii,
-  titleBlindIndex,
-} from "@/lib/crypto/fernet";
+import { safeDecryptData, safeDecryptPii } from "@/lib/crypto/fernet";
 
 export class AdminMutationError extends Error {
   status: number;
@@ -271,8 +260,10 @@ async function mutateAccounts(
       );
     }
 
-    const usernameKey = emailBlindIndex(email) ?? email;
-    const lookupKeys = Array.from(new Set([usernameKey, email]));
+    const usernameKey = email;
+    const lookupKeys = Array.from(
+      new Set([email, emailBlindIndex(email)].filter((k): k is string => Boolean(k)))
+    );
     const { data: existing } = await supabase
       .from("users")
       .select("id")
@@ -292,15 +283,13 @@ async function mutateAccounts(
       .from("users")
       .insert({
         username: usernameKey,
-        email_display: maybeEncryptEmail(email),
-        firstname: maybeEncryptPii(firstname),
-        lastname: maybeEncryptPii(lastname),
-        name_index: nameBlindIndex(firstname, lastname),
+        email_display: email,
+        firstname,
+        lastname,
         password: hashedPassword,
         role,
-        gender: gender ? maybeEncryptPii(gender) : null,
-        phone_number: phone ? maybeEncryptPii(phone) : null,
-        phone_index: phone ? phoneBlindIndex(phone) : null,
+        gender: gender || null,
+        phone_number: phone || null,
         is_active: true,
         is_approved: true,
         status: "offline",
@@ -408,16 +397,13 @@ async function mutateBooks(
   const invStatus = String(payload.inventory_status ?? "Available").trim() || "Available";
 
   const bookData: Record<string, unknown> = {
-    title: maybeEncryptData(title),
-    title_index: titleBlindIndex(title),
-    author: maybeEncryptData(author),
-    author_index: authorBlindIndex(author),
-    isbn: maybeEncryptData(isbn),
-    isbn_index: isbnBlindIndex(isbn),
+    title,
+    author,
+    isbn,
     call_number: String(payload.call_number ?? "").trim() || null,
-    class: genreClass ? maybeEncryptData(genreClass) : null,
-    category: category ? maybeEncryptData(category) : null,
-    publisher: publisher ? maybeEncryptData(publisher) : null,
+    class: genreClass || null,
+    category: category || null,
+    publisher: publisher || null,
     edition: String(payload.edition ?? "").trim() || null,
     published_date: String(payload.published_date ?? "").trim() || null,
     subtitle: String(payload.subtitle ?? "").trim() || null,
@@ -566,10 +552,10 @@ async function mutateLibraryCards(
       .insert({
         card_type_category: category,
         user_id: payload.user_id ? Number(payload.user_id) : null,
-        firstname: maybeEncryptPii(firstname),
-        lastname: maybeEncryptPii(lastname),
-        phone_number: payload.phone_number ? maybeEncryptPii(String(payload.phone_number).trim()) : null,
-        address: payload.address ? maybeEncryptPii(String(payload.address).trim()) : null,
+        firstname,
+        lastname,
+        phone_number: payload.phone_number ? String(payload.phone_number).trim() : null,
+        address: payload.address ? String(payload.address).trim() : null,
         date_issued: dateIssued,
         date_return: dateReturn,
         card_type: String(payload.card_type ?? "regular").trim() || "regular",
@@ -903,12 +889,10 @@ async function mutateAdminProfile(
     const { error } = await supabase
       .from("users")
       .update({
-        firstname: maybeEncryptPii(firstname),
-        lastname: maybeEncryptPii(lastname),
-        name_index: nameBlindIndex(firstname, lastname),
-        gender: gender ? maybeEncryptPii(gender) : null,
-        phone_number: phone ? maybeEncryptPii(phone) : null,
-        phone_index: phone ? phoneBlindIndex(phone) : null,
+        firstname,
+        lastname,
+        gender: gender || null,
+        phone_number: phone || null,
       })
       .eq("id", session.userId);
 

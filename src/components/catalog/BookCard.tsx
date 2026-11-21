@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { BookOpen, Lock } from "lucide-react";
 import { LibraryTooltip } from "@/components/ui/tooltip";
@@ -11,8 +12,9 @@ interface BookCardProps {
 }
 
 export function BookCard({ book, onSelect }: BookCardProps) {
+  const [imgFailed, setImgFailed] = useState(false);
   const isAvailable = book.available_copies > 0;
-  const coverSrc = book.thumbnail_url || "";
+  const coverSrc = !imgFailed ? book.thumbnail_url || "" : "";
 
   return (
     <motion.article
@@ -31,13 +33,19 @@ export function BookCard({ book, onSelect }: BookCardProps) {
             src={coverSrc}
             alt={book.title}
             loading="lazy"
+            onError={() => setImgFailed(true)}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-bg1 to-bg3 p-4 text-center">
-            <BookOpen className="h-9 w-9 text-accent/45" />
-            <span className="line-clamp-3 text-xs font-semibold text-white/65">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2.5 bg-gradient-to-br from-bg2 via-bg1 to-bg3 p-5 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-accent/20 bg-accent/10">
+              <BookOpen className="h-6 w-6 text-accent/70" />
+            </div>
+            <span className="line-clamp-3 text-xs font-semibold leading-relaxed text-white/80">
               {book.title || "Untitled Book"}
+            </span>
+            <span className="line-clamp-1 text-[0.68rem] text-tl/65">
+              {book.author || "Iloilo City Public Library"}
             </span>
           </div>
         )}

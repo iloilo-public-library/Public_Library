@@ -133,9 +133,6 @@ export function FeaturesSection({ mode, onOpenMemberModal }: FeaturesSectionProp
           {items.map(({ num, icon: Icon, title, tag, locked, href, cta, desc }) => {
             const cardInner = (
               <div className="group relative flex h-full flex-col overflow-hidden rounded-[20px] border border-white/10 bg-card-glass p-6 backdrop-blur-sm transition duration-250 hover:-translate-y-1 hover:border-accent/35 hover:bg-card-glass-hover hover:shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
-                {/* Top Accent Line on Hover */}
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-accent via-accent2 to-transparent opacity-0 transition-opacity duration-250 group-hover:opacity-100" />
-
                 {/* Top Meta Row: Number + Status Pill */}
                 <div className="mb-5 flex items-center justify-between gap-2">
                   <span className="font-mono text-[0.72rem] font-bold tracking-[0.12em] text-white/35">

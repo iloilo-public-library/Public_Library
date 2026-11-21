@@ -256,7 +256,7 @@ export function AdminActionModals({
             <div className="space-y-4 text-xs">
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 {Object.entries(modal.row)
-                  .filter(([k]) => k !== "password" && k !== "books")
+                  .filter(([k]) => k !== "password" && k !== "books" && k !== "copies")
                   .map(([key, value]) => (
                     <div
                       key={key}
@@ -275,6 +275,59 @@ export function AdminActionModals({
                     </div>
                   ))}
               </div>
+              {Array.isArray(modal.row.copies) && modal.row.copies.length > 0 && (
+                <div className="rounded-xl border border-white/10 bg-white/4 p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="font-mono text-[0.68rem] uppercase text-accent">
+                      Physical Copies &amp; Condition Breakdown ({modal.row.copies.length} shown)
+                    </span>
+                    <span className="text-[0.66rem] text-tl/65">
+                      Distinguishes damaged vs. available copies by Accession ID
+                    </span>
+                  </div>
+                  <div className="max-h-[210px] space-y-1.5 overflow-y-auto pr-1">
+                    {(modal.row.copies as Record<string, unknown>[]).map((cp, i) => {
+                      const cond = s(cp.condition || "Good");
+                      const isDamaged = cond === "Damaged";
+                      const isLost = cond === "Lost";
+                      return (
+                        <div
+                          key={i}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/6 bg-bg1/70 px-3 py-2"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="rounded bg-white/8 px-2 py-0.5 font-mono text-[0.7rem] font-bold text-accent">
+                              {s(cp.accession_number)}
+                            </span>
+                            <span className="text-white/80">Copy #{s(cp.copy_number)}</span>
+                            {cp.condition_notes ? (
+                              <span className="text-[0.68rem] text-tl/65">
+                                — {s(cp.condition_notes)}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-[0.64rem] font-bold ${
+                                isDamaged
+                                  ? "border-warn/35 bg-warn/15 text-warn"
+                                  : isLost
+                                    ? "border-danger/35 bg-danger/15 text-danger"
+                                    : "border-accent2/30 bg-accent2/12 text-accent2"
+                              }`}
+                            >
+                              {cond}
+                            </span>
+                            <span className="font-mono text-[0.65rem] text-tl/60">
+                              {s(cp.circulation_status)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {Array.isArray(modal.row.books) && modal.row.books.length > 0 && (
                 <div className="rounded-xl border border-white/10 bg-white/4 p-3">
                   <div className="mb-2 font-mono text-[0.68rem] uppercase text-accent">

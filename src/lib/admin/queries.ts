@@ -30,6 +30,64 @@ function computeOnlineStatus(rawStatus: unknown, lastSeen: unknown): string {
   return String(rawStatus ?? "active");
 }
 
+function computeConditionSummary(
+  availableCopies: number,
+  damagedCopies: number,
+  lostCopies: number
+): string {
+  if (damagedCopies > 0 && lostCopies > 0) return "Damaged & Lost Copies";
+  if (damagedCopies > 0) return "Has Damaged Copies";
+  if (lostCopies > 0) return "Has Lost Copies";
+  if (availableCopies <= 0) return "Out of Stock";
+  return "All Good";
+}
+
+function buildGeneratedCopies(
+  bookId: number,
+  volumes: number,
+  availableCopies: number,
+  damagedCopies: number,
+  lostCopies: number,
+  shelfLocation: string
+) {
+  const cap = Math.max(1, Math.min(volumes || 1, 25));
+  const list: Array<{
+    copy_number: number;
+    accession_number: string;
+    condition: string;
+    circulation_status: string;
+    condition_notes: string;
+    shelf_location: string;
+  }> = [];
+
+  for (let c = 1; c <= cap; c++) {
+    let condition = "Good";
+    let circulation_status = "Available";
+    let condition_notes = "";
+    if (c <= damagedCopies) {
+      condition = "Damaged";
+      circulation_status = "Unusable";
+      condition_notes = `Copy #${c} flagged as damaged — awaiting repair/replacement`;
+    } else if (c <= damagedCopies + lostCopies) {
+      condition = "Lost";
+      circulation_status = "Unusable";
+      condition_notes = `Copy #${c} reported lost`;
+    } else if (c > damagedCopies + lostCopies + availableCopies) {
+      condition = "Good";
+      circulation_status = "Borrowed";
+    }
+    list.push({
+      copy_number: c,
+      accession_number: `ICPL-${String(bookId).padStart(4, "0")}-C${String(c).padStart(2, "0")}`,
+      condition,
+      circulation_status,
+      condition_notes,
+      shelf_location: shelfLocation || "Main Stack",
+    });
+  }
+  return list;
+}
+
 export async function queryAdminResource(
   supabase: SupabaseClient,
   resource: string,
@@ -37,7 +95,7 @@ export async function queryAdminResource(
 ) {
   switch (resource) {
     case "inventory": {
-      const [invRes, booksRes] = await Promise.all([
+      const [invRes, booksRes, copiesRes] = await Promise.all([
         supabase
           .from("book_inventory")
           .select(
@@ -47,6 +105,12 @@ export async function queryAdminResource(
         supabase
           .from("books")
           .select("id, call_number, title, author, isbn, is_borrowable"),
+        supabase
+          .from("book_copies")
+          .select(
+            "id, book_id, copy_number, accession_number, condition, circulation_status, condition_notes, shelf_location"
+          )
+          .order("copy_number", { ascending: true }),
       ]);
       if (invRes.error) throw invRes.error;
       const bookMap = new Map<
@@ -62,8 +126,43 @@ export async function queryAdminResource(
       for (const b of booksRes.data ?? []) {
         bookMap.set(b.id as number, b);
       }
+
+      const copiesByBook = new Map<number, Record<string, unknown>[]>();
+      if (!copiesRes.error && copiesRes.data) {
+        for (const cp of copiesRes.data) {
+          const bid = Number(cp.book_id);
+          const list = copiesByBook.get(bid) ?? [];
+          list.push(cp);
+          copiesByBook.set(bid, list);
+        }
+      }
+
       const rows = (invRes.data ?? []).map((inv) => {
-        const b = bookMap.get(inv.book_id as number);
+        const bookId = Number(inv.book_id);
+        const b = bookMap.get(bookId);
+        const volumes = Number(inv.volumes ?? 1);
+        const availableCopies = Number(inv.available_copies ?? 0);
+        const damagedCopies = Number(inv.damaged_copies ?? 0);
+        const lostCopies = Number(inv.lost_copies ?? 0);
+        const borrowedCopies = Math.max(0, volumes - availableCopies - damagedCopies - lostCopies);
+        const dbCopies = copiesByBook.get(bookId);
+        const copies =
+          dbCopies && dbCopies.length > 0
+            ? dbCopies
+            : buildGeneratedCopies(
+                bookId,
+                volumes,
+                availableCopies,
+                damagedCopies,
+                lostCopies,
+                String(inv.shelf_location ?? "")
+              );
+
+        const damagedAccessions = copies
+          .filter((cp) => String(cp.condition) === "Damaged")
+          .map((cp) => String(cp.accession_number))
+          .join(", ");
+
         return {
           ...inv,
           book_title: b ? safeDecryptData(b.title) : `Book #${inv.book_id}`,
@@ -71,6 +170,10 @@ export async function queryAdminResource(
           call_number: b?.call_number ?? "",
           isbn: b ? safeDecryptData(b.isbn) : "",
           is_borrowable: b?.is_borrowable ?? true,
+          borrowed_copies: borrowedCopies,
+          condition_status: computeConditionSummary(availableCopies, damagedCopies, lostCopies),
+          damaged_accessions: damagedAccessions || (damagedCopies > 0 ? `${damagedCopies} copy/copies` : "None"),
+          copies,
         };
       });
       return { rows };
@@ -97,6 +200,10 @@ export async function queryAdminResource(
       }
       const rows = (booksRes.data ?? []).map((b) => {
         const inv = invMap.get(b.id as number);
+        const volumes = Number(inv?.volumes ?? 1);
+        const availableCopies = Number(inv?.available_copies ?? 1);
+        const damagedCopies = Number(inv?.damaged_copies ?? 0);
+        const lostCopies = Number(inv?.lost_copies ?? 0);
         return {
           ...b,
           title: safeDecryptData(b.title),
@@ -105,11 +212,12 @@ export async function queryAdminResource(
           class: safeDecryptData(b.class),
           category: safeDecryptData(b.category),
           publisher: safeDecryptData(b.publisher),
-          volumes: Number(inv?.volumes ?? 1),
-          total_copies: Number(inv?.volumes ?? 1),
-          available_copies: Number(inv?.available_copies ?? 1),
-          damaged_copies: Number(inv?.damaged_copies ?? 0),
-          lost_copies: Number(inv?.lost_copies ?? 0),
+          volumes,
+          total_copies: volumes,
+          available_copies: availableCopies,
+          damaged_copies: damagedCopies,
+          lost_copies: lostCopies,
+          condition_status: computeConditionSummary(availableCopies, damagedCopies, lostCopies),
           shelf_location: String(inv?.shelf_location ?? ""),
           inventory_status: String(inv?.status ?? "Available"),
         };

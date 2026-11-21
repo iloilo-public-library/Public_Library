@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { safeDecryptData } from "@/lib/crypto/fernet";
+
+function cleanCatalogField(val: string | null | undefined, fallback = ""): string {
+  const dec = safeDecryptData(val ?? "");
+  if (!dec || dec.startsWith("gAAAAAB")) return fallback;
+  return dec;
+}
 
 export const revalidate = 60;
 
@@ -63,21 +70,24 @@ export async function GET() {
       const totalCopies = inv.reduce((sum, row) => sum + (row.volumes ?? 0), 0);
       const availableCopies = inv.reduce((sum, row) => sum + (row.available_copies ?? 0), 0);
 
+      const bookClass = cleanCatalogField(b.class, "General Collection");
+      const bookCategory = cleanCatalogField(b.category, "General");
+
       return {
         id: b.id,
         call_number: b.call_number ?? "",
         date_received: b.date_received ?? "",
-        class: b.class ?? "",
-        genre: b.class ?? "",
-        author: b.author ?? "",
-        title: b.title ?? "",
-        isbn: b.isbn ?? "",
+        class: bookClass,
+        genre: bookClass,
+        author: cleanCatalogField(b.author, "Library Author"),
+        title: cleanCatalogField(b.title, b.subtitle || `Catalog Volume #${b.id}`),
+        isbn: cleanCatalogField(b.isbn, ""),
         edition: b.edition ?? "",
         page_count: b.page_count,
-        category: b.category ?? "",
+        category: bookCategory,
         source_of_fund: b.source_of_fund ?? "",
         cost_price: Number(b.cost_price ?? 0),
-        publisher: b.publisher ?? "",
+        publisher: cleanCatalogField(b.publisher, ""),
         copy_right: b.copy_right ?? "",
         subtitle: b.subtitle ?? "",
         published_date: b.published_date ?? "",

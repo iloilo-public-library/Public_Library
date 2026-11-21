@@ -52,8 +52,6 @@ export default function GlobalErrorPage({
         transition={{ duration: 0.35 }}
         className="relative w-full max-w-[540px] overflow-hidden rounded-[24px] border border-danger/25 bg-card-glass p-8 text-center shadow-[0_24px_70px_rgba(0,0,0,0.4)] backdrop-blur-md sm:p-12"
       >
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-danger via-warn to-transparent" />
-
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-danger/30 bg-danger/12 text-danger">
           <AlertTriangle className="h-8 w-8" />
         </div>
