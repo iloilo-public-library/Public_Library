@@ -110,7 +110,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/user/home", request.url));
     }
     if (isAdminOnlyPath && session.role !== "admin") {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return NextResponse.redirect(new URL("/librarian/dashboard", request.url));
     }
   }
 

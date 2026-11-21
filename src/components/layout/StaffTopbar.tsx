@@ -10,9 +10,21 @@ interface StaffTopbarProps {
   title: string;
   collapsed: boolean;
   onOpenMobile: () => void;
+  role?: "admin" | "librarian";
 }
 
-export function StaffTopbar({ title, collapsed, onOpenMobile }: StaffTopbarProps) {
+export function StaffTopbar({
+  title,
+  collapsed,
+  onOpenMobile,
+  role = "admin",
+}: StaffTopbarProps) {
+  const isLibrarian = role === "librarian";
+  const dashboardHref = isLibrarian ? "/librarian/dashboard" : "/dashboard";
+  const announcementsHref = isLibrarian ? "/librarian/announcements" : "/admin/announcements";
+  const settingsHref = isLibrarian ? "/librarian/settings" : "/system-settings";
+  const settingsLabel = isLibrarian ? "Librarian Settings" : "System Settings";
+
   return (
     <header
       className={cn(
@@ -31,7 +43,7 @@ export function StaffTopbar({ title, collapsed, onOpenMobile }: StaffTopbarProps
           <Menu className="h-5 w-5" />
         </button>
 
-        <Link href="/dashboard" className="flex items-center gap-2 lg:hidden">
+        <Link href={dashboardHref} className="flex items-center gap-2 lg:hidden">
           <img
             src="/images/logo.png"
             alt="Logo"
@@ -49,7 +61,7 @@ export function StaffTopbar({ title, collapsed, onOpenMobile }: StaffTopbarProps
         <ThemeToggle />
         <LibraryTooltip label="Notifications">
           <Link
-            href="/admin/announcements"
+            href={announcementsHref}
             aria-label="Notifications"
             className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-white/8 bg-white/5 text-white/60 transition hover:bg-white/10 hover:text-white"
           >
@@ -57,10 +69,10 @@ export function StaffTopbar({ title, collapsed, onOpenMobile }: StaffTopbarProps
           </Link>
         </LibraryTooltip>
 
-        <LibraryTooltip label="System Settings">
+        <LibraryTooltip label={settingsLabel}>
           <Link
-            href="/system-settings"
-            aria-label="System Settings"
+            href={settingsHref}
+            aria-label={settingsLabel}
             className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-white/8 bg-white/5 text-white/60 transition hover:bg-white/10 hover:text-white"
           >
             <Settings className="h-4 w-4" />

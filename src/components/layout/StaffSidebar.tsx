@@ -54,6 +54,20 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/admin-settings", label: "Admin Settings", icon: Settings, section: "System" },
 ];
 
+const LIBRARIAN_NAV: NavItem[] = [
+  { href: "/librarian/home", label: "Home", icon: Home, section: "Overview" },
+  { href: "/librarian/dashboard", label: "Dashboard", icon: LayoutDashboard, section: "Overview" },
+  { href: "/librarian/inventory", label: "Inventory Status", icon: Package, section: "Library" },
+  { href: "/librarian/books", label: "Book Management", icon: BookOpen, section: "Library" },
+  { href: "/librarian/library-cards", label: "Library Cards", icon: CreditCard, section: "Library" },
+  { href: "/librarian/records-returns", label: "Records & Returns", icon: RotateCcw, section: "Library" },
+  { href: "/librarian/users", label: "User Management", icon: Users, section: "Accounts" },
+  { href: "/librarian/account-requests", label: "Renewal Requests", icon: UserCheck, section: "Accounts" },
+  { href: "/librarian/calendar", label: "Calendar Events", icon: CalendarDays, section: "Community" },
+  { href: "/librarian/announcements", label: "Announcements", icon: Megaphone, section: "Community" },
+  { href: "/librarian/settings", label: "Librarian Settings", icon: Settings, section: "Account" },
+];
+
 interface StaffSidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
@@ -72,14 +86,16 @@ export function StaffSidebar({
   const pathname = usePathname();
   const [search, setSearch] = useState("");
 
+  const navItems = role === "librarian" ? LIBRARIAN_NAV : ADMIN_NAV;
+
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return ADMIN_NAV;
-    return ADMIN_NAV.filter(
+    if (!q) return navItems;
+    return navItems.filter(
       (item) =>
         item.label.toLowerCase().includes(q) || item.section.toLowerCase().includes(q)
     );
-  }, [search]);
+  }, [search, navItems]);
 
   const sections = useMemo(() => {
     const map = new Map<string, NavItem[]>();

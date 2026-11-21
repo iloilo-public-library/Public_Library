@@ -71,10 +71,13 @@ export async function mutateAccountRequests(
   if (action === "delete") {
     const { data: reqRow } = await supabase
       .from("account_requests")
-      .select("id, status")
+      .select("id, status, request_type")
       .eq("id", id)
       .single();
     if (!reqRow) throw new AdminMutationError("Request not found.", 404);
+    if (session.role !== "admin" && String(reqRow.request_type) !== "renew") {
+      throw new AdminMutationError("Librarians can only manage library card renewal requests.", 403);
+    }
     if (reqRow.status === "pending") {
       throw new AdminMutationError("Cannot delete a pending request. Approve or reject first.");
     }
@@ -91,6 +94,9 @@ export async function mutateAccountRequests(
     .single();
   if (fetchErr || !reqRow) {
     throw new AdminMutationError("Pending request not found or already reviewed.", 404);
+  }
+  if (session.role !== "admin" && String(reqRow.request_type) !== "renew") {
+    throw new AdminMutationError("Librarians can only manage library card renewal requests.", 403);
   }
 
   const author = await getStaffDisplayName(supabase, session.userId, session.role);

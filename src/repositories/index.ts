@@ -88,7 +88,6 @@ export async function handleAdminMutation(
 ): Promise<Record<string, unknown>> {
   switch (resource) {
     case "account_requests":
-      requireAdminOnly(session);
       return mutateAccountRequests(supabase, session, action, id, payload);
 
     case "users":

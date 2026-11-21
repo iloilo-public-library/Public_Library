@@ -28,6 +28,7 @@ export function StaffShell({ title, role = "admin", children }: StaffShellProps)
         title={title}
         collapsed={collapsed}
         onOpenMobile={() => setMobileOpen(true)}
+        role={role}
       />
 
       <main

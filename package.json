@@ -1,15 +1,13 @@
 {
   "name": "library-management-system-v3",
   "version": "1.0.0",
-  "description": "",
-  "main": "server.js",
+  "description": "Iloilo City Public Library Management System (Next.js + Supabase)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "dev:all": "concurrently \"python app.py\" \"next dev\"",
-    "start:proxy": "concurrently \"python app.py\" \"node server.js\"",
-    "lint": "next lint"
+    "lint": "next lint",
+    "verify:routes": "node tests/integration/verify-routes.mjs"
   },
   "keywords": [],
   "author": "",

@@ -168,9 +168,9 @@ Users open only port 3000. When the last feature is ported, delete `legacy-flask
 | 2 | Restructure: move Flask into `legacy-flask/`, reorganize `src/`, merge assets | Agent | Blocked until tag exists and tree is clean |
 | 3 | Skeleton: `config`, `services`, `middleware`, `rbac`, audit, Flask `api/`, `next.config.ts` rewrite, remove `server.js` | Agent | Complete |
 | 3.5 | MySQL check: confirm nothing important exists only in MySQL (owner compares row counts). No migration. | Owner | Complete |
-| 4 | Port the librarian module (11 pages) in batches of about 3 | Agent | Not written |
-| 5 | Remaining features: password/PIN reset, email, QR auth, uploads to Supabase Storage, backup and cron jobs, thumbnails. *(Note: Backup job must target Supabase (the real data), not MySQL.)* | Agent, one feature at a time | Not written |
-| 6 | Verify and cut over: tests, side-by-side run, delete `legacy-flask/` | Agent and owner | Not written |
+| 4 | Port the librarian module (11 pages) in batches of about 3 | Agent | Complete |
+| 5 | Remaining features: password/PIN reset, email, QR auth, uploads & thumbnails (Dropbox), backup and cron jobs, member settings. *(Note: Backup job targets Supabase → Dropbox. Owner elected to keep Dropbox for uploads and book cover thumbnails.)* | Agent, one feature at a time | Complete |
+| 6 | Verify and cut over: tests, side-by-side run, delete `legacy-flask/` | Agent and owner | Complete (`legacy-flask/` kept per owner request) |
 
 ### Known environment issue
 
@@ -296,6 +296,6 @@ Update this section at the end of every phase.
 - [x] Phase 1: `pre-migration` tag created, tree clean
 - [x] Phase 2: restructure complete, gates passed
 - [x] Phase 3: skeleton complete
-- [ ] Phase 4: librarian module ported
-- [ ] Phase 5: remaining features ported
-- [ ] Phase 6: verified, `legacy-flask/` removed
+- [x] Phase 4: librarian module ported
+- [x] Phase 5: remaining features ported
+- [x] Phase 6: verified & cut over to standalone Next.js (`legacy-flask/` kept archived per owner request)

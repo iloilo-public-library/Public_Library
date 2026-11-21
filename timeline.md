@@ -56,6 +56,75 @@
 - **Description:** Inspected the repository structure, working tree status, and Git commit history from November 21, 2026 onward to establish `timeline.md` as the official development and commit ledger.
 - **Relevant Files / Modules:** `timeline.md`
 
+#### 6. Phase 4: Port Librarian Module (11 Pages, Navigation & RBAC)
+- **Date:** November 21, 2026
+- **Status:** Completed (Uncommitted in working tree)
+- **Description:** Ported all 11 librarian module pages from legacy Flask to Next.js App Router backed by Supabase and extended staff layout/RBAC for the `librarian` role:
+  - Added `LIBRARIAN_NAV` to `StaffSidebar`, role-aware links to `StaffTopbar` & `StaffShell`, and role-aware `AdminResourceView` (read-only patron directory on `users`, renewal-only filtering on `account_requests`).
+  - Updated `src/repositories/account-requests.ts` and `src/repositories/index.ts` so librarians can approve, reject, and delete library card renewal requests (`request_type === "renew"`) while preserving admin-only restrictions on other request types.
+  - Updated `src/app/api/auth/login/route.ts` and `src/middleware.ts` to route librarians to `/librarian/dashboard`.
+  - Created all 11 pages under `src/app/(staff)/librarian/`: `home`, `dashboard`, `library-cards`, `books`, `inventory`, `records-returns`, `users`, `account-requests`, `announcements`, `calendar`, and `settings`.
+  - Verified with `tsc --noEmit` (0 errors), `next build --webpack` (51/51 routes + Middleware), and live HTTP middleware redirect checks.
+- **Relevant Files / Modules:** `src/app/(staff)/librarian/**/page.tsx`, `src/components/layout/{StaffSidebar,StaffTopbar,StaffShell}.tsx`, `src/components/admin/AdminResourceView.tsx`, `src/repositories/{index,account-requests}.ts`, `src/middleware.ts`, `src/app/api/auth/login/route.ts`, `MIGRATION.md`, `plan folder/INTEGRATION_PLAN.md`
+
+#### 7. Phase 5 (Feature 5.1): Email Service & Password/PIN Reset Flows
+- **Date:** November 21, 2026
+- **Status:** Completed (Uncommitted in working tree)
+- **Description:** Ported the Resend email helper and implemented self-service password and 6-digit security PIN reset flows backed by Supabase:
+  - Created `src/lib/email/index.ts` supporting Resend HTTPS delivery with HTML templates (`sendPasswordResetEmail`, `sendPinResetEmail`, `sendOtpEmail`) and dev-mode logging fallback.
+  - Added Zod discriminated-union validators (`resetPasswordRequestSchema`, `resetPinRequestSchema`) in `src/validators/auth.ts`.
+  - Created `POST /api/auth/reset-password` and `POST /api/auth/reset-pin` with 30-minute crypto tokens, `bcryptjs` hashing, lockout clearing, audit logging, and error logging.
+  - Created public pages `/reset-password` and `/reset-pin`, and added a "Forgot password?" link on `/login`.
+- **Relevant Files / Modules:** `src/lib/email/index.ts`, `src/validators/auth.ts`, `src/app/api/auth/reset-password/route.ts`, `src/app/api/auth/reset-pin/route.ts`, `src/app/(public)/reset-password/page.tsx`, `src/app/(public)/reset-pin/page.tsx`, `src/app/(public)/login/page.tsx`, `MIGRATION.md`, `plan folder/INTEGRATION_PLAN.md`
+
+#### 8. Phase 5 (Feature 5.2): QR Authentication Flow
+- **Date:** November 21, 2026
+- **Status:** Completed (Uncommitted in working tree)
+- **Description:** Ported WhatsApp-style QR code authentication from legacy Flask to Next.js backed by Supabase `public.qr_login_tokens`:
+  - Created `src/lib/auth/qr.ts` with 60-second URL-safe token generation, expiry cleanup, confirmation, and one-time session consumption.
+  - Added Zod validation schemas (`qrPostSchema`, `qrCheckQuerySchema`) in `src/validators/auth.ts`.
+  - Created `GET` / `POST` `/api/auth/qr` for token generation, polling, mobile approval (with audit logging), and HTTP-only `icpl_session` cookie issuance.
+  - Wired `/scan-qr` (`src/app/(public)/scan-qr/page.tsx`) with both desktop QR display + 2-second polling and mobile `?token=` approval mode.
+- **Relevant Files / Modules:** `src/lib/auth/qr.ts`, `src/validators/auth.ts`, `src/app/api/auth/qr/route.ts`, `src/app/(public)/scan-qr/page.tsx`, `MIGRATION.md`, `plan folder/INTEGRATION_PLAN.md`
+
+#### 9. Phase 5 (Feature 5.3): File Uploads & Book Cover Thumbnails via Dropbox
+- **Date:** November 21, 2026
+- **Status:** Completed (Uncommitted in working tree)
+- **Description:** Ported file uploads and book cover thumbnail serving to Next.js using the existing Dropbox OAuth refresh-token setup (per owner preference):
+  - Created `src/lib/storage/dropbox.ts` (OAuth token refresh with in-memory caching, upload, download, and temporary link helpers).
+  - Created `src/lib/storage/index.ts` and `src/lib/storage/thumbnail.ts` with 5 MB size limits, extension allowlists, and UUID filename generation compatible with `/cover/<name>`.
+  - Added `GET /cover/[name]` (`src/app/cover/[name]/route.ts`), `POST /api/storage/upload` (`src/app/api/storage/upload/route.ts` with Zod + RBAC + audit logging), and `GET /api/admin/valid-id/[userId]` (`src/app/api/admin/valid-id/[userId]/route.ts`).
+- **Relevant Files / Modules:** `src/lib/storage/{dropbox,index,thumbnail}.ts`, `src/app/cover/[name]/route.ts`, `src/app/api/storage/upload/route.ts`, `src/app/api/admin/valid-id/[userId]/route.ts`, `.env.example`, `MIGRATION.md`, `plan folder/INTEGRATION_PLAN.md`
+
+#### 10. Phase 5 (Feature 5.4): Automated Backup Job (Supabase → Dropbox)
+- **Date:** November 21, 2026
+- **Status:** Completed (Uncommitted in working tree)
+- **Description:** Implemented the automated and manual Supabase database backup job uploading gzip-compressed JSON snapshots to Dropbox and recording logs in `public.backup_logs`:
+  - Created `src/lib/jobs/backup.ts` exporting all 16 core Supabase tables into a `.json.gz` snapshot, uploading to `DROPBOX_FOLDER`, and logging real byte sizes and status.
+  - Created `GET` / `POST` `/api/backup` (`src/app/api/backup/route.ts`) supporting admin manual triggers, log listing, and `CRON_SECRET`-authenticated scheduled runs.
+  - Wired `mutateSystemSettings` (`action: "run_backup"`) in `src/repositories/system-settings.ts` to execute the real Supabase → Dropbox backup.
+  - Configured daily Vercel Cron (`0 2 * * *`) in `vercel.json` and documented `CRON_SECRET` in `.env.example`.
+- **Relevant Files / Modules:** `src/lib/jobs/backup.ts`, `src/app/api/backup/route.ts`, `src/repositories/system-settings.ts`, `vercel.json`, `.env.example`, `MIGRATION.md`, `plan folder/INTEGRATION_PLAN.md`
+
+#### 11. Phase 5 (Feature 5.5): Member Settings Page & User Settings API
+- **Date:** November 21, 2026
+- **Status:** Completed (Uncommitted in working tree)
+- **Description:** Ported the member settings page and self-service profile/security/privacy endpoints backed by Supabase:
+  - Created `src/validators/user.ts` with Zod discriminated-union schemas for profile updates, password changes, OTP/PIN toggles, account deactivation/deletion requests, and clearing search history/favorites.
+  - Created `GET` / `PUT` `/api/user/settings` (`src/app/api/user/settings/route.ts`) with Fernet PII encryption, `bcryptjs` password verification/hashing, and audit logging.
+  - Created `/user/settings` (`src/app/user/settings/page.tsx`) and added a Settings icon link in `src/components/layout/MemberShell.tsx`.
+- **Relevant Files / Modules:** `src/validators/user.ts`, `src/app/api/user/settings/route.ts`, `src/app/user/settings/page.tsx`, `src/components/layout/MemberShell.tsx`, `MIGRATION.md`, `plan folder/INTEGRATION_PLAN.md`
+
+#### 12. Phase 6: Final Verification & Standalone Next.js Cutover
+- **Date:** November 21, 2026
+- **Status:** Completed (Uncommitted in working tree; `legacy-flask/` retained per owner request)
+- **Description:** Cut over the runtime to standalone Next.js + Supabase + Dropbox and ran end-to-end route and API verification:
+  - Removed Flask bridge rewrites from `next.config.ts`, removed migration-only `flaskFetch` from `src/lib/api.ts`, cleaned up legacy proxy scripts in `package.json`, and removed `FLASK_BACKEND_URL` from `.env.example`.
+  - Created automated route & API verifier `tests/integration/verify-routes.mjs` (`npm run verify:routes`).
+  - Verified full build and checks: `tsc --noEmit` (0 errors), `next build --webpack` (**60/60 routes** + Middleware), and `npm run verify:routes` (**54 passed, 0 failed**).
+  - Kept `legacy-flask/` intact per owner instruction.
+- **Relevant Files / Modules:** `next.config.ts`, `src/lib/api.ts`, `package.json`, `.env.example`, `tests/integration/verify-routes.mjs`, `MIGRATION.md`, `plan folder/INTEGRATION_PLAN.md`
+
 ---
 
 ## Git Commit History
@@ -89,35 +158,13 @@
 
 ## Ongoing Activities
 
-- **Phase 4 Preparation (Librarian Module Discovery):** Initial inspection of `src/components/layout/StaffSidebar.tsx`, `MIGRATION.md`, and `plan folder/INTEGRATION_PLAN.md` was started to prepare the implementation plan for porting the 11 librarian pages, then paused at the user's request before any Phase 4 files were created or modified.
+- **Uncommitted Working Tree Changes (Phases 4, 5 & 6):** All Phase 4, Phase 5, and Phase 6 changes are complete and verified in the working tree on branch `tony@dev`, awaiting an explicit user decision to commit.
 
 ---
 
 ## Planned Activities
 
-- **Phase 4 — Port the Librarian Module (11 Pages) & Supporting APIs:**
-  - Port the 11 librarian views from `legacy-flask/templates/librarians/*` and `legacy-flask/routes/librarian_routes.py` to Next.js under `src/app/(staff)/librarian/` in batches:
-    1. `src/app/(staff)/librarian/home/page.tsx`
-    2. `src/app/(staff)/librarian/dashboard/page.tsx`
-    3. `src/app/(staff)/librarian/library-cards/page.tsx`
-    4. `src/app/(staff)/librarian/users/page.tsx`
-    5. `src/app/(staff)/librarian/books/page.tsx`
-    6. `src/app/(staff)/librarian/announcements/page.tsx`
-    7. `src/app/(staff)/librarian/inventory/page.tsx`
-    8. `src/app/(staff)/librarian/account-requests/page.tsx`
-    9. `src/app/(staff)/librarian/calendar/page.tsx`
-    10. `src/app/(staff)/librarian/records-returns/page.tsx`
-    11. `src/app/(staff)/librarian/settings/page.tsx`
-  - Add librarian navigation support in `src/components/layout/StaffSidebar.tsx` and create required librarian API endpoints (`src/app/api/librarian/**`), validators, and service methods backed by Supabase.
-- **Phase 5 — Port Remaining Features One at a Time:**
-  - Password and PIN reset flows (`src/app/(public)/reset-password`, `src/app/(public)/reset-pin`, `src/app/api/auth/reset-password`, `src/app/api/auth/reset-pin`) and MFA/CAPTCHA/OTP verification endpoints.
-  - QR authentication endpoints (`src/lib/auth/qr.ts`, `src/app/api/auth/qr/route.ts`).
-  - Email delivery service (`src/lib/email/`).
-  - File uploads and book cover thumbnails via Supabase Storage (`src/lib/storage/`).
-  - Automated backup and background jobs targeting Supabase (`src/lib/jobs/backup.ts`, `src/app/api/backup/route.ts`).
-  - Remaining member settings page (`src/app/user/settings/page.tsx`) and user/admin supporting API endpoints listed in `MIGRATION.md`.
-- **Phase 6 — Final Verification & Legacy Cutover:**
-  - Run unit, integration, and end-to-end verification tests, perform side-by-side validation, remove the `/flask/:path*` rewrite from `next.config.ts`, and delete `legacy-flask/`.
+- **Optional Legacy Cleanup:** Delete `legacy-flask/` (`git rm -rf legacy-flask`) once the owner completes final manual review and no longer needs the Flask reference folder.
 
 ---
 
