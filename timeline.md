@@ -154,11 +154,21 @@
   - Modified: `.gitignore`, `README.md`, `next.config.ts`, `package.json`, `package-lock.json`, `plan folder/INTEGRATION_PLAN.md`, `src/app/api/admin/data/route.ts`, `src/app/api/auth/login/route.ts`, `src/app/api/error-logs/route.ts`, `src/app/layout.tsx`, `src/app/user/home/page.tsx`, `src/components/landing/*`, `src/components/layout/*`, `src/lib/api.ts`
   - Deleted: `server.js`, `src/lib/admin/{mutations,queries}.ts`, `useful_tools(just in case)/migrate_admin*.py`
 
+#### Commit `3ea17572a350dcf869c96a8e29e4add78173794c`
+- **Date & Time:** `2026-11-21 19:05:56 +0800`
+- **Author:** `antzyyy123`
+- **Commit Hash:** `3ea17572a350dcf869c96a8e29e4add78173794c`
+- **Commit Message:** `feat: complete Phases 4-6 (librarian module, auth/storage/backup/settings, standalone Next.js cutover)`
+- **Explanation of Changes:** Committed all Phase 4 (11 librarian pages, role-aware staff navigation, librarian renewal RBAC), Phase 5 (Resend email helper, password & PIN reset pages/APIs, QR login flow, Dropbox upload & `/cover/[name]` serving, Supabase → Dropbox backup job & Vercel Cron, `/user/settings` & `/api/user/settings`), and Phase 6 (removed Flask rewrites/bridge, added `tests/integration/verify-routes.mjs`) implementations and documentation updates.
+- **Files / Modules Affected:**
+  - Added: `AGENTS.md`, `src/app/(staff)/librarian/**/page.tsx` (11 pages), `src/app/(public)/{reset-password,reset-pin}/page.tsx`, `src/app/user/settings/page.tsx`, `src/app/cover/[name]/route.ts`, `src/app/api/{admin/valid-id/[userId],auth/qr,auth/reset-password,auth/reset-pin,backup,storage/upload,user/settings}/route.ts`, `src/lib/{auth/qr,email/index,jobs/backup,storage/dropbox,storage/index,storage/thumbnail}.ts`, `src/validators/user.ts`, `tests/integration/verify-routes.mjs`
+  - Modified: `.env.example`, `MIGRATION.md`, `next.config.ts`, `package.json`, `plan folder/INTEGRATION_PLAN.md`, `src/app/(public)/{login,scan-qr}/page.tsx`, `src/app/api/auth/login/route.ts`, `src/components/admin/AdminResourceView.tsx`, `src/components/layout/{MemberShell,StaffShell,StaffSidebar,StaffTopbar}.tsx`, `src/lib/api.ts`, `src/middleware.ts`, `src/repositories/{account-requests,index,system-settings}.ts`, `src/validators/auth.ts`, `timeline.md`, `vercel.json`
+
 ---
 
 ## Ongoing Activities
 
-- **Uncommitted Working Tree Changes (Phases 4, 5 & 6):** All Phase 4, Phase 5, and Phase 6 changes are complete and verified in the working tree on branch `tony@dev`, awaiting an explicit user decision to commit.
+- None — all Phase 1 through Phase 6 changes are committed cleanly on branch `tony@dev`.
 
 ---
 
