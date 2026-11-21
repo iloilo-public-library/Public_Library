@@ -10,3 +10,7 @@ out/
 node_modules/
 next-env.d.ts
 .vercel/
+__pycache__/
+node_modules/
+.next/
+*.tsbuildinfo
