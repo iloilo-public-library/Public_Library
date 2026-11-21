@@ -19,6 +19,7 @@
 | **Phase 4** | Port all 11 Librarian pages, role-aware staff navigation, and librarian renewal RBAC | Completed | `3ea1757` |
 | **Phase 5** | Email (Resend), Password/PIN reset, QR login, Dropbox uploads & `/cover/[name]`, Supabase → Dropbox backup job & cron, `/user/settings` | Completed | `3ea1757` |
 | **Phase 6** | Remove Flask bridge/rewrites, add route verification suite (`54/54` passed), standalone Next.js cutover (`legacy-flask/` retained per owner request) | Completed | `3ea1757` |
+| **Phase 7** | IT Head schema audit & normalization (`book_copies`, high-scale B-Tree + `pg_trgm` GIN indexes), UI upgrades (`/browse`, `/login`, `SignupWizard`), legacy content parity, and 100% `MIGRATION.md` API completion (Member, MFA/CAPTCHA, Staff Utility APIs) | Completed | `92845ef`, `6450e65`, `1a7fb3f` |
 
 ---
 
@@ -67,19 +68,24 @@
 - **Key Files:** `next.config.ts`, `src/lib/api.ts`, `package.json`, `.env.example`, `tests/integration/verify-routes.mjs`, `MIGRATION.md`, `plan folder/INTEGRATION_PLAN.md`
 
 #### 8. Restore Legacy "About Us" Content (Public & Member Sides)
-- **Date:** November 21, 2026 | **Status:** Completed (Uncommitted; Owner verified: pending)
+- **Date:** November 21, 2026 | **Status:** Completed (`e8d317c`)
 - **Summary:** Restored the verbatim legacy Flask About Us content (Who We Are, Legal Mandate RA 7743, Vision, Mission & 5-item Quality Policy, 9 Core Values, 8 Library Sections, 15 General Guidelines, 3 Fines & Penalties cards, Main Library + 10 District & Community Branches, Find Us Google Maps iframe & contact details, and S+ Premium 6-member Dev Team) into the existing Next.js design via `AboutUsContent.tsx`. Wired `/no_user_about`, added member-protected `/user/about` with `MemberShell` navigation, and restored exact legacy wording in `VisionMissionSection.tsx` and `ServicesSection.tsx`.
 - **Key Files:** `src/components/landing/AboutUsContent.tsx`, `src/app/(public)/no_user_about/page.tsx`, `src/app/user/about/page.tsx`, `src/components/layout/MemberShell.tsx`, `src/components/landing/{VisionMissionSection,ServicesSection}.tsx`, `tests/integration/verify-routes.mjs`, `MIGRATION.md`
 
 #### 9. Restore Legacy Admin Layout Content (Sidebar, Topbar & Footer)
-- **Date:** November 21, 2026 | **Status:** Completed (Uncommitted; Owner verified: pending)
+- **Date:** November 21, 2026 | **Status:** Completed (`6450e65`)
 - **Summary:** Restored legacy Flask admin sidebar structure, order, labels, and collapsible groups (`Main`: Home, Dashboard, Announcement; `Management`: User Management [Admins, Librarians, Users / Members], Borrow Management [Borrowing Form, Borrow History], Book Management, divider, Event Calendar, Account Requests; sidebar footer: System Settings + Admin / Account settings + Logout), restored admin topbar items (`Iloilo City Library`, `Account Requests` bell, `Event Calendar`, keeping `ThemeToggle`, `System Settings`, and `Logout`), and added `AdminFooter.tsx` (CTA band, 4-column grid, partners belt, legal modals) rendered for `role="admin"` only in `StaffShell.tsx` and `dashboard/page.tsx`. Librarian layout (`LIBRARIAN_NAV` and `role="librarian"`) left untouched.
 - **Key Files:** `src/components/layout/{StaffSidebar,StaffTopbar,StaffShell,AdminFooter}.tsx`, `src/app/(staff)/dashboard/page.tsx`, `MIGRATION.md`, `timeline.md`
 
 #### 10. Restore Legacy Admin Settings & System Settings Content
-- **Date:** November 21, 2026 | **Status:** Completed (Uncommitted; Owner verified: pending)
+- **Date:** November 21, 2026 | **Status:** Completed (`6450e65`)
 - **Summary:** Restored verbatim legacy Flask sections, tabs, field labels, order, help texts, button labels, password strength checklist, and emergency lockdown confirmation modal into `src/app/(staff)/admin-settings/page.tsx` (Overview, Personal Details [Profile Info + Contact], Password & Security [MFA + Change Password], Appearance) and `src/app/(staff)/system-settings/page.tsx` (Maintenance, Emergency, Backup tabs) while preserving existing Next.js design, save logic, Zod validation, RBAC, and audit logging. Controls without a Next.js backend (Interface Language, System Files backup scope, Clear Log History, Notify admin after backup, Recent Lockdown Events history) are clearly marked `"Not available yet"` and disabled. Librarian settings left untouched.
 - **Key Files:** `src/app/(staff)/admin-settings/page.tsx`, `src/app/(staff)/system-settings/page.tsx`, `MIGRATION.md`, `timeline.md`
+
+#### 10B. Database Schema Normalization, Copy-Level Inventory & Civic UI Upgrades
+- **Date:** November 21, 2026 | **Status:** Completed (`92845ef`, merged `cb4b99f` & `05baf45`)
+- **Summary:** Addressed IT Head schema review findings by creating `004_schema_normalization.sql`: added physical copy-level tracking (`public.book_copies` with unique `accession_number`, `condition`, `circulation_status`, and `condition_notes`), independent sorting/filtering by Available Copies, Damaged Copies, and Condition in `/admin/inventory` and `/admin/books`, high-scale B-Tree + PostgreSQL `pg_trgm` GIN indexes across books, users, library cards, and circulation tables for 1M+ row readiness, and missing FK constraints. Upgraded `/browse` search & collection popover, converted `/login` to a full-viewport civic split-screen with auto-flicker desk lamp and official Iloilo City Government typography, and compacted the 3-step `SignupWizard`.
+- **Key Files:** `supabase/migrations/{001_initial_schema,002_seed_data,004_schema_normalization}.sql`, `src/repositories/{inventory,books,users,admin-profile,library-cards}.ts`, `src/components/admin/{AdminResourceView,AdminActionModals}.tsx`, `src/app/(public)/{browse,login}/page.tsx`, `src/components/auth/SignupWizard.tsx`
 
 #### 11. Member / Patron APIs & Live Member Views
 - **Date:** November 21, 2026 | **Status:** Completed (`Neil` branch)
@@ -114,20 +120,27 @@
 | `13:47:48` | `9576691` (`9576691c482895454c1c5b9df1e5f405d72241bf`) | `antzyyy123` | `docs: record Phase 2 and Phase 3 commit in timeline.md` — Logged commit `7701fea` in `timeline.md`. |
 | `19:05:56` | `3ea1757` (`3ea17572a350dcf869c96a8e29e4add78173794c`) | `antzyyy123` | `feat: complete Phases 4-6 (librarian module, auth/storage/backup/settings, standalone Next.js cutover)` — Added 11 librarian pages, email + password/PIN reset, QR auth, Dropbox storage + `/cover/[name]`, Supabase → Dropbox backup + cron, `/user/settings`, route verification script, and removed Flask bridge (52 files). |
 | `19:06:48` | `64af6f5` (`64af6f50e819ca526536cf86b401579ca7f9a0a8`) | `antzyyy123` | `docs: record Phase 4-6 commit in timeline.md` — Logged commit `3ea1757` in `timeline.md`. |
+| `19:30:38` | `92845ef` (`92845ef8f2fd738286c4a8d4cfc356dac7b8aa39`) | `Neil Mar De Asis` | `feat: improve browse search, split-screen login, and schema normalization with copy-level inventory` — Added `004_schema_normalization.sql` (`book_copies`, B-Tree + `pg_trgm` GIN indexes, FKs), inventory condition sorting/filtering, `/browse` popover search, civic split-screen `/login`, and compact `SignupWizard`. |
+| `19:39:02` | `cb4b99f` (`cb4b99f842405a0a8ca861979e11266bbe32587c`) | `Neil Mar De Asis` | `Merge remote-tracking branch 'origin/tony@dev' into Neil` — Integrated Phase 2–3 layered repository restructure and ported copy-level inventory & selective encryption updates into `src/repositories/*`. |
+| `19:39:33` | `e8d317c` (`e8d317c71692804319b6ec58f13e7467d7a20543`) | `antzyyy123` | `content: restore old About Us content (landing and member side)` — Restored legacy About Us content (`AboutUsContent.tsx`, `/no_user_about`, `/user/about`). |
+| `20:04:32` | `6450e65` (`6450e6526d499dc0ddc5305fdeb5f33902d6349e`) | `antzyyy123` | `content: restore legacy admin layout, admin settings, and system settings` — Restored legacy admin sidebar/topbar/footer and settings tabs. |
+| `20:08:10` | `05baf45` (`05baf45cdc56c7ff84e27079519947391820d36d`) | `Neil Mar De Asis` | `Merge branch 'tony@dev' into Neil` — Integrated Phases 4–6 and legacy content restorations while preserving split-screen `/login` + Forgot Password link. |
+| `23:44:40` | `1a7fb3f` (`1a7fb3f25be1c977d03c5559f33a5e9dd28bfa05`) | `Neil Mar De Asis` | `feat: complete remaining member, auth MFA/CAPTCHA, and staff utility APIs (100% MIGRATION.md)` — Implemented all remaining Member APIs (`/api/user/*` + `member.ts`), Auth MFA/CAPTCHA APIs (`/api/auth/{verify-captcha,verify-otp,verify-pin,resend-otp}`), Staff Utility APIs (`/api/staff/appearance`, `/api/admin/users`), and completed 100% of `MIGRATION.md`. |
 
 ---
 
 ## Ongoing Activities
 
-- None — all Phase 1 through Phase 6 milestones are complete and committed on branch `tony@dev`.
+- None — Phases 1 through 7 and 100% of the `MIGRATION.md` Flask-to-Next.js migration table are complete and verified (`tsc --noEmit`: 0 errors).
 
 ---
 
-## Planned / Optional Follow-Up Activities
+## Pre-Production / City Hall Hosting Checklist
 
+- **Run Database Migration 004 in Supabase:** Execute `supabase/migrations/004_schema_normalization.sql` in the Supabase SQL Editor to create `public.book_copies`, add B-Tree + `pg_trgm` GIN indexes for 1M+ row scale, and enforce foreign-key constraints.
+- **Configure Hosting Environment Variables:** Set `SUPABASE_*`, `SECRET_KEY`, `DROPBOX_*`, `RESEND_API_KEY`, `RESEND_FROM`, and `CRON_SECRET` in Vercel / City Hall hosting settings (see `.env.example`).
 - **Owner Security Cleanup (Phase 1 Holdover):** Rotate and remove previously tracked sensitive files (`cert.pem`, `key.pem`, `backup_2026-05-30_13-59-59.zip.enc`, `restore/`, `valid_id_vault/`) from Git history/index by hand.
-- **Optional Legacy Archive Removal:** Delete `legacy-flask/` (`git rm -rf legacy-flask`) once final manual review is complete.
-- **Optional MFA Login Enforcement:** Wire `/api/auth/verify-otp`, `/api/auth/verify-pin`, and `/api/auth/verify-captcha` into `/api/auth/login` if runtime MFA gating is desired beyond the current account security toggles.
+- **Optional Legacy Archive Removal:** Delete `legacy-flask/` (`git rm -rf legacy-flask`) once final manual review by City Hall IT is complete.
 
 ---
 
