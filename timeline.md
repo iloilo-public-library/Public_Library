@@ -20,7 +20,7 @@
 
 #### 2. Phase 2: Repository Restructure & Layered Architecture Setup
 - **Date:** November 21, 2026
-- **Status:** Completed (Uncommitted in working tree)
+- **Status:** Completed
 - **Description:** Reorganized the repository to isolate the legacy Flask application into `legacy-flask/` and structure the Next.js App Router codebase into a layered architecture without altering business logic:
   - Moved Flask modules (`app.py`, `conn.py`, `requirements.txt`, `Dockerfile`, `routes/`, `templates/`, `authentication/`, `backup/`, `email_config/`, `errors/`, `helpers/`, `landing/`, `storage/`, `task_queue/`, `static/uploads/`, `static/js/`) into `legacy-flask/`.
   - Merged static image assets and `brain.glb` into a single `public/images/` and `public/models/brain.glb` location and updated `src/` component references.
@@ -39,7 +39,7 @@
 
 #### 4. Phase 3: Core Architecture Skeleton, RBAC Middleware, Validators & Audit Layer
 - **Date:** November 21, 2026
-- **Status:** Completed (Uncommitted in working tree)
+- **Status:** Completed
 - **Description:** Implemented the Next.js layered backend skeleton and Flask health bridge:
   - Installed `zod` and created environment/application constants (`src/config/env.ts`, `src/config/constants.ts`), typed error classes (`src/lib/errors.ts`), and structured logging (`src/lib/logger.ts`).
   - Implemented role-based access control helpers (`src/lib/auth/rbac.ts`) and Edge-compatible route protection middleware (`src/middleware.ts`) enforcing `admin`, `librarian`, and `user` access rules.
@@ -73,13 +73,22 @@
   - Added: `plan folder/INTEGRATION_PLAN.md`, `static/models/Architect lamp – pull the switch.html`
   - Deleted from index: `tsconfig.tsbuildinfo`, `authentication/__pycache__/*`, `backup/__pycache__/*`, `email_config/__pycache__/*`, `errors/__pycache__/*`, `helpers/__pycache__/*`, `landing/__pycache__/*`, `routes/__pycache__/*`
 
-*(Note: All Phase 2 and Phase 3 file moves and additions are currently staged or untracked in the local Git working tree on branch `tony@dev` and have not yet been committed.)*
+#### Commit `7701fea211b584b5d7c51c89ddd92fff3098c167`
+- **Date & Time:** `2026-11-21 13:45:58 +0800`
+- **Author:** `antzyyy123`
+- **Commit Hash:** `7701fea211b584b5d7c51c89ddd92fff3098c167`
+- **Commit Message:** `feat: complete Phase 2 restructure and Phase 3 layered architecture skeleton`
+- **Explanation of Changes:** Committed all Phase 2 repository restructuring and Phase 3 architecture skeleton changes — moving the legacy Flask codebase into `legacy-flask/`, consolidating static assets into `public/`, grouping Next.js pages into `src/app/(public)/` and `src/app/(staff)/`, splitting data queries/mutations into domain repositories under `src/repositories/`, implementing RBAC middleware (`src/middleware.ts`, `src/lib/auth/rbac.ts`), Zod validators (`src/validators/*`), the admin service and audit layer (`src/services/admin.service.ts`, `src/lib/audit/audit-logger.ts`), the Flask health bridge (`legacy-flask/api/health.py`, `next.config.ts`, `src/lib/api.ts`), and adding `MIGRATION.md` and `timeline.md`.
+- **Files / Modules Affected:**
+  - Renamed / Moved: `legacy-flask/**`, `public/images/**`, `public/models/brain.glb`, `scripts/*`, `src/app/(public)/**`, `src/app/(staff)/**`, `src/lib/audit/error-logger.ts`
+  - Added: `MIGRATION.md`, `timeline.md`, `legacy-flask/api/{__init__,health}.py`, `src/config/{constants,env}.ts`, `src/lib/{errors,logger}.ts`, `src/lib/audit/audit-logger.ts`, `src/lib/auth/rbac.ts`, `src/middleware.ts`, `src/repositories/*`, `src/services/admin.service.ts`, `src/validators/{admin,auth,common}.ts`, `docs/.gitkeep`, `tests/{e2e,integration,unit}/.gitkeep`
+  - Modified: `.gitignore`, `README.md`, `next.config.ts`, `package.json`, `package-lock.json`, `plan folder/INTEGRATION_PLAN.md`, `src/app/api/admin/data/route.ts`, `src/app/api/auth/login/route.ts`, `src/app/api/error-logs/route.ts`, `src/app/layout.tsx`, `src/app/user/home/page.tsx`, `src/components/landing/*`, `src/components/layout/*`, `src/lib/api.ts`
+  - Deleted: `server.js`, `src/lib/admin/{mutations,queries}.ts`, `useful_tools(just in case)/migrate_admin*.py`
 
 ---
 
 ## Ongoing Activities
 
-- **Uncommitted Working Tree Changes (Phases 2 & 3):** Phase 2 repository restructuring and Phase 3 architecture skeleton implementations are complete and verified in the working tree on branch `tony@dev`, awaiting an explicit user decision to commit.
 - **Phase 4 Preparation (Librarian Module Discovery):** Initial inspection of `src/components/layout/StaffSidebar.tsx`, `MIGRATION.md`, and `plan folder/INTEGRATION_PLAN.md` was started to prepare the implementation plan for porting the 11 librarian pages, then paused at the user's request before any Phase 4 files were created or modified.
 
 ---
