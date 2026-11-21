@@ -2,12 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { getServerSession } from "@/lib/auth/session";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
-import {
-  maybeEncryptPii,
-  nameBlindIndex,
-  phoneBlindIndex,
-  safeDecryptPii,
-} from "@/lib/crypto/fernet";
+import { safeDecryptPii } from "@/lib/crypto/fernet";
 import { formatFullName, resolveEmail } from "@/repositories/shared";
 import { recordAuditEvent } from "@/lib/audit/audit-logger";
 import { recordErrorLog } from "@/lib/audit/error-logger";
@@ -153,16 +148,14 @@ export async function PUT(request: Request) {
       const { error } = await supabase
         .from("users")
         .update({
-          firstname: maybeEncryptPii(input.firstname),
-          lastname: maybeEncryptPii(input.lastname),
-          name_index: nameBlindIndex(input.firstname, input.lastname),
-          gender: input.gender ? maybeEncryptPii(input.gender) : null,
-          phone_number: input.phone_number ? maybeEncryptPii(input.phone_number) : null,
-          phone_index: input.phone_number ? phoneBlindIndex(input.phone_number) : null,
-          city: input.city ? maybeEncryptPii(input.city) : null,
-          province: input.province ? maybeEncryptPii(input.province) : null,
-          school: input.school ? maybeEncryptPii(input.school) : null,
-          occupation: input.occupation ? maybeEncryptPii(input.occupation) : null,
+          firstname: input.firstname,
+          lastname: input.lastname,
+          gender: input.gender || null,
+          phone_number: input.phone_number || null,
+          city: input.city || null,
+          province: input.province || null,
+          school: input.school || null,
+          occupation: input.occupation || null,
         })
         .eq("id", session.userId);
 

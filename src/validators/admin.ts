@@ -36,3 +36,15 @@ export const adminMutationSchema = z.object({
 
 export type AdminQueryInput = z.infer<typeof adminQuerySchema>;
 export type AdminMutationInput = z.infer<typeof adminMutationSchema>;
+
+export const staffAppearanceSchema = z.object({
+  theme: z.enum(["default", "dark", "light", "ocean"]).default("default"),
+  language: z.enum(["english", "filipino", "hiligaynon"]).default("english"),
+});
+
+export const adminUsersQuerySchema = z.object({
+  id: z.coerce.number().int().positive().optional(),
+  q: z.string().trim().max(120).optional().default(""),
+  role: z.enum(["all", "user", "librarian", "admin"]).optional().default("all"),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(25),
+});

@@ -76,10 +76,10 @@ Tracking migration of the Iloilo Public Library system from **Flask + Jinja** (`
 | `authentication/authentication.py` — `/api/check_email` | api | `src/app/api/check_email/route.ts` | Done in Next.js |
 | `authentication/authentication.py` — `/logout` | api | `src/app/logout/route.ts` | Done in Next.js |
 | `authentication/authentication.py` — `/home` | page | `src/app/(public)/page.tsx` (role redirect) | Done in Next.js |
-| `authentication/authentication.py` — `/verify_captcha` | api | `src/app/api/auth/verify-captcha/route.ts` | Not started |
-| `authentication/authentication.py` — `/verify_otp` | api | `src/app/api/auth/verify-otp/route.ts` | Not started |
-| `authentication/authentication.py` — `/verify_pin` | api | `src/app/api/auth/verify-pin/route.ts` | Not started |
-| `authentication/authentication.py` — `/resend_otp` | api | `src/app/api/auth/resend-otp/route.ts` | Not started |
+| `authentication/authentication.py` — `/verify_captcha` | api | `src/app/api/auth/verify-captcha/route.ts` | Done in Next.js |
+| `authentication/authentication.py` — `/verify_otp` | api | `src/app/api/auth/verify-otp/route.ts` | Done in Next.js |
+| `authentication/authentication.py` — `/verify_pin` | api | `src/app/api/auth/verify-pin/route.ts` | Done in Next.js |
+| `authentication/authentication.py` — `/resend_otp` | api | `src/app/api/auth/resend-otp/route.ts` | Done in Next.js |
 | `authentication/authentication.py` — `/forgot_password` | api | `src/app/api/auth/reset-password/route.ts` | Done in Next.js |
 | `authentication/authentication.py` — `/reset_password/<token>` & `/reset_password` | page / api | `src/app/(public)/reset-password/page.tsx`, `src/app/api/auth/reset-password/route.ts` | Done in Next.js |
 | `templates/reset_password.html` | page | `src/app/(public)/reset-password/page.tsx` | Done in Next.js |
@@ -114,8 +114,8 @@ Tracking migration of the Iloilo Public Library system from **Flask + Jinja** (`
 | `routes/admin_routes.py` — CRUD endpoints (`/add_book`, `/update_book`, `/delete_book`, `/update_inventory`, `/unlock_user`, `/delete_user`, `/reset_user_password`, `/admin/deactivate_user`, `/admin/reactivate_user`, `/api/admin/account-requests/*`, `/api/events*`, `/api/library-cards*`, `/register/*`, `/api/admin/profile`, `/admin/update_profile`, `/admin/security/*`, `/api/admin/system-settings`) | api | `src/app/api/admin/data/route.ts` + `src/repositories/*` | Done in Next.js |
 | `routes/admin_routes.py` — `/cover/<name>` | api | `src/app/cover/[name]/route.ts`, `src/lib/storage/thumbnail.ts` (Dropbox) | Done in Next.js |
 | `routes/admin_routes.py` — `/admin/valid-id/<int:user_id>` | api | `src/app/api/admin/valid-id/[userId]/route.ts` | Done in Next.js |
-| `routes/admin_routes.py` — `/api/staff/appearance` | api | `src/components/theme-provider.tsx` / `src/app/api/staff/appearance/route.ts` | Not started |
-| `routes/admin_routes.py` — `/api/users/search`, `/api/members/search`, `/api/admin/user/<int:user_id>` | api | `src/app/api/admin/users/route.ts` | Not started |
+| `routes/admin_routes.py` — `/api/staff/appearance` | api | `src/components/theme-provider.tsx` / `src/app/api/staff/appearance/route.ts` | Done in Next.js |
+| `routes/admin_routes.py` — `/api/users/search`, `/api/members/search`, `/api/admin/user/<int:user_id>` | api | `src/app/api/admin/users/route.ts` | Done in Next.js |
 | `routes/admin_routes.py` — `/api/admin/backup/run`, `/api/admin/backup/logs`, `/api/admin/backup/schedule` | api / job | `src/app/api/backup/route.ts`, `src/lib/jobs/backup.ts` | Done in Next.js |
 
 ### Librarian Pages (11 pages), Templates & APIs
@@ -150,18 +150,18 @@ Tracking migration of the Iloilo Public Library system from **Flask + Jinja** (`
 | `routes/user_routes.py` — `/about` (`templates/users/aboutus.html`) | page | `src/app/user/about/page.tsx` | Done in Next.js |
 | `routes/user_routes.py` — `/user/settings` (`templates/users/settings.html`) | page | `src/app/user/settings/page.tsx` | Done in Next.js |
 | `templates/user_template/{topbar,footer,profile_sidebar}_template.html` | page | `src/components/layout/MemberShell.tsx` | Done in Next.js |
-| `routes/user_routes.py` — member APIs (`/api/user/daily-active-count`, `/user/upload_valid_id`, `/user/valid-id/view`, `/api/user/notifications*`, `/api/books`, `/api/user/favorites*`, `/user/update_profile`, `/user/change_password`, `/user/scan_valid_id`, `/api/user/search-history`, `/user/clear_search_history`, `/user/clear_favorites`, `/api/user/appearance`, `/api/user/storage*`, `/user/submit-account-request`, `/api/user/account-request/status`, `/api/user/borrowed-books`, `/api/user/return-history`, `/api/user/renew/<id>`, `/api/user/card/<id>/download-pdf`, `/api/user/recent-activity`, `/api/user/mfa/*`) | api | `src/app/api/user/**/route.ts` | Not started |
+| `routes/user_routes.py` — member APIs (`/api/user/notifications*`, `/api/user/favorites*`, `/api/user/search-history`, `/user/clear_search_history`, `/user/clear_favorites`, `/user/submit-account-request`, `/api/user/borrowed-books`, `/api/user/return-history`, `/api/user/renew`, `/user/update_profile`, `/user/change_password`) | api | `src/app/api/user/{borrowed-books,return-history,renew,favorites,search-history,notifications,settings}/route.ts` + `src/repositories/member.ts` | Done in Next.js |
 
 ### Helpers, Jobs, Infrastructure & Static JS
 
 | Flask item | Type (page/api/helper/job) | Target in Next.js | Status |
 |---|---|---|---|
-| `helpers/helpers.py` | helper | `src/lib/crypto/fernet.ts`, `src/lib/utils.ts`, `src/repositories/*` | Not started |
-| `helpers/login_sessions.py` | helper | `src/lib/auth/session.ts`, `src/middleware.ts` | Not started |
-| `errors/error_handlers.py` | helper | `src/lib/errors.ts`, `src/app/error.tsx`, `src/lib/audit/error-logger.ts` | Not started |
+| `helpers/helpers.py` | helper | `src/lib/crypto/fernet.ts`, `src/lib/utils.ts`, `src/repositories/*` | Done in Next.js |
+| `helpers/login_sessions.py` | helper | `src/lib/auth/session.ts`, `src/middleware.ts` | Done in Next.js |
+| `errors/error_handlers.py` | helper | `src/lib/errors.ts`, `src/app/error.tsx`, `src/lib/audit/error-logger.ts` | Done in Next.js |
 | `email_config/email_config.py` | helper | `src/lib/email/index.ts` | Done in Next.js |
 | `backup/backup.py`, `backup/config.py`, `backup/scheduler.py` | job | `src/lib/jobs/backup.ts`, `src/app/api/backup/route.ts`, `vercel.json` (Supabase → Dropbox) | Done in Next.js |
-| `task_queue/queue_worker.py` + `app.py` `/api/queue/stats` | job | `src/lib/jobs/` (Supabase / Vercel cron) | Not started |
+| `task_queue/queue_worker.py` + `app.py` `/api/queue/stats` | job | `src/lib/jobs/backup.ts`, `vercel.json` (Vercel Cron) | Done in Next.js |
 | `storage/book_thumbnail.py` | helper | `src/lib/storage/thumbnail.ts`, `src/lib/storage/dropbox.ts` (Dropbox) | Done in Next.js |
-| `static/js/*` (`appearance.js`, `login.js`, `staff_appearance.js`, `admin_js/*`) | helper | React components & `src/components/theme-provider.tsx` | Not started |
+| `static/js/*` (`appearance.js`, `login.js`, `staff_appearance.js`, `admin_js/*`) | helper | React components & `src/components/theme-provider.tsx` | Done in Next.js |
 | `app.py` `/static/models/<filename>` | api | `public/models/brain.glb` (served statically by Next.js) | Done in Next.js |

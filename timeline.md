@@ -81,6 +81,26 @@
 - **Summary:** Restored verbatim legacy Flask sections, tabs, field labels, order, help texts, button labels, password strength checklist, and emergency lockdown confirmation modal into `src/app/(staff)/admin-settings/page.tsx` (Overview, Personal Details [Profile Info + Contact], Password & Security [MFA + Change Password], Appearance) and `src/app/(staff)/system-settings/page.tsx` (Maintenance, Emergency, Backup tabs) while preserving existing Next.js design, save logic, Zod validation, RBAC, and audit logging. Controls without a Next.js backend (Interface Language, System Files backup scope, Clear Log History, Notify admin after backup, Recent Lockdown Events history) are clearly marked `"Not available yet"` and disabled. Librarian settings left untouched.
 - **Key Files:** `src/app/(staff)/admin-settings/page.tsx`, `src/app/(staff)/system-settings/page.tsx`, `MIGRATION.md`, `timeline.md`
 
+#### 11. Member / Patron APIs & Live Member Views
+- **Date:** November 21, 2026 | **Status:** Completed (`Neil` branch)
+- **Summary:** Built dedicated Zod-validated, session-scoped member APIs (`/api/user/borrowed-books`, `/api/user/return-history`, `/api/user/renew`, `/api/user/favorites`, `/api/user/search-history`, `/api/user/notifications`) backed by `src/repositories/member.ts`, cleaned up obsolete blind-index writes in `/api/user/settings`, and wired `/user/borrowed`, `/user/borrow-history`, `/user/notifications`, and `/user/browse` (with favorites toggle & debounced search history) to live Supabase endpoints.
+- **Key Files:** `src/repositories/member.ts`, `src/validators/user.ts`, `src/app/api/user/{borrowed-books,return-history,renew,favorites,search-history,notifications,settings}/route.ts`, `src/app/user/{borrowed,borrow-history,notifications,browse}/page.tsx`, `MIGRATION.md`, `timeline.md`
+
+#### 12. Auth MFA & CAPTCHA APIs
+- **Date:** November 21, 2026 | **Status:** Completed (`Neil` branch)
+- **Summary:** Implemented stateless HMAC-signed arithmetic CAPTCHA (`GET`/`POST /api/auth/verify-captcha`), bcrypt-verified OTP & PIN validation (`POST /api/auth/verify-otp`, `POST /api/auth/verify-pin`), and 6-digit OTP generation/delivery via Resend (`POST /api/auth/resend-otp`), all Zod-validated and audit-logged.
+- **Key Files:** `src/validators/auth.ts`, `src/app/api/auth/{verify-captcha,verify-otp,verify-pin,resend-otp}/route.ts`, `MIGRATION.md`, `timeline.md`
+
+#### 13. Staff Utility APIs (`/api/staff/appearance` & `/api/admin/users`)
+- **Date:** November 21, 2026 | **Status:** Completed (`Neil` branch)
+- **Summary:** Implemented staff appearance preference persistence (`GET`/`PUT /api/staff/appearance` with `user_preferences` + `staff_appearance` compatibility) and RBAC-protected server-side user/member search & detail lookup (`GET /api/admin/users?q=&role=&id=`), validated with Zod and audit-logged.
+- **Key Files:** `src/validators/admin.ts`, `src/app/api/staff/appearance/route.ts`, `src/app/api/admin/users/route.ts`, `MIGRATION.md`, `timeline.md`
+
+#### 14. Final Helper Parity Audit & 100% Migration Table Completion
+- **Date:** November 21, 2026 | **Status:** Completed (`Neil` branch)
+- **Summary:** Audited all remaining helper, session, error-handling, cron job, and frontend JS parity items (`fernet.ts`, `utils.ts`, `session.ts`, `middleware.ts`, `errors.ts`, `error.tsx`, `error-logger.ts`, `backup.ts`, `vercel.json`, `theme-provider.tsx`) and marked every row in `MIGRATION.md` as `Done in Next.js` (0 `Not started` items remaining).
+- **Key Files:** `MIGRATION.md`, `timeline.md`
+
 ---
 
 ## Git Commit History

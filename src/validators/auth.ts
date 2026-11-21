@@ -82,6 +82,30 @@ export const qrCheckQuerySchema = z.object({
   token: z.string().trim().min(16, "Invalid or missing QR token."),
 });
 
+export const otpCodeSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{6}$/, "Verification code must be exactly 6 digits.");
+
+export const verifyCaptchaSchema = z.object({
+  token: z.string().trim().min(10, "Invalid CAPTCHA challenge token."),
+  answer: z.string().trim().min(1, "Please enter the CAPTCHA answer.").max(16),
+});
+
+export const verifyOtpSchema = z.object({
+  otp: otpCodeSchema,
+  email: emailSchema.optional(),
+});
+
+export const verifyPinSchema = z.object({
+  pin: pinCodeSchema,
+  email: emailSchema.optional(),
+});
+
+export const resendOtpSchema = z.object({
+  email: emailSchema.optional(),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type SignupInput = z.infer<typeof signupSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordRequestSchema>;
