@@ -71,6 +71,16 @@
 - **Summary:** Restored the verbatim legacy Flask About Us content (Who We Are, Legal Mandate RA 7743, Vision, Mission & 5-item Quality Policy, 9 Core Values, 8 Library Sections, 15 General Guidelines, 3 Fines & Penalties cards, Main Library + 10 District & Community Branches, Find Us Google Maps iframe & contact details, and S+ Premium 6-member Dev Team) into the existing Next.js design via `AboutUsContent.tsx`. Wired `/no_user_about`, added member-protected `/user/about` with `MemberShell` navigation, and restored exact legacy wording in `VisionMissionSection.tsx` and `ServicesSection.tsx`.
 - **Key Files:** `src/components/landing/AboutUsContent.tsx`, `src/app/(public)/no_user_about/page.tsx`, `src/app/user/about/page.tsx`, `src/components/layout/MemberShell.tsx`, `src/components/landing/{VisionMissionSection,ServicesSection}.tsx`, `tests/integration/verify-routes.mjs`, `MIGRATION.md`
 
+#### 9. Restore Legacy Admin Layout Content (Sidebar, Topbar & Footer)
+- **Date:** November 21, 2026 | **Status:** Completed (Uncommitted; Owner verified: pending)
+- **Summary:** Restored legacy Flask admin sidebar structure, order, labels, and collapsible groups (`Main`: Home, Dashboard, Announcement; `Management`: User Management [Admins, Librarians, Users / Members], Borrow Management [Borrowing Form, Borrow History], Book Management, divider, Event Calendar, Account Requests; sidebar footer: System Settings + Admin / Account settings + Logout), restored admin topbar items (`Iloilo City Library`, `Account Requests` bell, `Event Calendar`, keeping `ThemeToggle`, `System Settings`, and `Logout`), and added `AdminFooter.tsx` (CTA band, 4-column grid, partners belt, legal modals) rendered for `role="admin"` only in `StaffShell.tsx` and `dashboard/page.tsx`. Librarian layout (`LIBRARIAN_NAV` and `role="librarian"`) left untouched.
+- **Key Files:** `src/components/layout/{StaffSidebar,StaffTopbar,StaffShell,AdminFooter}.tsx`, `src/app/(staff)/dashboard/page.tsx`, `MIGRATION.md`, `timeline.md`
+
+#### 10. Restore Legacy Admin Settings & System Settings Content
+- **Date:** November 21, 2026 | **Status:** Completed (Uncommitted; Owner verified: pending)
+- **Summary:** Restored verbatim legacy Flask sections, tabs, field labels, order, help texts, button labels, password strength checklist, and emergency lockdown confirmation modal into `src/app/(staff)/admin-settings/page.tsx` (Overview, Personal Details [Profile Info + Contact], Password & Security [MFA + Change Password], Appearance) and `src/app/(staff)/system-settings/page.tsx` (Maintenance, Emergency, Backup tabs) while preserving existing Next.js design, save logic, Zod validation, RBAC, and audit logging. Controls without a Next.js backend (Interface Language, System Files backup scope, Clear Log History, Notify admin after backup, Recent Lockdown Events history) are clearly marked `"Not available yet"` and disabled. Librarian settings left untouched.
+- **Key Files:** `src/app/(staff)/admin-settings/page.tsx`, `src/app/(staff)/system-settings/page.tsx`, `MIGRATION.md`, `timeline.md`
+
 ---
 
 ## Git Commit History

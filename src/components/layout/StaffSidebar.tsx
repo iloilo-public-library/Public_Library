@@ -5,9 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  AlertTriangle,
+  BookMarked,
   BookOpen,
   CalendarDays,
+  ChevronDown,
   CreditCard,
   Home,
   LayoutDashboard,
@@ -19,10 +20,7 @@ import {
   RotateCcw,
   Search,
   Settings,
-  Shield,
-  Sliders,
   UserCheck,
-  UserCog,
   Users,
   X,
 } from "lucide-react";
@@ -36,22 +34,72 @@ interface NavItem {
   section: string;
 }
 
-const ADMIN_NAV: NavItem[] = [
-  { href: "/admin/home", label: "Home", icon: Home, section: "Overview" },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, section: "Overview" },
-  { href: "/admin/inventory", label: "Inventory Status", icon: Package, section: "Library" },
-  { href: "/admin/books", label: "Book Management", icon: BookOpen, section: "Library" },
-  { href: "/admin/library-cards", label: "Library Cards", icon: CreditCard, section: "Library" },
-  { href: "/admin/records-returns", label: "Records & Returns", icon: RotateCcw, section: "Library" },
-  { href: "/admin/users", label: "User Management", icon: Users, section: "Accounts" },
-  { href: "/admin/librarians", label: "Librarians", icon: UserCog, section: "Accounts" },
-  { href: "/admin/admins", label: "Admins", icon: Shield, section: "Accounts" },
-  { href: "/admin/account-requests", label: "Account Requests", icon: UserCheck, section: "Accounts" },
-  { href: "/admin/calendar", label: "Calendar Events", icon: CalendarDays, section: "Community" },
-  { href: "/admin/announcements", label: "Announcements", icon: Megaphone, section: "Community" },
-  { href: "/admin/error-logs", label: "Error Logs", icon: AlertTriangle, section: "System" },
-  { href: "/system-settings", label: "System Settings", icon: Sliders, section: "System" },
-  { href: "/admin-settings", label: "Admin Settings", icon: Settings, section: "System" },
+interface AdminNavGroup {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: { href: string; label: string }[];
+}
+
+interface AdminNavLink {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const ADMIN_MAIN_ITEMS: AdminNavLink[] = [
+  { href: "/admin/home", label: "Home", icon: Home },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/announcements", label: "Announcement", icon: Megaphone },
+];
+
+const ADMIN_MANAGEMENT_GROUPS: AdminNavGroup[] = [
+  {
+    id: "user_mgmt",
+    label: "User Management",
+    icon: Users,
+    children: [
+      { href: "/admin/admins", label: "Admins" },
+      { href: "/admin/librarians", label: "Librarians" },
+      { href: "/admin/users", label: "Users / Members" },
+    ],
+  },
+  {
+    id: "borrow_mgmt",
+    label: "Borrow Management",
+    icon: BookMarked,
+    children: [
+      { href: "/admin/library-cards", label: "Borrowing Form" },
+      { href: "/admin/records-returns", label: "Borrow History" },
+    ],
+  },
+];
+
+const ADMIN_MANAGEMENT_BOOK: AdminNavLink = {
+  href: "/admin/books",
+  label: "Book Management",
+  icon: BookOpen,
+};
+
+const ADMIN_MANAGEMENT_LOWER: AdminNavLink[] = [
+  { href: "/admin/calendar", label: "Event Calendar", icon: CalendarDays },
+  { href: "/admin/account-requests", label: "Account Requests", icon: UserCheck },
+];
+
+const ADMIN_SEARCH_INDEX: { label: string; href: string; parent: string | null }[] = [
+  { label: "Home", href: "/admin/home", parent: "Main" },
+  { label: "Dashboard", href: "/dashboard", parent: "Main" },
+  { label: "Announcement", href: "/admin/announcements", parent: "Main" },
+  { label: "Admins", href: "/admin/admins", parent: "User Management" },
+  { label: "Librarians", href: "/admin/librarians", parent: "User Management" },
+  { label: "Users / Members", href: "/admin/users", parent: "User Management" },
+  { label: "Borrowing Form", href: "/admin/library-cards", parent: "Borrow Management" },
+  { label: "Borrow History", href: "/admin/records-returns", parent: "Borrow Management" },
+  { label: "Book Management", href: "/admin/books", parent: "Management" },
+  { label: "Event Calendar", href: "/admin/calendar", parent: "Management" },
+  { label: "Account Requests", href: "/admin/account-requests", parent: "Management" },
+  { label: "System Settings", href: "/system-settings", parent: null },
+  { label: "Account settings", href: "/admin-settings", parent: "Admin" },
 ];
 
 const LIBRARIAN_NAV: NavItem[] = [
@@ -85,27 +133,76 @@ export function StaffSidebar({
 }: StaffSidebarProps) {
   const pathname = usePathname();
   const [search, setSearch] = useState("");
+  const isAdmin = role === "admin";
 
-  const navItems = role === "librarian" ? LIBRARIAN_NAV : ADMIN_NAV;
+  const initialOpenGroup = useMemo(() => {
+    for (const grp of ADMIN_MANAGEMENT_GROUPS) {
+      if (grp.children.some((c) => pathname === c.href)) return grp.id;
+    }
+    return null;
+  }, [pathname]);
 
-  const filteredItems = useMemo(() => {
+  const [openGroup, setOpenGroup] = useState<string | null>(initialOpenGroup);
+  const activeOpenGroup = openGroup ?? initialOpenGroup;
+
+  const filteredLibrarianItems = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return navItems;
-    return navItems.filter(
+    if (!q) return LIBRARIAN_NAV;
+    return LIBRARIAN_NAV.filter(
       (item) =>
         item.label.toLowerCase().includes(q) || item.section.toLowerCase().includes(q)
     );
-  }, [search, navItems]);
+  }, [search]);
 
-  const sections = useMemo(() => {
+  const librarianSections = useMemo(() => {
     const map = new Map<string, NavItem[]>();
-    for (const item of filteredItems) {
+    for (const item of filteredLibrarianItems) {
       const list = map.get(item.section) ?? [];
       list.push(item);
       map.set(item.section, list);
     }
     return Array.from(map.entries());
-  }, [filteredItems]);
+  }, [filteredLibrarianItems]);
+
+  const filteredAdminSearch = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    return ADMIN_SEARCH_INDEX.filter(
+      (item) =>
+        item.label.toLowerCase().includes(q) ||
+        (item.parent && item.parent.toLowerCase().includes(q))
+    );
+  }, [search]);
+
+  const renderAdminLink = (item: AdminNavLink, isCompact: boolean, isMobile: boolean) => {
+    const Icon = item.icon;
+    const isActive = pathname === item.href;
+    const linkEl = (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={isMobile ? onCloseMobile : undefined}
+        className={cn(
+          "flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-[0.82rem] font-medium transition",
+          isCompact && "justify-center px-0 py-2.5",
+          isActive
+            ? "bg-accent/15 text-accent"
+            : "text-white/65 hover:bg-white/6 hover:text-white"
+        )}
+      >
+        <Icon className="h-4 w-4 shrink-0" />
+        {!isCompact && <span className="truncate">{item.label}</span>}
+      </Link>
+    );
+
+    return isCompact ? (
+      <LibraryTooltip key={item.href} label={item.label} side="right">
+        {linkEl}
+      </LibraryTooltip>
+    ) : (
+      linkEl
+    );
+  };
 
   const sidebarContent = (isMobile: boolean) => {
     const isCompact = !isMobile && collapsed;
@@ -120,7 +217,7 @@ export function StaffSidebar({
           )}
         >
           <Link
-            href={role === "admin" ? "/dashboard" : "/librarian/dashboard"}
+            href={isAdmin ? "/admin/home" : "/librarian/dashboard"}
             className="flex min-w-0 items-center gap-2.5 overflow-hidden"
           >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-accent to-accent2">
@@ -133,9 +230,11 @@ export function StaffSidebar({
             {!isCompact && (
               <div className="truncate leading-tight">
                 <div className="text-[0.82rem] font-bold tracking-[-0.01em] text-white">
-                  Iloilo Library
+                  {isAdmin ? "Iloilo City Library" : "Iloilo Library"}
                 </div>
-                <div className="text-[0.65rem] capitalize text-accent/55">{role} Portal</div>
+                <div className="text-[0.65rem] text-accent/55">
+                  {isAdmin ? "Admin Panel" : "Librarian Portal"}
+                </div>
               </div>
             )}
           </Link>
@@ -167,14 +266,14 @@ export function StaffSidebar({
 
         {/* Search */}
         {!isCompact ? (
-          <div className="px-3 pb-2 pt-3">
+          <div className="relative px-3 pb-2 pt-3">
             <div className="relative flex items-center">
               <Search className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-white/35" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Quick search..."
+                placeholder={isAdmin ? "Search for..." : "Quick search..."}
                 className="w-full rounded-lg border border-white/8 bg-sidebar-deep py-1.5 pl-8 pr-7 text-xs text-white placeholder:text-white/35 focus:border-accent/40 focus:outline-none"
               />
               {search && (
@@ -188,6 +287,31 @@ export function StaffSidebar({
                 </button>
               )}
             </div>
+
+            {isAdmin && search.trim().length > 0 && (
+              <div className="mt-1.5 max-h-56 overflow-y-auto rounded-lg border border-accent/15 bg-sidebar-deep shadow-lg">
+                {filteredAdminSearch.length === 0 ? (
+                  <div className="px-3 py-2.5 text-center text-xs text-white/40">No matches</div>
+                ) : (
+                  filteredAdminSearch.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => {
+                        setSearch("");
+                        if (isMobile) onCloseMobile();
+                      }}
+                      className="flex items-center justify-between border-b border-white/5 px-3 py-2 text-xs text-white/75 transition last:border-b-0 hover:bg-accent/12 hover:text-white"
+                    >
+                      <span>{item.label}</span>
+                      {item.parent && (
+                        <span className="text-[0.65rem] text-white/35">{item.parent}</span>
+                      )}
+                    </Link>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex justify-center py-2">
@@ -205,63 +329,231 @@ export function StaffSidebar({
         )}
 
         {/* Navigation Links */}
-        <nav className="flex-1 overflow-y-auto px-2.5 py-2">
-          {sections.map(([sectionName, items]) => (
-            <div key={sectionName} className="mb-3">
+        {isAdmin ? (
+          <nav className="flex-1 overflow-y-auto px-2.5 py-2">
+            {/* Main */}
+            <div className="mb-3">
               {!isCompact && (
                 <div className="mb-1 px-2.5 text-[0.65rem] font-bold uppercase tracking-[0.08em] text-accent/45">
-                  {sectionName}
+                  Main
                 </div>
               )}
               <div className="flex flex-col gap-0.5">
-                {items.map(({ href, label, icon: Icon }) => {
-                  const isActive = pathname === href;
-                  const linkEl = (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={isMobile ? onCloseMobile : undefined}
+                {ADMIN_MAIN_ITEMS.map((item) => renderAdminLink(item, isCompact, isMobile))}
+              </div>
+            </div>
+
+            {/* Management */}
+            <div className="mb-3">
+              {!isCompact && (
+                <div className="mb-1 px-2.5 text-[0.65rem] font-bold uppercase tracking-[0.08em] text-accent/45">
+                  Management
+                </div>
+              )}
+              <div className="flex flex-col gap-0.5">
+                {ADMIN_MANAGEMENT_GROUPS.map((group) => {
+                  const GroupIcon = group.icon;
+                  const isOpen = activeOpenGroup === group.id;
+                  const hasActiveChild = group.children.some((c) => pathname === c.href);
+
+                  const btnEl = (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isCompact) {
+                          onToggleCollapse();
+                          setOpenGroup(group.id);
+                          return;
+                        }
+                        setOpenGroup((prev) => (prev === group.id ? "" : group.id));
+                      }}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-[0.82rem] font-medium transition",
+                        "flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-[0.82rem] font-medium transition cursor-pointer",
                         isCompact && "justify-center px-0 py-2.5",
-                        isActive
+                        hasActiveChild
                           ? "bg-accent/15 text-accent"
                           : "text-white/65 hover:bg-white/6 hover:text-white"
                       )}
                     >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      {!isCompact && <span className="truncate">{label}</span>}
-                    </Link>
+                      <GroupIcon className="h-4 w-4 shrink-0" />
+                      {!isCompact && (
+                        <>
+                          <span className="flex-1 truncate text-left">{group.label}</span>
+                          <ChevronDown
+                            className={cn(
+                              "h-3.5 w-3.5 shrink-0 text-white/40 transition-transform",
+                              isOpen && "rotate-180"
+                            )}
+                          />
+                        </>
+                      )}
+                    </button>
                   );
 
-                  return isCompact ? (
-                    <LibraryTooltip key={href} label={label} side="right">
-                      {linkEl}
-                    </LibraryTooltip>
-                  ) : (
-                    linkEl
+                  return (
+                    <div key={group.id}>
+                      {isCompact ? (
+                        <LibraryTooltip label={group.label} side="right">
+                          {btnEl}
+                        </LibraryTooltip>
+                      ) : (
+                        btnEl
+                      )}
+
+                      {!isCompact && isOpen && (
+                        <div className="ml-5 mt-0.5 flex flex-col gap-0.5 border-l border-accent/15 pl-2.5">
+                          {group.children.map((child) => {
+                            const childActive = pathname === child.href;
+                            return (
+                              <Link
+                                key={child.href}
+                                href={child.href}
+                                onClick={isMobile ? onCloseMobile : undefined}
+                                className={cn(
+                                  "rounded-lg px-2.5 py-1.5 text-[0.78rem] font-medium transition",
+                                  childActive
+                                    ? "bg-accent/15 text-accent"
+                                    : "text-white/60 hover:bg-white/6 hover:text-white"
+                                )}
+                              >
+                                {child.label}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
+
+                {renderAdminLink(ADMIN_MANAGEMENT_BOOK, isCompact, isMobile)}
+
+                <div className="my-2 h-px bg-accent/10" />
+
+                {ADMIN_MANAGEMENT_LOWER.map((item) => renderAdminLink(item, isCompact, isMobile))}
               </div>
             </div>
-          ))}
-        </nav>
+          </nav>
+        ) : (
+          <nav className="flex-1 overflow-y-auto px-2.5 py-2">
+            {librarianSections.map(([sectionName, items]) => (
+              <div key={sectionName} className="mb-3">
+                {!isCompact && (
+                  <div className="mb-1 px-2.5 text-[0.65rem] font-bold uppercase tracking-[0.08em] text-accent/45">
+                    {sectionName}
+                  </div>
+                )}
+                <div className="flex flex-col gap-0.5">
+                  {items.map(({ href, label, icon: Icon }) => {
+                    const isActive = pathname === href;
+                    const linkEl = (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={isMobile ? onCloseMobile : undefined}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-[0.82rem] font-medium transition",
+                          isCompact && "justify-center px-0 py-2.5",
+                          isActive
+                            ? "bg-accent/15 text-accent"
+                            : "text-white/65 hover:bg-white/6 hover:text-white"
+                        )}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        {!isCompact && <span className="truncate">{label}</span>}
+                      </Link>
+                    );
 
-        {/* Footer Logout */}
-        <div className="shrink-0 border-t border-accent/8 p-2.5">
-          <LibraryTooltip label="Sign Out" side="right" disabled={!isCompact}>
-            <a
-              href="/logout"
+                    return isCompact ? (
+                      <LibraryTooltip key={href} label={label} side="right">
+                        {linkEl}
+                      </LibraryTooltip>
+                    ) : (
+                      linkEl
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </nav>
+        )}
+
+        {/* Footer */}
+        {isAdmin ? (
+          <div className="shrink-0 space-y-1.5 border-t border-accent/8 p-2.5">
+            <LibraryTooltip label="System Settings" side="right" disabled={!isCompact}>
+              <Link
+                href="/system-settings"
+                onClick={isMobile ? onCloseMobile : undefined}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-[0.82rem] font-medium transition",
+                  isCompact && "justify-center px-0",
+                  pathname === "/system-settings"
+                    ? "bg-accent/15 text-accent"
+                    : "text-white/65 hover:bg-white/6 hover:text-white"
+                )}
+              >
+                <Settings className="h-4 w-4 shrink-0" />
+                {!isCompact && <span className="truncate">System Settings</span>}
+              </Link>
+            </LibraryTooltip>
+
+            <div
               className={cn(
-                "flex items-center gap-2.5 rounded-[10px] border border-danger/20 bg-danger/10 px-3 py-2 text-[0.82rem] font-semibold text-danger/85 transition hover:bg-danger/20 hover:text-danger",
-                isCompact && "justify-center px-0"
+                "flex items-center gap-2 rounded-[10px] border border-white/8 bg-white/[0.03] px-2 py-1.5",
+                isCompact && "justify-center border-0 bg-transparent px-0 py-1"
               )}
             >
-              <LogOut className="h-4 w-4 shrink-0" />
-              {!isCompact && <span>Log Out</span>}
-            </a>
-          </LibraryTooltip>
-        </div>
+              <LibraryTooltip label="Account settings" side="right" disabled={!isCompact}>
+                <Link
+                  href="/admin-settings"
+                  onClick={isMobile ? onCloseMobile : undefined}
+                  className={cn(
+                    "flex min-w-0 flex-1 items-center gap-2.5",
+                    isCompact && "flex-none justify-center"
+                  )}
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-accent/25 bg-accent/15 text-[0.72rem] font-bold text-accent">
+                    AD
+                  </div>
+                  {!isCompact && (
+                    <div className="min-w-0 truncate leading-tight">
+                      <div className="truncate text-[0.8rem] font-semibold text-white">Admin</div>
+                      <div className="truncate text-[0.65rem] text-white/45">Account settings</div>
+                    </div>
+                  )}
+                </Link>
+              </LibraryTooltip>
+
+              {!isCompact && (
+                <LibraryTooltip label="Logout" side="right">
+                  <a
+                    href="/logout"
+                    aria-label="Logout"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-danger/20 bg-danger/10 text-danger/80 transition hover:bg-danger/20 hover:text-danger"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                  </a>
+                </LibraryTooltip>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="shrink-0 border-t border-accent/8 p-2.5">
+            <LibraryTooltip label="Sign Out" side="right" disabled={!isCompact}>
+              <a
+                href="/logout"
+                className={cn(
+                  "flex items-center gap-2.5 rounded-[10px] border border-danger/20 bg-danger/10 px-3 py-2 text-[0.82rem] font-semibold text-danger/85 transition hover:bg-danger/20 hover:text-danger",
+                  isCompact && "justify-center px-0"
+                )}
+              >
+                <LogOut className="h-4 w-4 shrink-0" />
+                {!isCompact && <span>Log Out</span>}
+              </a>
+            </LibraryTooltip>
+          </div>
+        )}
       </div>
     );
   };

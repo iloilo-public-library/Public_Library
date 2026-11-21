@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { StaffSidebar } from "@/components/layout/StaffSidebar";
 import { StaffTopbar } from "@/components/layout/StaffTopbar";
+import { AdminFooter } from "@/components/layout/AdminFooter";
 import { cn } from "@/lib/utils";
 
 interface StaffShellProps {
@@ -16,7 +17,7 @@ export function StaffShell({ title, role = "admin", children }: StaffShellProps)
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <StaffSidebar
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((c) => !c)}
@@ -33,12 +34,14 @@ export function StaffShell({ title, role = "admin", children }: StaffShellProps)
 
       <main
         className={cn(
-          "px-4 pb-16 pt-[76px] transition-[padding-left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] lg:px-8",
+          "flex-1 px-4 pb-16 pt-[76px] transition-[padding-left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] lg:px-8",
           collapsed ? "lg:pl-[88px]" : "lg:pl-[264px]"
         )}
       >
         <div className="mx-auto max-w-[1440px]">{children}</div>
       </main>
+
+      {role === "admin" && <AdminFooter collapsed={collapsed} />}
     </div>
   );
 }

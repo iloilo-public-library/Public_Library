@@ -107,10 +107,10 @@ Tracking migration of the Iloilo Public Library system from **Flask + Jinja** (`
 | `routes/admin_routes.py` — `/admin/event` (`templates/admins/calendar_event.html`) | page | `src/app/(staff)/admin/calendar/page.tsx` | Done in Next.js |
 | `routes/admin_routes.py` — `/library-cards` (`templates/admins/library_cards.html`) | page | `src/app/(staff)/admin/library-cards/page.tsx` | Done in Next.js |
 | `routes/admin_routes.py` — `/records_returns` (`templates/admins/records_returns.html`) | page | `src/app/(staff)/admin/records-returns/page.tsx` | Done in Next.js |
-| `routes/admin_routes.py` — `/admin-settings` (`templates/admins/admin_settings.html`) | page | `src/app/(staff)/admin-settings/page.tsx` | Done in Next.js |
-| `routes/admin_routes.py` — `/system-settings` (`templates/admins/system_settings.html`) | page | `src/app/(staff)/system-settings/page.tsx` | Done in Next.js |
+| `routes/admin_routes.py` — `/admin-settings` (`templates/admins/admin_settings.html`) | page | `src/app/(staff)/admin-settings/page.tsx` | Done in Next.js (legacy sections/labels restored) |
+| `routes/admin_routes.py` — `/system-settings` (`templates/admins/system_settings.html`) | page | `src/app/(staff)/system-settings/page.tsx` | Done in Next.js (legacy tabs/sections/labels restored) |
 | `templates/admins/login.html` | page | `src/app/(public)/login/page.tsx` | Done in Next.js |
-| `templates/admin_template/{sidebar,topbar,footer}_template.html` | page | `src/components/layout/StaffSidebar.tsx`, `StaffTopbar.tsx` | Done in Next.js |
+| `templates/admin_template/{sidebar,topbar,footer}_template.html` | page | `src/components/layout/StaffSidebar.tsx`, `StaffTopbar.tsx`, `AdminFooter.tsx`, `StaffShell.tsx` | Done in Next.js |
 | `routes/admin_routes.py` — CRUD endpoints (`/add_book`, `/update_book`, `/delete_book`, `/update_inventory`, `/unlock_user`, `/delete_user`, `/reset_user_password`, `/admin/deactivate_user`, `/admin/reactivate_user`, `/api/admin/account-requests/*`, `/api/events*`, `/api/library-cards*`, `/register/*`, `/api/admin/profile`, `/admin/update_profile`, `/admin/security/*`, `/api/admin/system-settings`) | api | `src/app/api/admin/data/route.ts` + `src/repositories/*` | Done in Next.js |
 | `routes/admin_routes.py` — `/cover/<name>` | api | `src/app/cover/[name]/route.ts`, `src/lib/storage/thumbnail.ts` (Dropbox) | Done in Next.js |
 | `routes/admin_routes.py` — `/admin/valid-id/<int:user_id>` | api | `src/app/api/admin/valid-id/[userId]/route.ts` | Done in Next.js |
