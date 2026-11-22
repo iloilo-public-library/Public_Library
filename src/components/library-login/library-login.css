@@ -1,0 +1,1510 @@
+/* ==========================================================================
+   Iloilo City Public Library — Arcana Desk & Hologram Login (.ilpl scoped)
+   ========================================================================== */
+
+.ilpl {
+  /* ── Tuning Variables ─────────────────────────────────────────────────── */
+  --speed: 1;                 /* Animation duration multiplier (e.g. 0.8 faster, 1.3 slower) */
+  --glow: 1;                  /* Lamp warm glow & desk highlight intensity (0 to 1.5) */
+  --book-w: min(39rem, 45vw); /* Open tome width on desktop (drives cqw scaling) */
+  --ls: 1;                    /* Lamp scale multiplier */
+  --beam-x: 68%;              /* Horizontal origin of lamp glow/cone overlay on Lamp.tsx */
+  --beam-y: 26%;              /* Vertical origin of lamp glow/cone overlay on Lamp.tsx */
+  --holo-glow: 1;             /* Holographic panel glow intensity (0 to 1.5) */
+  --holo-bob: 0px;            /* Kept 0 to keep text sharp while typing */
+  --intro-cover-duration: 1000ms; /* Intro cover opening duration */
+  --flip-duration: 820ms;     /* Main 3D page-flip duration */
+  --flip-stagger: 75ms;       /* Stagger between stacked riffle pages (60-90ms) */
+  --card-out: 200ms;          /* Card top-down dematerialize duration */
+  --card-in: 400ms;           /* Card bottom-up materialize duration */
+
+  /* ── Theme Palette (strictly preserved slate blue, gold, soft blue) ──── */
+  --ilpl-slate-1: #1c2a3a;
+  --ilpl-slate-2: #233346;
+  --ilpl-slate-3: #2a3b50;
+  --ilpl-gold: #f5cf7a;
+  --ilpl-gold-dim: rgba(245, 207, 122, 0.55);
+  --ilpl-blue: #9fc3ea;
+  --ilpl-cyan: #7ed6ff;
+  --ilpl-btn-ink: #0c1926;
+
+  /* ── Parchment & Desk Family ─────────────────────────────────────────── */
+  --ilpl-parchment-light: #efe3c6;
+  --ilpl-parchment-mid: #dfd0ac;
+  --ilpl-parchment-edge: #bfa77a;
+  --ilpl-ink: #2a1f14;
+  --ilpl-leather-1: #172536;
+  --ilpl-leather-2: #0d1724;
+
+  /* ── Hologram Glass Palette (WCAG AA light-on-dark) ──────────────────── */
+  --ilpl-holo-bg: rgba(10, 20, 35, 0.76);
+  --ilpl-holo-text: #e8f1fb;
+  --ilpl-holo-muted: #9db4cc;
+
+  --ilpl-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ilpl-header-h: 58px;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  width: 100%;
+  overflow-x: clip;
+  background: linear-gradient(155deg, var(--ilpl-slate-1) 0%, var(--ilpl-slate-2) 52%, var(--ilpl-slate-3) 100%);
+  color: var(--ilpl-holo-text);
+  font-family: var(--font-sans, "Plus Jakarta Sans", "DM Sans", sans-serif);
+}
+
+@media (min-width: 1024px) {
+  .ilpl {
+    height: 100dvh;
+    overflow: hidden;
+  }
+}
+
+/* ── Ambient Lamp Dimming & Warm Atmospheric Wash ────────────────────────── */
+.ilpl-ambient-dim {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(circle at 24% 44%, rgba(7, 14, 24, 0.35), rgba(5, 10, 18, 0.68) 76%);
+  opacity: 0;
+  transition: opacity calc(0.65s * var(--speed)) var(--ilpl-ease);
+}
+
+.ilpl[data-lamp="off"] .ilpl-ambient-dim {
+  opacity: 1;
+}
+
+.ilpl-ambient-wash {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(ellipse 46% 52% at 24% 46%, rgba(245, 207, 122, calc(0.16 * var(--glow))), transparent 70%),
+    radial-gradient(ellipse 42% 50% at 72% 62%, rgba(245, 207, 122, calc(0.09 * var(--glow))), transparent 72%);
+  opacity: 1;
+  transition: opacity calc(0.65s * var(--speed)) var(--ilpl-ease);
+  animation: ilpl-breathe calc(6s * var(--speed)) ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+.ilpl[data-lamp="off"] .ilpl-ambient-wash {
+  opacity: 0;
+  animation: none;
+}
+
+@keyframes ilpl-breathe {
+  0%, 100% {
+    opacity: 0.88;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes ilpl-warm-flicker {
+  0%, 100% { opacity: 1; }
+  47% { opacity: 0.99; }
+  49% { opacity: 0.94; }
+  51% { opacity: 1; }
+  82% { opacity: 0.985; }
+  84% { opacity: 0.955; }
+  86% { opacity: 1; }
+}
+
+@keyframes ilpl-holo-flicker {
+  0%, 100% { opacity: 1; }
+  54% { opacity: 0.99; }
+  55% { opacity: 0.95; }
+  56% { opacity: 1; }
+  89% { opacity: 0.98; }
+  90% { opacity: 0.96; }
+  91% { opacity: 1; }
+}
+
+@keyframes ilpl-holo-bob {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, calc(var(--holo-bob) * -1), 0);
+  }
+}
+
+@keyframes ilpl-stroke-glow {
+  0%, 100% {
+    opacity: 0.62;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.ilpl-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  height: var(--ilpl-header-h);
+  flex-shrink: 0;
+  width: 100%;
+  padding: env(safe-area-inset-top, 0px) clamp(0.75rem, 2.6vw, 2.25rem) 0;
+  background: rgba(24, 37, 52, 0.92);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.ilpl-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  color: #ffffff;
+  text-decoration: none;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  border-radius: 0.5rem;
+  padding: 0.2rem 0;
+}
+
+.ilpl-brand:focus-visible {
+  outline: 2px solid var(--ilpl-gold);
+  outline-offset: 2px;
+}
+
+.ilpl-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.ilpl-nav-login {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 0.85rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: transparent;
+  color: #e8f1fb;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.ilpl-nav-login:hover {
+  border-color: rgba(245, 207, 122, 0.65);
+  background: rgba(245, 207, 122, 0.1);
+}
+
+.ilpl-nav-login[data-active="true"] {
+  border-color: var(--ilpl-gold);
+  background: rgba(245, 207, 122, 0.16);
+  color: var(--ilpl-gold);
+}
+
+.ilpl-nav-login:focus-visible {
+  outline: 2px solid var(--ilpl-gold);
+  outline-offset: 2px;
+}
+
+.ilpl-nav-signup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 0.95rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(196, 224, 252, 0.55);
+  background: linear-gradient(180deg, #b5d5f5 0%, var(--ilpl-blue) 100%);
+  color: var(--ilpl-btn-ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: filter 0.2s ease, transform 0.2s var(--ilpl-ease);
+}
+
+.ilpl-nav-signup:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.ilpl-nav-signup:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.ilpl-nav-signup:focus-visible {
+  outline: 2px solid var(--ilpl-gold);
+  outline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+  .ilpl-nav-login,
+  .ilpl-nav-signup {
+    min-height: 36px;
+    padding: 0 0.68rem;
+    font-size: 0.74rem;
+  }
+}
+
+/* ── Main Split Stage (fits 1 viewport height on desktop >=1024px) ───────── */
+.ilpl-main {
+  position: relative;
+  z-index: 10;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(1rem, 2.6vw, 2.5rem);
+  width: 100%;
+  max-width: 1580px;
+  margin: 0 auto;
+  padding: clamp(0.6rem, 1.5vh, 1.25rem) clamp(1rem, 2.8vw, 2.5rem) calc(clamp(0.6rem, 1.5vh, 1.25rem) + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 1024px) {
+  .ilpl-main {
+    height: calc(100dvh - var(--ilpl-header-h));
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 1023px) {
+  .ilpl-main {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    align-content: start;
+    gap: 1.25rem;
+    padding-top: 1rem;
+    padding-bottom: 2rem;
+  }
+}
+
+.ilpl-right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Left Column: Lamp + Hero Copy ───────────────────────────────────────── */
+.ilpl-left {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.45rem, 1.4vw, 1.15rem);
+  width: 100%;
+}
+
+@media (max-width: 1180px) {
+  .ilpl-left {
+    flex-direction: column;
+    text-align: center;
+    max-width: 40rem;
+    gap: 0.75rem;
+  }
+}
+
+.ilpl-hero {
+  position: relative;
+  z-index: 12;
+  max-width: 30rem;
+  transition: opacity calc(0.6s * var(--speed)) var(--ilpl-ease);
+}
+
+.ilpl[data-lamp="off"] .ilpl-hero {
+  opacity: 0.6;
+}
+
+.ilpl-eyebrow {
+  font-size: clamp(0.66rem, 0.74vw, 0.76rem);
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(245, 207, 122, 0.88);
+}
+
+.ilpl-title {
+  margin-top: 0.45rem;
+  font-family: var(--font-serif, "Source Serif 4", Georgia, serif);
+  font-size: clamp(2rem, 3.5vw, 3.45rem);
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  text-shadow: 0 4px 28px rgba(245, 207, 122, calc(0.18 * var(--glow)));
+}
+
+.ilpl-subtitle {
+  margin-top: 0.55rem;
+  font-size: clamp(0.78rem, 0.88vw, 0.9rem);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--ilpl-gold);
+}
+
+.ilpl-desc {
+  margin-top: 0.75rem;
+  font-size: clamp(0.86rem, 0.94vw, 0.95rem);
+  line-height: 1.65;
+  color: rgba(218, 232, 245, 0.82);
+}
+
+/* ── Lamp Wrapper, PhysicsLamp Layered Soft Light & Pull Chain Button ────── */
+.ilpl-lamp-wrap {
+  position: relative;
+  flex-shrink: 0;
+  transform: scale(var(--ls));
+  transform-origin: center;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.ilpl-physics-lamp {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Soft desk light pool (ellipse with blurred radial gradient, behind text) */
+.ilpl-desk-pool {
+  pointer-events: none;
+  position: absolute;
+  left: 42%;
+  bottom: -6%;
+  width: 280px;
+  height: 92px;
+  z-index: 1;
+  border-radius: 9999px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 210, 122, calc(0.32 * var(--glow))) 0%,
+    rgba(245, 185, 86, calc(0.14 * var(--glow))) 46%,
+    transparent 76%
+  );
+  filter: blur(24px);
+  mix-blend-mode: screen;
+  opacity: 0;
+  transition: opacity 300ms ease;
+  will-change: transform, opacity;
+}
+
+.ilpl-physics-lamp[data-lamp-on="true"] .ilpl-desk-pool {
+  opacity: 1;
+}
+
+.ilpl-physics-lamp[data-light-theme="true"] .ilpl-desk-pool {
+  mix-blend-mode: normal;
+  opacity: 0.45;
+}
+
+/* Head-coupled light pivot anchored at the exact SVG shade pivot (128/215 = 59.5%, 60/260 = 23.1%) */
+.ilpl-head-light-pivot {
+  pointer-events: none;
+  position: absolute;
+  left: 59.5%;
+  top: 23.1%;
+  width: 0;
+  height: 0;
+  z-index: 2; /* sits strictly behind .ilpl-hero (z-index: 12) so text contrast is never washed out */
+}
+
+.ilpl-head-light-rotator {
+  position: relative;
+  transform-origin: 0 0;
+  transform: rotate(20deg);
+  opacity: 0;
+  transition: opacity 300ms ease;
+  will-change: transform, opacity;
+}
+
+.ilpl-physics-lamp[data-lamp-on="true"] .ilpl-head-light-rotator {
+  opacity: 1;
+  animation: ilpl-lamp-soft-flicker calc(6.5s * var(--speed)) ease-in-out infinite;
+}
+
+/* Subtle opacity-only flicker (0.92 to 1.0, no hard jumps) */
+@keyframes ilpl-lamp-soft-flicker {
+  0%, 100% { opacity: 1; }
+  38% { opacity: 0.96; }
+  46% { opacity: 0.92; }
+  54% { opacity: 0.99; }
+  78% { opacity: 0.94; }
+  85% { opacity: 1; }
+}
+
+/* (a) Warm radial bulb glow right at the shade opening */
+.ilpl-bulb-glow {
+  position: absolute;
+  left: 54px;
+  top: 2px;
+  width: 156px;
+  height: 156px;
+  transform: translate(-50%, -50%);
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 248, 224, calc(0.68 * var(--glow))) 0%,
+    rgba(255, 210, 122, calc(0.36 * var(--glow))) 34%,
+    rgba(245, 185, 86, calc(0.12 * var(--glow))) 62%,
+    transparent 80%
+  );
+  filter: blur(18px);
+  mix-blend-mode: screen;
+}
+
+/* (b) Layered soft light cone: conic-gradient + radial fade mask + blur(28px), zero hard edges; fades out before reaching the card/funnel */
+.ilpl-soft-cone {
+  position: absolute;
+  left: 48px;
+  top: 2px;
+  width: 285px;
+  height: 250px;
+  transform: translate(0, -50%);
+  background: conic-gradient(
+    from 64deg at 0% 50%,
+    transparent 0deg,
+    rgba(255, 224, 152, calc(0.22 * var(--glow))) 16deg,
+    rgba(255, 210, 122, calc(0.32 * var(--glow))) 26deg,
+    rgba(255, 224, 152, calc(0.22 * var(--glow))) 36deg,
+    transparent 54deg
+  );
+  -webkit-mask-image: radial-gradient(ellipse 92% 84% at 0% 50%, #000 14%, rgba(0, 0, 0, 0.48) 48%, transparent 88%);
+  mask-image: radial-gradient(ellipse 92% 84% at 0% 50%, #000 14%, rgba(0, 0, 0, 0.48) 48%, transparent 88%);
+  filter: blur(28px);
+  mix-blend-mode: screen;
+  opacity: 0.74;
+}
+
+.ilpl-physics-lamp[data-light-theme="true"] .ilpl-bulb-glow,
+.ilpl-physics-lamp[data-light-theme="true"] .ilpl-soft-cone {
+  mix-blend-mode: normal;
+  opacity: 0.36;
+}
+
+/* Interactive pull-chain bead <button> (ONLY interactive element on the lamp) */
+.ilpl-chain-btn {
+  pointer-events: auto;
+  position: absolute;
+  left: 65.5%;
+  top: 59%;
+  width: 44px;
+  height: 44px;
+  margin-left: -22px;
+  margin-top: -22px;
+  z-index: 25;
+  border-radius: 9999px;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  will-change: transform;
+}
+
+.ilpl-chain-btn:active {
+  cursor: grabbing;
+}
+
+.ilpl-chain-btn:focus-visible {
+  outline: 2px solid var(--ilpl-gold);
+  outline-offset: 2px;
+  box-shadow: 0 0 12px rgba(245, 207, 122, 0.65);
+}
+
+/* Baybayin font helper (loaded via next/font/google Noto_Sans_Tagalog) */
+.ilpl-baybayin {
+  font-family: var(--font-baybayin), "Noto Sans Tagalog", "Tagalog", sans-serif;
+}
+
+.ilpl-parchment-ruled {
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent 0px,
+    transparent 21px,
+    rgba(116, 84, 44, 0.16) 21px,
+    rgba(116, 84, 44, 0.16) 22px
+  );
+}
+
+.ilpl-parchment-ink {
+  color: rgba(42, 31, 20, 0.62);
+}
+
+@media (max-width: 1023px) {
+  .ilpl-lamp-wrap {
+    transform: scale(0.84);
+  }
+
+  .ilpl-soft-cone {
+    width: 210px;
+    height: 180px;
+  }
+}
+
+/* ── Dust Motes & Magic Sparkles ─────────────────────────────────────────── */
+.ilpl-dust-field {
+  pointer-events: none;
+  position: absolute;
+  left: var(--beam-x);
+  top: var(--beam-y);
+  width: 260px;
+  height: 220px;
+  transform: translate(-15%, -35%);
+  overflow: visible;
+}
+
+.ilpl-dust-mote {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(circle, #fff8de 0%, rgba(245, 207, 122, 0.6) 60%, transparent 100%);
+  animation-name: ilpl-dust-rise;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes ilpl-dust-rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.7);
+  }
+  25% {
+    opacity: 0.85;
+  }
+  75% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--dx, 14px), -48px, 0) scale(1.1);
+  }
+}
+
+.ilpl-holo-sparkle {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  animation-name: ilpl-sparkle-float;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes ilpl-sparkle-float {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0) scale(0.5);
+  }
+  30% {
+    opacity: 0.95;
+  }
+  75% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--dx, 8px), -54px, 0) scale(1.15);
+  }
+}
+
+.ilpl-sparkle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  pointer-events: none;
+  animation: ilpl-twinkle calc(2.4s * var(--speed)) ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes ilpl-twinkle {
+  0%, 100% {
+    opacity: 0.15;
+    transform: scale(0.6) rotate(0deg);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.15) rotate(45deg);
+  }
+}
+
+/* ── Right Column: Hologram Card -> Projector Funnel -> Small Baybayin Book ─ */
+.ilpl-projector-stack {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: min(26.5rem, 100%);
+  max-height: 100%;
+  perspective: 1100px;
+}
+
+/* ── 1. Hologram Card (OUTSIDE book preserve-3d; top-down out / bottom-up in) */
+.ilpl-holo-anchor {
+  position: relative;
+  z-index: 25;
+  width: 100%;
+  transition:
+    opacity var(--card-in) var(--ilpl-ease),
+    clip-path var(--card-in) var(--ilpl-ease);
+}
+
+.ilpl-holo-anchor[data-phase="hidden"] {
+  opacity: 0;
+  clip-path: inset(100% 0% 0% 0% round 16px);
+}
+
+/* Dematerialize top-down toward the book (0-200ms) */
+.ilpl-holo-anchor[data-phase="out"] {
+  opacity: 0;
+  clip-path: inset(100% 0% 0% 0% round 16px);
+  transition:
+    opacity var(--card-out) var(--ilpl-ease),
+    clip-path var(--card-out) var(--ilpl-ease);
+}
+
+/* Materialize bottom-up from the funnel (700-1100ms) */
+.ilpl-holo-anchor[data-phase="in"],
+.ilpl-holo-anchor[data-phase="visible"] {
+  opacity: 1;
+  clip-path: inset(0% 0% 0% 0% round 16px);
+}
+
+@media (max-width: 1023px), (prefers-reduced-motion: reduce) {
+  .ilpl-holo-anchor,
+  .ilpl-holo-anchor[data-phase="hidden"],
+  .ilpl-holo-anchor[data-phase="out"],
+  .ilpl-holo-anchor[data-phase="in"],
+  .ilpl-holo-anchor[data-phase="visible"] {
+    clip-path: none;
+    transition: opacity 200ms ease;
+  }
+}
+
+.ilpl-holo-card {
+  position: relative;
+  border-radius: 1rem;
+  padding: clamp(0.85rem, 1.8vh, 1.35rem) clamp(1rem, 2.2vw, 1.55rem);
+  border: 1px solid rgba(245, 207, 122, 0.32);
+  box-shadow:
+    0 0 28px rgba(245, 207, 122, calc(0.14 * var(--holo-glow))),
+    0 0 18px rgba(126, 214, 255, calc(0.1 * var(--holo-glow))),
+    0 16px 38px rgba(4, 10, 18, 0.52);
+  overflow: hidden;
+}
+
+/* Static translucent navy glass layer (backdrop-filter never animated) */
+.ilpl-holo-glass {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: rgba(14, 25, 42, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Faint scanline overlay inside the card (opacity 0.05 max) */
+.ilpl-holo-scanlines {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0.05;
+  background: repeating-linear-gradient(
+    180deg,
+    #f5cf7a 0px,
+    #f5cf7a 1px,
+    transparent 1px,
+    transparent 4px
+  );
+}
+
+/* Subtle edge shimmer + opacity-only glow pulse tied to funnel brightness */
+.ilpl-holo-pulse-ring {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: 1rem;
+  box-shadow:
+    inset 0 0 22px rgba(245, 207, 122, 0.14),
+    inset 0 -10px 24px rgba(126, 214, 255, 0.12);
+  animation: ilpl-holo-glow-pulse calc(6s * var(--speed)) ease-in-out infinite;
+  will-change: opacity;
+}
+
+@keyframes ilpl-holo-glow-pulse {
+  0%, 100% { opacity: 0.58; }
+  50% { opacity: 1; }
+}
+
+.ilpl-holo-content {
+  position: relative;
+  z-index: 5;
+}
+
+.ilpl-holo-title {
+  font-family: var(--font-serif, "Source Serif 4", Georgia, serif);
+  font-size: clamp(1.15rem, 2.2vh, 1.48rem);
+  font-weight: 700;
+  line-height: 1.18;
+  color: var(--ilpl-gold);
+}
+
+.ilpl-holo-sub {
+  margin-top: 0.2rem;
+  font-size: clamp(0.75rem, 1.35vh, 0.82rem);
+  line-height: 1.4;
+  color: #b6cadf;
+}
+
+/* ── 2. Projector Funnel of Light (narrow at book -> wide at card bottom) ── */
+.ilpl-funnel-wrap {
+  pointer-events: none;
+  position: relative;
+  z-index: 14;
+  width: 96%;
+  height: clamp(36px, 6.8vh, 66px);
+  margin-top: -2px;
+  margin-bottom: -6px;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.45s var(--ilpl-ease);
+}
+
+.ilpl-funnel-wrap[data-active="true"] {
+  opacity: 1;
+}
+
+.ilpl-funnel-wrap[data-active="true"][data-dimmed="true"] {
+  opacity: 0.42;
+}
+
+.ilpl-funnel-beam {
+  position: absolute;
+  inset: 0;
+  /* Narrow (~36% of card / ~40% of book) at bottom, widening to 100% at card bottom edge */
+  clip-path: polygon(0% 0%, 100% 0%, 62% 100%, 38% 100%);
+  background:
+    linear-gradient(
+      90deg,
+      rgba(126, 214, 255, 0.22) 0%,
+      rgba(245, 207, 122, 0.45) 26%,
+      rgba(255, 232, 168, 0.62) 50%,
+      rgba(245, 207, 122, 0.45) 74%,
+      rgba(126, 214, 255, 0.22) 100%
+    ),
+    linear-gradient(
+      0deg,
+      rgba(245, 207, 122, 0.68) 0%,
+      rgba(245, 207, 122, 0.28) 55%,
+      rgba(126, 214, 255, 0.08) 100%
+    );
+  -webkit-mask-image:
+    linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%),
+    linear-gradient(0deg, #000 18%, rgba(0, 0, 0, 0.65) 68%, rgba(0, 0, 0, 0.12) 100%);
+  mask-image:
+    linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%),
+    linear-gradient(0deg, #000 18%, rgba(0, 0, 0, 0.65) 68%, rgba(0, 0, 0, 0.12) 100%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  filter: blur(10px);
+  mix-blend-mode: screen;
+  animation: ilpl-holo-glow-pulse calc(6s * var(--speed)) ease-in-out infinite;
+  will-change: opacity;
+}
+
+/* 3 faint horizontal scanline bands drifting upward slowly (7s loop) */
+.ilpl-funnel-band {
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  bottom: 0;
+  height: 2px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, transparent 0%, rgba(245, 207, 122, 0.45) 50%, transparent 100%);
+  opacity: 0;
+  animation: ilpl-band-rise 7s linear infinite;
+  will-change: transform, opacity;
+}
+
+.ilpl-funnel-band-1 { animation-delay: 0s; }
+.ilpl-funnel-band-2 { animation-delay: 2.3s; }
+.ilpl-funnel-band-3 { animation-delay: 4.6s; }
+
+@keyframes ilpl-band-rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scaleX(0.45);
+  }
+  20% {
+    opacity: 0.42;
+  }
+  80% {
+    opacity: 0.24;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -64px, 0) scaleX(1.1);
+  }
+}
+
+/* 8 tiny glowing particles rising from book into card */
+.ilpl-funnel-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.ilpl-funnel-dot {
+  position: absolute;
+  bottom: 2px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, #fff8de 0%, rgba(245, 207, 122, 0.85) 55%, transparent 100%);
+  opacity: 0;
+  animation-name: ilpl-funnel-rise;
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes ilpl-funnel-rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.7);
+  }
+  25% {
+    opacity: 0.85;
+  }
+  80% {
+    opacity: 0.45;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -62px, 0) scale(1.1);
+  }
+}
+
+/* ── 3. Small Open Baybayin Book (CSS 3D flip, pointer-events: none) ─────── */
+.ilpl-small-book {
+  pointer-events: none;
+  position: relative;
+  z-index: 16;
+  width: clamp(180px, 16vw, 260px);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  perspective: 1400px;
+}
+
+/* Soft glow pool on the book's pages where the funnel starts */
+.ilpl-book-beam-origin {
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  width: 68%;
+  height: 44%;
+  z-index: 24;
+  transform: translate(-50%, -50%);
+  border-radius: 9999px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 240, 196, 0.65) 0%,
+    rgba(245, 207, 122, 0.34) 45%,
+    rgba(126, 214, 255, 0.14) 72%,
+    transparent 100%
+  );
+  filter: blur(8px);
+  mix-blend-mode: screen;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+
+.ilpl-book-beam-origin[data-active="true"] {
+  opacity: 1;
+}
+
+.ilpl-book-beam-origin[data-pulse="true"] {
+  animation: ilpl-gutter-pulse var(--flip-duration) ease-in-out;
+}
+
+.ilpl-small-book-tilt {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1.58 / 1;
+  transform: rotateX(34deg);
+  transform-style: preserve-3d;
+  transition: filter calc(0.45s * var(--speed)) var(--ilpl-ease);
+}
+
+.ilpl[data-lamp="off"] .ilpl-small-book-tilt {
+  filter: brightness(0.76) saturate(0.86);
+}
+
+/* Left turned-page stack thickness (grows/shrinks with each flip) */
+.ilpl-turned-stack {
+  pointer-events: none;
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  bottom: 10px;
+  z-index: 18;
+  border-radius: 2px 0 0 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    #e5d5b3 0px,
+    #e5d5b3 1px,
+    #a58c62 1px,
+    #a58c62 2px
+  );
+  box-shadow: 2px 0 4px rgba(32, 20, 8, 0.24);
+  transition: width 0.35s ease;
+}
+
+/* Cyan gutter glow that pulses brighter at flip midpoint (opacity only) */
+.ilpl-gutter-cyan {
+  pointer-events: none;
+  position: absolute;
+  top: 6%;
+  bottom: 6%;
+  left: 50%;
+  width: 18px;
+  transform: translateX(-50%);
+  z-index: 17;
+  background: radial-gradient(ellipse at center, rgba(126, 214, 255, 0.72) 0%, transparent 72%);
+  filter: blur(5px);
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+
+.ilpl-gutter-cyan[data-active="true"] {
+  opacity: 0.42;
+}
+
+.ilpl-gutter-cyan[data-pulse="true"] {
+  animation: ilpl-gutter-pulse var(--flip-duration) ease-in-out;
+}
+
+@keyframes ilpl-gutter-pulse {
+  0%, 100% { opacity: 0.42; }
+  48% { opacity: 1; }
+}
+
+/* Moving shadow on the page underneath during a flip */
+.ilpl-under-shadow {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 16;
+  background: linear-gradient(90deg, rgba(24, 15, 6, 0.42) 0%, rgba(24, 15, 6, 0.16) 45%, transparent 82%);
+  opacity: 0;
+  animation: ilpl-under-shadow-anim var(--flip-duration) cubic-bezier(0.645, 0.045, 0.355, 1) forwards;
+}
+
+@keyframes ilpl-under-shadow-anim {
+  0% { opacity: 0; }
+  45% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+/* 3-page CSS 3D riffle stack */
+.ilpl-flip-layer {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  transform-style: preserve-3d;
+}
+
+.ilpl-flip-sheet {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 50%;
+  transform-origin: left center;
+  transform-style: preserve-3d;
+}
+
+/* Apply will-change: transform ONLY while a flip is running */
+.ilpl-small-book[data-flipping="true"] .ilpl-flip-sheet {
+  will-change: transform;
+}
+
+.ilpl-flip-sheet[data-dir="forward"] {
+  animation: ilpl-page-flip-fwd var(--flip-duration) cubic-bezier(0.645, 0.045, 0.355, 1) both;
+}
+
+.ilpl-flip-sheet[data-dir="backward"] {
+  animation: ilpl-page-flip-bwd var(--flip-duration) cubic-bezier(0.645, 0.045, 0.355, 1) both;
+}
+
+.ilpl-flip-sheet-0 { animation-delay: 0ms; z-index: 3; }
+.ilpl-flip-sheet-1 { animation-delay: var(--flip-stagger); z-index: 2; }
+.ilpl-flip-sheet-2 { animation-delay: calc(var(--flip-stagger) * 2); z-index: 1; }
+
+@keyframes ilpl-page-flip-fwd {
+  0% {
+    transform: rotateY(0deg) skewY(0deg);
+  }
+  48% {
+    transform: rotateY(-92deg) skewY(-3.5deg);
+  }
+  100% {
+    transform: rotateY(-180deg) skewY(0deg);
+  }
+}
+
+@keyframes ilpl-page-flip-bwd {
+  0% {
+    transform: rotateY(-180deg) skewY(0deg);
+  }
+  48% {
+    transform: rotateY(-88deg) skewY(3.5deg);
+  }
+  100% {
+    transform: rotateY(0deg) skewY(0deg);
+  }
+}
+
+.ilpl-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  background-color: var(--ilpl-parchment-light);
+  border-left: 1px solid rgba(90, 66, 36, 0.28);
+  overflow: hidden;
+}
+
+.ilpl-flip-back {
+  transform: rotateY(180deg);
+  background-color: #eadcc0;
+}
+
+/* Curved mid-flip page bend gradient shading */
+.ilpl-bend-shade {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(36, 22, 8, 0.28) 0%,
+    rgba(255, 250, 236, 0.24) 55%,
+    rgba(255, 252, 240, 0.42) 100%
+  );
+  opacity: 0;
+  animation: ilpl-bend-shade-anim var(--flip-duration) ease-in-out forwards;
+}
+
+@keyframes ilpl-bend-shade-anim {
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 0.9; }
+}
+
+/* Sparks released along the flipping page edge */
+.ilpl-flip-sparks {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 24px;
+  transform: translateX(-50%);
+  z-index: 26;
+}
+
+.ilpl-flip-spark {
+  position: absolute;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, #fff8de 0%, #f5cf7a 60%, transparent 100%);
+  opacity: 0;
+  animation: ilpl-funnel-rise 680ms ease-out forwards;
+}
+
+/* Intro Front Cover hinged at the spine (~1000ms opening on load) */
+.ilpl-intro-cover {
+  pointer-events: none;
+  position: absolute;
+  top: 4px;
+  bottom: 8px;
+  right: 5px;
+  width: calc(50% - 5px);
+  z-index: 30;
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  border-radius: 0 0.45rem 0.45rem 0;
+  background: linear-gradient(155deg, var(--ilpl-leather-1) 0%, var(--ilpl-leather-2) 100%);
+  border: 1.5px solid rgba(245, 207, 122, 0.72);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem;
+  text-align: center;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: rotateY(0deg);
+  transition:
+    transform var(--intro-cover-duration) cubic-bezier(0.645, 0.045, 0.355, 1),
+    opacity 320ms ease 680ms;
+}
+
+.ilpl-intro-cover[data-open="true"] {
+  transform: rotateY(-178deg);
+  opacity: 0;
+}
+
+/* Light-theme softer glow & shadow tuning */
+html[data-theme="light"] .ilpl-book-beam-origin,
+html[data-theme="light"] .ilpl-funnel-beam,
+html[data-theme="light"] .ilpl-gutter-cyan {
+  mix-blend-mode: normal;
+  opacity: 0.52;
+}
+
+html[data-theme="light"] .ilpl-book-shadow {
+  opacity: 0.45;
+}
+
+.ilpl-book-body {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 0.6rem;
+  padding: 5px 6px 9px;
+  background: linear-gradient(145deg, #1b2c40 0%, #0d1623 100%);
+  border: 1.5px solid rgba(245, 207, 122, 0.56);
+  box-shadow:
+    0 16px 32px rgba(4, 9, 16, 0.62),
+    inset 0 1px 0 rgba(245, 207, 122, 0.28);
+  transform-style: preserve-3d;
+}
+
+.ilpl-book-body::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  bottom: 2px;
+  height: 6px;
+  border-radius: 0 0 0.3rem 0.3rem;
+  background: repeating-linear-gradient(
+    180deg,
+    #e5d5b3 0px,
+    #e5d5b3 1.5px,
+    #9f865d 1.5px,
+    #9f865d 3px
+  );
+}
+
+.ilpl-spread {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  height: 100%;
+  border-radius: 0.35rem;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  background: var(--ilpl-parchment-mid);
+  box-shadow: inset 0 0 0 1px rgba(112, 82, 42, 0.35);
+}
+
+.ilpl-spine-shadow {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 24px;
+  transform: translateX(-50%);
+  z-index: 15;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(66, 44, 18, 0.12) 28%,
+    rgba(38, 22, 8, 0.34) 49%,
+    rgba(255, 250, 236, 0.25) 50.5%,
+    rgba(38, 22, 8, 0.28) 52%,
+    rgba(66, 44, 18, 0.12) 72%,
+    transparent 100%
+  );
+}
+
+.ilpl-tome-page {
+  position: relative;
+  height: 100%;
+  padding: 0.35rem;
+  overflow: hidden;
+  background-color: var(--ilpl-parchment-light);
+  background-image:
+    radial-gradient(ellipse at center, transparent 54%, rgba(132, 96, 48, 0.26) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+}
+
+.ilpl-turning-leaf {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 50%;
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  z-index: 22;
+  background: linear-gradient(90deg, #d7c59f 0%, #efe3c6 24%, #e5d5b3 100%);
+  border-left: 1px solid rgba(90, 66, 36, 0.3);
+  will-change: transform, opacity;
+}
+
+.ilpl-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 28;
+  border-radius: 0.55rem;
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  background: linear-gradient(155deg, var(--ilpl-leather-1) 0%, var(--ilpl-leather-2) 100%);
+  border: 1.5px solid rgba(245, 207, 122, 0.72);
+  will-change: transform, opacity;
+}
+
+.ilpl-cover-shimmer {
+  pointer-events: none;
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(
+    115deg,
+    transparent 36%,
+    rgba(245, 207, 122, 0.26) 48%,
+    rgba(255, 248, 224, 0.36) 50%,
+    rgba(245, 207, 122, 0.2) 53%,
+    transparent 64%
+  );
+  animation: ilpl-shimmer-sweep calc(2s * var(--speed)) var(--ilpl-ease) infinite;
+  will-change: transform;
+}
+
+@keyframes ilpl-shimmer-sweep {
+  0% { transform: translateX(-65%); }
+  100% { transform: translateX(65%); }
+}
+
+.ilpl-book-shadow {
+  pointer-events: none;
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: -12px;
+  height: 18px;
+  border-radius: 9999px;
+  background: radial-gradient(ellipse at center, rgba(4, 9, 16, 0.72) 0%, rgba(4, 9, 16, 0.22) 56%, transparent 78%);
+  filter: blur(6px);
+}
+
+/* ── Hologram Form Controls (WCAG AA contrast in both themes) ────────────── */
+.ilpl-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ilpl-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #edf4fc;
+}
+
+.ilpl-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ilpl-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.48rem 2.5rem 0.48rem 2.35rem;
+  border: 1px solid rgba(159, 195, 234, 0.32);
+  border-bottom: 2px solid rgba(159, 195, 234, 0.48);
+  border-radius: 0.55rem;
+  background: rgba(12, 23, 39, 0.84);
+  color: #f4f8fd;
+  font-size: 16px;
+  line-height: 1.3;
+  transition: border-color 0.22s ease, box-shadow 0.22s ease, background-color 0.22s ease;
+}
+
+.ilpl-input::placeholder {
+  color: #a6bcd3;
+}
+
+.ilpl-input:focus {
+  outline: none;
+  background: rgba(14, 27, 46, 0.96);
+  border-color: rgba(245, 207, 122, 0.8);
+  box-shadow: 0 0 0 3px rgba(245, 207, 122, 0.22);
+}
+
+.ilpl-ink-line {
+  pointer-events: none;
+  position: absolute;
+  left: 0.35rem;
+  right: 0.35rem;
+  bottom: 0;
+  height: 2px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #d8a946 0%, var(--ilpl-gold) 50%, #d8a946 100%);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.35s var(--ilpl-ease);
+}
+
+.ilpl-input:focus ~ .ilpl-ink-line {
+  transform: scaleX(1);
+}
+
+.ilpl-submit {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.58rem 1.2rem;
+  border: 1px solid rgba(196, 224, 252, 0.65);
+  border-radius: 0.6rem;
+  background: linear-gradient(180deg, #b5d5f5 0%, var(--ilpl-blue) 100%);
+  color: var(--ilpl-btn-ink);
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(5, 12, 22, 0.4);
+  transition: transform 0.2s var(--ilpl-ease), box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.ilpl-submit::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60%;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.58), transparent);
+  transform: skewX(-22deg);
+  transition: transform 0.65s var(--ilpl-ease);
+}
+
+.ilpl-submit:hover:not(:disabled)::after {
+  transform: translateX(360%) skewX(-22deg);
+}
+
+.ilpl-submit:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.ilpl-submit:disabled {
+  cursor: wait;
+  opacity: 0.78;
+}
+
+.ilpl-submit:focus-visible {
+  outline: 2px solid var(--ilpl-gold);
+  outline-offset: 2px;
+}
+
+.ilpl-submit[data-state="success"] {
+  background: linear-gradient(180deg, #5fd39e 0%, #3fb57f 100%);
+  color: #0b2418;
+}
+
+.ilpl-holo-wizard {
+  max-height: min(360px, 46dvh);
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(159, 195, 234, 0.35) transparent;
+}
+
+.ilpl-holo-wizard input,
+.ilpl-holo-wizard select {
+  font-size: 16px !important;
+}
+
+/* Light-theme readability guard for navy hologram card (prevents globals.css light override from darkening white text on navy glass) */
+html[data-theme="light"] .ilpl-holo-card,
+html[data-theme="light"] .ilpl-holo-card .text-white,
+html[data-theme="light"] .ilpl-header .text-white\/85,
+html[data-theme="light"] .ilpl-header .ilpl-brand {
+  color: #f4f8fd;
+}
+
+/* ── Reduced Motion ──────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .ilpl-ambient-wash,
+  .ilpl-head-light-rotator,
+  .ilpl-dust-mote,
+  .ilpl-holo-sparkle,
+  .ilpl-sparkle,
+  .ilpl-cover-shimmer,
+  .ilpl-holo-pulse-ring,
+  .ilpl-funnel-beam,
+  .ilpl-funnel-band,
+  .ilpl-funnel-dot,
+  .ilpl-flip-sheet,
+  .ilpl-flip-spark,
+  .ilpl-under-shadow,
+  .ilpl-bend-shade,
+  .ilpl-gutter-cyan,
+  .ilpl-book-beam-origin {
+    animation: none !important;
+  }
+
+  .ilpl-funnel-band,
+  .ilpl-funnel-dot,
+  .ilpl-flip-layer,
+  .ilpl-intro-cover {
+    display: none;
+  }
+
+  .ilpl-submit::after {
+    transition: none !important;
+  }
+}
+
