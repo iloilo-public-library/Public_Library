@@ -23,6 +23,7 @@
 - Simplified `timeline.md` into a branch-separated summary, set up the AI rules system (`rules/`), and added pointer instructions to `AGENTS.md`. (`e32a18f`, `46ec48f`, `5c705e3`)
 - Redesigned `/login` with the top-bar Log In/Sign Up nav, non-overlapping hologram projector funnel, small Baybayin book (`Noto_Sans_Tagalog`), CSS 3D book-opening intro & 3-page riffle flip transitions (`useBookFlip.ts`), reused landing-page floating 3D props, and `PhysicsLamp` while preserving all auth logic and `SignupWizard`. (`d20b571`)
 - Removed the `/login` book, Baybayin font/text, hologram effects, and page-flip hook, enlarged the translucent navy + gold-bordered auth card (`AuthCard.tsx`), moved the lamp and floating props into the sliding hero panel, removed in-card tabs, and added the CSS swap/roll/expand/float-label/shake/morph animations. (`05689ed`)
+- Restored the legacy standalone two-column Admin Settings layout (`100dvh`, fixed left sidebar with mobile drawer, sticky topbar, search, Overview with full Login Activity tiles, GitHub-style heatmap, Last 7 days bar chart, and Recent sessions list, Personal Details, Password & Security, and Appearance), hardened backend Zod/PIN/session queries (fixing the Zod v4 `nullableIdSchema` mutation bug), and enabled all 3 themes and 3 languages. (`e2740fb`)
 
 ### Git Commit History
 
@@ -40,6 +41,7 @@
 | 2026-11-22 | 14:22:11 +0800 | `5c705e3` | `docs: record AI rules system commit in timeline.md` |
 | 2026-11-22 | 17:25:19 +0800 | `d20b571` | `feat(login): add hologram projector layout, Baybayin 3D book flip, PhysicsLamp, and shared floating props` |
 | 2026-11-22 | 17:59:21 +0800 | `05689ed` | `feat(login): remove book/hologram, enlarge gold auth card, add swap/roll/morph animations, and move lamp with hero` |
+| 2026-11-22 | 19:02 | `e2740fb` | `feat(admin-settings): restore legacy layout, login activity, 3 themes/languages, and fix Zod v4 mutations` |
 
 
 
