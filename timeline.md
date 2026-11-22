@@ -20,7 +20,9 @@
 - Restored the legacy About Us content on public and member pages, along with the legacy admin sidebar, topbar, footer, Admin Settings, and System Settings. (`e8d317c`, `6450e65`)
 
 #### November 22, 2026
-- Simplified `timeline.md` into a branch-separated summary, set up the AI rules system (`rules/`), and added pointer instructions to `AGENTS.md`. (`e32a18f`, `46ec48f`)
+- Simplified `timeline.md` into a branch-separated summary, set up the AI rules system (`rules/`), and added pointer instructions to `AGENTS.md`. (`e32a18f`, `46ec48f`, `5c705e3`)
+- Redesigned `/login` with the top-bar Log In/Sign Up nav, non-overlapping hologram projector funnel, small Baybayin book (`Noto_Sans_Tagalog`), CSS 3D book-opening intro & 3-page riffle flip transitions (`useBookFlip.ts`), reused landing-page floating 3D props, and `PhysicsLamp` while preserving all auth logic and `SignupWizard`. (`d20b571`)
+- Removed the `/login` book, Baybayin font/text, hologram effects, and page-flip hook, enlarged the translucent navy + gold-bordered auth card (`AuthCard.tsx`), moved the lamp and floating props into the sliding hero panel, removed in-card tabs, and added the CSS swap/roll/expand/float-label/shake/morph animations. (`05689ed`)
 
 ### Git Commit History
 
@@ -35,6 +37,9 @@
 | 2026-11-21 | 20:04:32 +0800 | `6450e65` | `content: restore legacy admin layout, admin settings, and system settings` |
 | 2026-11-22 | 14:09:59 +0800 | `e32a18f` | `docs: simplify timeline.md and separate by branch` |
 | 2026-11-22 | 14:21:07 +0800 | `46ec48f` | `chore: add AI rules system and AGENTS.md pointer` |
+| 2026-11-22 | 14:22:11 +0800 | `5c705e3` | `docs: record AI rules system commit in timeline.md` |
+| 2026-11-22 | 17:25:19 +0800 | `d20b571` | `feat(login): add hologram projector layout, Baybayin 3D book flip, PhysicsLamp, and shared floating props` |
+| 2026-11-22 | 17:59:21 +0800 | `05689ed` | `feat(login): remove book/hologram, enlarge gold auth card, add swap/roll/morph animations, and move lamp with hero` |
 
 
 
