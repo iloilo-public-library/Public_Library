@@ -19,6 +19,9 @@
 - Removed the Flask bridge and rewrites, added the 54-route verification suite, and completed the standalone Next.js cutover while keeping `legacy-flask/` archived. (`3ea1757`)
 - Restored the legacy About Us content on public and member pages, along with the legacy admin sidebar, topbar, footer, Admin Settings, and System Settings. (`e8d317c`, `6450e65`)
 
+#### November 22, 2026
+- Simplified `timeline.md` into a branch-separated summary, set up the AI rules system (`rules/`), and added pointer instructions to `AGENTS.md`. (`e32a18f`, `46ec48f`)
+
 ### Git Commit History
 
 | Date | Time | Commit | Message |
@@ -30,6 +33,8 @@
 | 2026-11-21 | 19:06:48 +0800 | `64af6f5` | `docs: record Phase 4-6 commit in timeline.md` |
 | 2026-11-21 | 19:39:33 +0800 | `e8d317c` | `content: restore old About Us content (landing and member side)` |
 | 2026-11-21 | 20:04:32 +0800 | `6450e65` | `content: restore legacy admin layout, admin settings, and system settings` |
+| 2026-11-22 | 14:09:59 +0800 | `e32a18f` | `docs: simplify timeline.md and separate by branch` |
+| 2026-11-22 | 14:21:07 +0800 | `46ec48f` | `chore: add AI rules system and AGENTS.md pointer` |
 
 
 
