@@ -1,11 +1,16 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Eye, EyeOff, Lock, LogIn, Mail, QrCode } from "lucide-react";
+import { ArrowLeft, Lock, LogIn, Mail, QrCode } from "lucide-react";
 import type { LegalModalType } from "@/components/landing/LegalModal";
-import { HoloField, HoloSubmit, StatusBanner } from "./forms";
+import {
+  FloatingField,
+  MorphSubmitButton,
+  PasswordEyeToggle,
+  StatusBanner,
+  type SubmitButtonState,
+} from "./forms";
 
 export interface LoginCredentials {
   email: string;
@@ -15,6 +20,8 @@ export interface LoginCredentials {
 export interface LoginResult {
   ok: boolean;
   error?: string;
+  redirectTo?: string;
+  onCompleteRedirect?: () => void;
 }
 
 export interface LoginPageProps {
@@ -22,10 +29,12 @@ export interface LoginPageProps {
   password: string;
   onEmailChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
-  disabled?: boolean;
+  isActive: boolean;
+  isBusy: boolean;
+  onBusyChange: (busy: boolean) => void;
+  onAnnounce: (text: string) => void;
   onLogin: (credentials: LoginCredentials) => Promise<LoginResult>;
   onOpenLegal: (type: LegalModalType) => void;
-  onRouteFlip: (onNavigate: () => void, label: string) => void;
   externalSuccess: string | null;
   onClearExternalSuccess: () => void;
 }
@@ -35,57 +44,122 @@ export function LoginPage({
   password,
   onEmailChange,
   onPasswordChange,
-  disabled = false,
+  isActive,
+  isBusy,
+  onBusyChange,
+  onAnnounce,
   onLogin,
   onOpenLegal,
-  onRouteFlip,
   externalSuccess,
   onClearExternalSuccess,
 }: LoginPageProps) {
-  const router = useRouter();
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const submittingRef = useRef(false);
+  const redirectTimerRef = useRef<number | null>(null);
+
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [succeeded, setSucceeded] = useState(false);
+  const [submitState, setSubmitState] = useState<SubmitButtonState>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [shakeKey, setShakeKey] = useState(0);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current !== null) {
+        window.clearTimeout(redirectTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (disabled) return;
+    if (submittingRef.current || isBusy || !isActive) return;
+
+    // Basic presence check to focus first invalid field before hitting server Zod validation
+    let hasLocalIssue = false;
+    if (!email.trim()) {
+      setEmailError("Email address is required.");
+      hasLocalIssue = true;
+    }
+    if (!password) {
+      setPasswordError("Password is required.");
+      hasLocalIssue = true;
+    }
+    if (hasLocalIssue) {
+      setShakeKey((k) => k + 1);
+      setSubmitState("error");
+      onAnnounce("Please complete the required fields.");
+      if (!email.trim()) emailRef.current?.focus();
+      else passwordRef.current?.focus();
+      window.setTimeout(() => setSubmitState("idle"), 420);
+      return;
+    }
+
+    submittingRef.current = true;
+    onBusyChange(true);
     setError(null);
+    setEmailError(null);
+    setPasswordError(null);
     onClearExternalSuccess();
-    setLoading(true);
+    setSubmitState("loading");
+    onAnnounce("Signing in");
 
     try {
       const result = await onLogin({ email, password });
+
       if (!result.ok) {
-        setError(result.error || "Authentication failed. Please try again.");
-        setLoading(false);
+        const msg = result.error || "Authentication failed. Please try again.";
+        setError(msg);
+        // Surface field-level invalid cue when server reports credential/email/password error
+        if (/email/i.test(msg)) {
+          setEmailError(msg);
+          emailRef.current?.focus();
+        } else {
+          setPasswordError(msg);
+          passwordRef.current?.focus();
+        }
+        setShakeKey((k) => k + 1);
+        setSubmitState("error");
+        onAnnounce(msg);
+        window.setTimeout(() => setSubmitState("idle"), 420);
+        submittingRef.current = false;
+        onBusyChange(false);
         return;
       }
-      setSucceeded(true);
+
+      // Real success -> draw checkmark (~600ms) -> run existing redirect
+      setSubmitState("success");
+      onAnnounce("Signed in");
+      const reduced =
+        typeof window !== "undefined" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      redirectTimerRef.current = window.setTimeout(
+        () => {
+          result.onCompleteRedirect?.();
+        },
+        reduced ? 50 : 600
+      );
     } catch {
-      setError("Network error while connecting to authentication.");
-    } finally {
-      setLoading(false);
+      const msg = "Network error while connecting to authentication.";
+      setError(msg);
+      setShakeKey((k) => k + 1);
+      setSubmitState("error");
+      onAnnounce(msg);
+      window.setTimeout(() => setSubmitState("idle"), 420);
+      submittingRef.current = false;
+      onBusyChange(false);
     }
   };
 
   return (
-    <div className="flex flex-col gap-2.5">
-      <div>
-        <p className="text-[0.64rem] font-bold uppercase tracking-[0.2em] text-[#9fc3ea]">
-          Official Portal Access
-        </p>
-        <h2 className="ilpl-holo-title mt-0.5">Patron &amp; Staff Sign In</h2>
-        <p className="ilpl-holo-sub">
-          Enter your registered credentials to access Iloilo City Public Library services.
-        </p>
-      </div>
-
+    <div id="ilpl-panel-login">
       <StatusBanner error={error} success={externalSuccess} />
 
-      <form onSubmit={handleSubmit} className="space-y-2.5">
-        <HoloField
+      <form onSubmit={handleSubmit} className="ilpl-form-fields" noValidate>
+        <FloatingField
+          ref={emailRef}
           id="ilpl-login-email"
           label="Email Address"
           type="email"
@@ -95,93 +169,88 @@ export function LoginPage({
           autoCapitalize="none"
           spellCheck={false}
           required
-          disabled={disabled}
+          disabled={!isActive}
           value={email}
-          onChange={(e) => onEmailChange(e.target.value)}
-          placeholder="name@example.com"
-          icon={<Mail className="h-4 w-4" />}
+          error={emailError}
+          shakeKey={shakeKey}
+          onChange={(e) => {
+            onEmailChange(e.target.value);
+            if (emailError) setEmailError(null);
+            if (error) setError(null);
+          }}
+          icon={<Mail className="h-5 w-5" />}
         />
 
-        <HoloField
+        <FloatingField
+          ref={passwordRef}
           id="ilpl-login-password"
           label="Password"
           type={showPassword ? "text" : "password"}
           name="password"
           autoComplete="current-password"
           required
-          disabled={disabled}
+          disabled={!isActive}
           value={password}
-          onChange={(e) => onPasswordChange(e.target.value)}
-          placeholder="Enter your password"
-          icon={<Lock className="h-4 w-4" />}
+          error={passwordError}
+          shakeKey={shakeKey}
+          onChange={(e) => {
+            onPasswordChange(e.target.value);
+            if (passwordError) setPasswordError(null);
+            if (error) setError(null);
+          }}
+          icon={<Lock className="h-5 w-5" />}
           labelAction={
             <Link
               href="/reset-password"
-              onClick={(e) => {
-                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-                e.preventDefault();
-                onRouteFlip(() => router.push("/reset-password"), "Forgot password");
-              }}
-              className="text-xs font-semibold text-[#f5cf7a]/90 underline-offset-2 transition hover:text-[#f5cf7a] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f5cf7a]"
+              tabIndex={isActive ? 0 : -1}
+              className="text-[0.9375rem] font-semibold text-[#f5cf7a] underline-offset-2 transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f5cf7a] rounded"
             >
               Forgot password?
             </Link>
           }
           rightSlot={
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => setShowPassword((prev) => !prev)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
-              aria-pressed={showPassword}
-              className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-[#9db4cc] transition hover:text-[#e8f1fb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f5cf7a] cursor-pointer"
-            >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
+            <PasswordEyeToggle
+              shown={showPassword}
+              disabled={!isActive}
+              onToggle={() => setShowPassword((prev) => !prev)}
+            />
           }
         />
 
         <div className="pt-1">
-          <HoloSubmit
-            loading={loading || disabled}
-            succeeded={succeeded}
+          <MorphSubmitButton
+            state={submitState}
+            locked={isBusy || !isActive}
             idleLabel="Sign In"
-            loadingLabel={disabled ? "Sign In" : "Connecting..."}
-            successLabel="Portal Unlocked"
-            icon={<LogIn className="h-4 w-4" />}
+            shakeKey={shakeKey}
+            icon={<LogIn className="h-5 w-5" />}
           />
         </div>
       </form>
 
-      {/* Preserved footer links: Back to Home, Terms, QR Login */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#f5cf7a]/18 pt-2 text-xs">
-        <Link
-          href="/"
-          className="inline-flex min-h-[40px] items-center gap-1 font-medium text-[#b6cadf] transition hover:text-[#f5cf7a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f5cf7a]"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
+      {/* Bottom links (Login-only QR Login & Back to Home / Terms) */}
+      <div className="ilpl-card-footer">
+        <Link href="/" tabIndex={isActive ? 0 : -1} className="ilpl-footer-link">
+          <ArrowLeft className="h-4 w-4" />
           Back to Home
         </Link>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-4">
           <button
             type="button"
-            disabled={disabled}
+            tabIndex={isActive ? 0 : -1}
+            disabled={isBusy || !isActive}
             onClick={() => onOpenLegal("terms")}
-            className="min-h-[40px] px-1 font-medium text-[#b6cadf] transition hover:text-[#f5cf7a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f5cf7a] cursor-pointer"
+            className="ilpl-footer-link cursor-pointer"
           >
             Terms
           </button>
           <Link
             href="/scan-qr"
-            onClick={(e) => {
-              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-              e.preventDefault();
-              onRouteFlip(() => router.push("/scan-qr"), "QR Login");
-            }}
-            className="inline-flex min-h-[40px] items-center gap-1 font-semibold text-[#9fc3ea] transition hover:text-[#f5cf7a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f5cf7a]"
+            tabIndex={isActive ? 0 : -1}
+            className="ilpl-footer-link ilpl-footer-link-accent"
           >
-            <QrCode className="h-3.5 w-3.5" />
+            <QrCode className="h-4 w-4" />
             QR Login
           </Link>
         </div>

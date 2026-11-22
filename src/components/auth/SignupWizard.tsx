@@ -52,26 +52,15 @@ interface SignupWizardProps {
   onError: (error: string | null) => void;
   onSwitchToLogin?: () => void;
   onOpenLegal: (type: LegalModalType) => void;
-  onStepChange?: (step: 1 | 2 | 3, direction: "forward" | "backward") => void;
 }
 
 export function SignupWizard({
   onSuccess,
   onError,
   onOpenLegal,
-  onStepChange,
 }: SignupWizardProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const prevStepRef = useRef<1 | 2 | 3>(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (prevStepRef.current !== step) {
-      const dir = step > prevStepRef.current ? "forward" : "backward";
-      prevStepRef.current = step;
-      onStepChange?.(step, dir);
-    }
-  }, [step, onStepChange]);
 
   // Step 1 — Personal
   const [firstname, setFirstname] = useState("");

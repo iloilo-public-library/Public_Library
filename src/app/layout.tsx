@@ -1,14 +1,6 @@
 import type { Metadata } from "next";
-import { Noto_Sans_Tagalog } from "next/font/google";
 import { AppProviders } from "@/components/providers";
 import "./globals.css";
-
-const notoSansTagalog = Noto_Sans_Tagalog({
-  weight: "400",
-  subsets: ["tagalog"],
-  display: "swap",
-  variable: "--font-baybayin",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -28,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="dark" className={notoSansTagalog.variable} suppressHydrationWarning>
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{

@@ -27,12 +27,16 @@ export default function LoginRoutePage() {
       };
     }
 
-    if (data.redirectTo) {
-      router.push(data.redirectTo);
-      router.refresh();
-    }
-
-    return { ok: true };
+    return {
+      ok: true,
+      redirectTo: data.redirectTo,
+      onCompleteRedirect: () => {
+        if (data.redirectTo) {
+          router.push(data.redirectTo);
+          router.refresh();
+        }
+      },
+    };
   };
 
   return <LibraryLoginPage onLogin={handleLogin} />;

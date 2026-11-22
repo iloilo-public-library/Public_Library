@@ -28,25 +28,25 @@ function LoginFloatingScene() {
       <directionalLight position={[-4, 6, 5]} intensity={1.15} color="#ffd996" />
       <pointLight position={[4, 2, 3]} intensity={0.65} color="#9fc3ea" />
 
-      {/* Reused landing-page floating elements: scaled down & framed around the edges (never over the login card) */}
+      {/* Framed strictly along the outer perimeter of the hero panel (never over title, description, or top bar) */}
       <LibraryGlobe
-        position={[-5.1, 2.35, -1.6]}
-        scale={0.48}
+        position={[-2.9, 1.95, -2.0]}
+        scale={0.44}
         phase={1.4}
         reducedRef={reducedRef}
       />
 
       <FloatingBookItem
         spec={{
-          id: "login-open-top-left",
-          basePos: [-3.4, -1.85, -1.2],
+          id: "login-open-bottom-left",
+          basePos: [-2.65, -2.15, -1.6],
           baseRot: [0.3, 0.36, -0.14],
           bobAmp: 0.07,
           bobSpeed: 1.05,
           rotSpeedX: 0.06,
           rotSpeedY: 0.1,
           phase: 3.4,
-          scale: 0.5,
+          scale: 0.44,
         }}
         coverColor="#5a2a1d"
         open
@@ -55,31 +55,15 @@ function LoginFloatingScene() {
 
       <FloatingBookItem
         spec={{
-          id: "login-closed-top-right",
-          basePos: [4.85, 2.5, -1.5],
-          baseRot: [0.26, -0.4, 0.14],
-          bobAmp: 0.08,
-          bobSpeed: 1.15,
-          rotSpeedX: 0.06,
-          rotSpeedY: 0.12,
-          phase: 1.2,
-          scale: 0.48,
-        }}
-        coverColor="#1f4d3b"
-        reducedRef={reducedRef}
-      />
-
-      <FloatingBookItem
-        spec={{
           id: "login-open-bottom-right",
-          basePos: [5.0, -1.9, -1.3],
+          basePos: [2.55, -2.15, -1.6],
           baseRot: [0.32, -0.42, 0.12],
           bobAmp: 0.07,
           bobSpeed: 0.98,
           rotSpeedX: 0.06,
           rotSpeedY: 0.1,
           phase: 2.0,
-          scale: 0.46,
+          scale: 0.42,
         }}
         coverColor="#1d3b5a"
         open
@@ -88,32 +72,15 @@ function LoginFloatingScene() {
 
       <FloatingPaperSheet
         spec={{
-          id: "login-paper-left",
-          basePos: [-5.35, -0.35, -1.4],
-          baseRot: [0.18, 0.38, -0.16],
-          bobAmp: 0.07,
-          bobSpeed: 1.06,
-          rotSpeedX: 0.06,
-          rotSpeedY: 0.08,
-          phase: 3.1,
-          scale: 0.52,
-        }}
-        docTitle="HERITAGE FOLIO"
-        stampText="ILOILO"
-        reducedRef={reducedRef}
-      />
-
-      <FloatingPaperSheet
-        spec={{
-          id: "login-paper-right",
-          basePos: [5.35, 0.4, -1.5],
+          id: "login-paper-top-right",
+          basePos: [2.85, 2.05, -2.0],
           baseRot: [-0.18, -0.4, 0.16],
           bobAmp: 0.07,
           bobSpeed: 0.96,
           rotSpeedX: 0.06,
           rotSpeedY: 0.08,
           phase: 1.9,
-          scale: 0.5,
+          scale: 0.44,
         }}
         docTitle="RA 7743 CHARTER"
         stampText="ARCHIVED"
@@ -124,18 +91,18 @@ function LoginFloatingScene() {
 }
 
 /**
- * Shared 3D floating books, paper sheets, and globe layer for the login scene.
- * Reuses the exact components and animation timing from FloatingLibraryProps.tsx.
+ * Shared 3D floating books, paper sheet, and globe confined inside the sliding hero panel.
+ * Reuses the exact components and animation timing from FloatingBooks.tsx.
  */
 export function LoginFloatingPropsCanvas() {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-[2] hidden lg:block opacity-75"
+      className="pointer-events-none absolute inset-0 z-[2] hidden overflow-hidden lg:block opacity-70"
     >
       <Canvas
         dpr={[1, 1.5]}
-        camera={{ position: [0, 0.4, 7.6], fov: 42 }}
+        camera={{ position: [0, 0.2, 7.6], fov: 42 }}
         gl={{ alpha: true, antialias: true, powerPreference: "low-power" }}
         style={{ pointerEvents: "none" }}
       >
