@@ -204,7 +204,10 @@ async function processMutationRequest(
     const rawBody = await request.json();
     const parsedBody = adminMutationSchema.safeParse(rawBody);
     if (!parsedBody.success) {
-      return NextResponse.json({ error: "Invalid resource parameter" }, { status: 400 });
+      return NextResponse.json(
+        { error: parsedBody.error.issues[0]?.message || "Invalid request payload" },
+        { status: 400 }
+      );
     }
 
     const { resource: validatedResource, id: rawId, payload } = parsedBody.data;

@@ -124,3 +124,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
+
+export async function POST(request: Request) {
+  return PUT(request);
+}

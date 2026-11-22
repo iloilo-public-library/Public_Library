@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 export function ThemeToggle({ className }: { className?: string }) {
   const { theme, toggleTheme } = useTheme();
-  const isDark = theme === "dark";
+  const isDark = theme !== "light";
 
   return (
     <LibraryTooltip label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}>

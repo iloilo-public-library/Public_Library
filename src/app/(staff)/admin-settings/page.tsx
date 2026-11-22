@@ -1,104 +1,262 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import {
   AlertCircle,
-  Calendar,
   Check,
   CheckCircle2,
-  Clock,
-  Eye,
-  EyeOff,
-  Globe,
-  Info,
-  KeyRound,
   Loader2,
-  Mail,
-  Palette,
-  Phone,
-  Save,
-  ShieldCheck,
-  User,
+  Menu,
+  Search,
+  Settings,
+  X,
 } from "lucide-react";
-import { StaffShell } from "@/components/layout/StaffShell";
-import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
+import {
+  useTheme,
+  type LanguageMode,
+  type ThemeMode,
+} from "@/components/theme-provider";
 import { apiMutate, swrPrivateConfig } from "@/lib/api";
+import { SettingsSidebar } from "@/components/admin-settings/SettingsSidebar";
+import { OverviewSection } from "@/components/admin-settings/OverviewSection";
+import { PersonalDetailsSection } from "@/components/admin-settings/PersonalDetailsSection";
+import { SecuritySection } from "@/components/admin-settings/SecuritySection";
+import { AppearanceSection } from "@/components/admin-settings/AppearanceSection";
+import {
+  getInitials,
+  type AdminProfileResponse,
+  type PersonalSubTab,
+  type SectionId,
+} from "@/components/admin-settings/types";
+import "@/components/admin-settings/admin-settings.css";
 
-interface AdminProfileResponse {
-  profile: {
-    id: number;
-    email: string;
-    firstname: string;
-    lastname: string;
-    fullname: string;
-    gender: string;
-    phone_number: string;
-    role: string;
-    is_active: boolean;
-    is_approved: boolean;
-    otp_enabled: boolean;
-    pin_enabled: boolean;
-    created_at: string;
-    last_seen: string | null;
-  };
-  loginActivity: {
-    id: number;
-    session_token: string;
-    login_at: string;
-    last_active_at: string;
-    logout_at: string | null;
-  }[];
+interface SearchSettingItem {
+  label: string;
+  keywords: string;
+  section: SectionId;
+  sectionLabel: string;
+  personalTab?: PersonalSubTab;
 }
 
-type SectionTab = "overview" | "personal" | "security" | "appearance";
-type PersonalSubTab = "info" | "contact";
+const SEARCH_SETTINGS_INDEX: SearchSettingItem[] = [
+  {
+    label: "Account Summary",
+    keywords: "overview summary email status admin since",
+    section: "overview",
+    sectionLabel: "Overview",
+  },
+  {
+    label: "Login Activity",
+    keywords: "login activity sessions streak duration hours history",
+    section: "overview",
+    sectionLabel: "Overview",
+  },
+  {
+    label: "First Name & Last Name",
+    keywords: "personal details profile info basic name",
+    section: "personal",
+    sectionLabel: "Personal Details",
+    personalTab: "info",
+  },
+  {
+    label: "Gender",
+    keywords: "personal details gender male female others",
+    section: "personal",
+    sectionLabel: "Personal Details",
+    personalTab: "info",
+  },
+  {
+    label: "Phone Number",
+    keywords: "contact phone mobile telephone number",
+    section: "personal",
+    sectionLabel: "Personal Details",
+    personalTab: "contact",
+  },
+  {
+    label: "Multi-Factor Authentication (OTP & PIN)",
+    keywords: "security mfa otp one-time password pin code verification",
+    section: "security",
+    sectionLabel: "Password & Security",
+  },
+  {
+    label: "Change Password",
+    keywords: "security password update current new confirm strength",
+    section: "security",
+    sectionLabel: "Password & Security",
+  },
+  {
+    label: "Color Theme",
+    keywords: "appearance color theme dark light mode",
+    section: "appearance",
+    sectionLabel: "Appearance",
+  },
+  {
+    label: "Interface Language",
+    keywords: "appearance language english filipino hiligaynon",
+    section: "appearance",
+    sectionLabel: "Appearance",
+  },
+];
 
-const INPUT_CLS =
-  "w-full rounded-xl border border-white/12 bg-bg1/80 px-3.5 py-2.5 text-xs text-white placeholder:text-tl/45 focus:border-accent/55 focus:outline-none";
+function parseHashToSection(hash: string): SectionId {
+  const cleaned = hash.replace(/^#/, "").replace(/^sec-/, "").toLowerCase();
+  if (
+    cleaned === "overview" ||
+    cleaned === "personal" ||
+    cleaned === "security" ||
+    cleaned === "appearance"
+  ) {
+    return cleaned;
+  }
+  return "overview";
+}
 
-const GENDER_OPTIONS = ["Male", "Female", "Others"] as const;
+interface ToastItem {
+  id: number;
+  ok: boolean;
+  msg: string;
+}
 
 export default function AdminSettingsPage() {
+  const router = useRouter();
+  const { theme, language, previewAppearance, saveAppearance } = useTheme();
+
   const { data, isLoading, mutate } = useSWR<AdminProfileResponse>(
     "/api/admin/data?resource=admin_profile",
     swrPrivateConfig
   );
 
-  const [activeSection, setActiveSection] = useState<SectionTab>("overview");
+  const [activeSection, setActiveSection] = useState<SectionId>("overview");
   const [personalTab, setPersonalTab] = useState<PersonalSubTab>("info");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [pendingLeaveHref, setPendingLeaveHref] = useState<string | null>(null);
+  const mainScrollRef = useRef<HTMLDivElement | null>(null);
+
+  // Profile state (saved vs draft)
+  const [savedFirstname, setSavedFirstname] = useState("");
+  const [savedLastname, setSavedLastname] = useState("");
+  const [savedGender, setSavedGender] = useState("");
+  const [savedPhone, setSavedPhone] = useState("");
 
   const [firstname, setFirstname] = useState("");
   const [lastname, setLastname] = useState("");
   const [gender, setGender] = useState("");
   const [phone, setPhone] = useState("");
 
+  // Password state
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showCurrentPw, setShowCurrentPw] = useState(false);
-  const [showNewPw, setShowNewPw] = useState(false);
-  const [showConfirmPw, setShowConfirmPw] = useState(false);
 
+  // Appearance draft preview state
+  const [draftTheme, setDraftTheme] = useState<ThemeMode>(theme);
+  const [draftLanguage, setDraftLanguage] = useState<LanguageMode>(language);
+
+  // Saving & feedback state
   const [savingProfile, setSavingProfile] = useState(false);
+  const [savingAppearance, setSavingAppearance] = useState(false);
   const [savingPw, setSavingPw] = useState(false);
-  const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
 
+  const pushToast = useCallback((ok: boolean, msg: string) => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, ok, msg }]);
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3400);
+  }, []);
+
+  // Sync saved profile from SWR
   useEffect(() => {
     if (!data?.profile) return;
     const p = data.profile;
-    setFirstname(p.firstname.startsWith("gAAAAAB") ? "" : p.firstname);
-    setLastname(p.lastname.startsWith("gAAAAAB") ? "" : p.lastname);
-    setGender(p.gender.startsWith("gAAAAAB") ? "" : p.gender);
-    setPhone(p.phone_number.startsWith("gAAAAAB") ? "" : p.phone_number);
+    const f = p.firstname.startsWith("gAAAAAB") ? "" : p.firstname;
+    const l = p.lastname.startsWith("gAAAAAB") ? "" : p.lastname;
+    const g = p.gender.startsWith("gAAAAAB") ? "" : p.gender;
+    const ph = p.phone_number.startsWith("gAAAAAB") ? "" : p.phone_number;
+    setSavedFirstname(f);
+    setSavedLastname(l);
+    setSavedGender(g);
+    setSavedPhone(ph);
+    setFirstname(f);
+    setLastname(l);
+    setGender(g);
+    setPhone(ph);
   }, [data?.profile]);
 
-  const handleSaveProfile = async (e: FormEvent) => {
-    e.preventDefault();
+  // Keep drafts synced when saved global theme/language loads from server
+  useEffect(() => {
+    setDraftTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    setDraftLanguage(language);
+  }, [language]);
+
+  // Live preview of draftTheme + draftLanguage; restore saved values on unmount if unsaved
+  useEffect(() => {
+    previewAppearance({ theme: draftTheme, language: draftLanguage });
+    return () => {
+      previewAppearance({ theme, language });
+    };
+  }, [draftTheme, draftLanguage, theme, language, previewAppearance]);
+
+  // Hash navigation sync (#overview, #personal, #security, #appearance)
+  useEffect(() => {
+    const syncFromHash = () => {
+      setActiveSection(parseHashToSection(window.location.hash));
+    };
+    syncFromHash();
+    window.addEventListener("hashchange", syncFromHash);
+    return () => window.removeEventListener("hashchange", syncFromHash);
+  }, []);
+
+  const handleSelectSection = useCallback((section: SectionId) => {
+    setActiveSection(section);
+    mainScrollRef.current?.scrollTo({ top: 0 });
+    const nextHash = `#${section}`;
+    if (window.location.hash !== nextHash) {
+      window.history.pushState(null, "", nextHash);
+    }
+  }, []);
+
+  const isProfileDirty =
+    firstname !== savedFirstname ||
+    lastname !== savedLastname ||
+    gender !== savedGender ||
+    phone !== savedPhone;
+
+  const isAppearanceDirty = draftTheme !== theme || draftLanguage !== language;
+  const hasUnsavedChanges = isProfileDirty || isAppearanceDirty;
+
+  // Browser unload warning when unsaved changes exist
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  // Existing profile save handler (unchanged API contract)
+  const commitProfile = useCallback(async (): Promise<boolean> => {
+    if (!firstname.trim() || !lastname.trim()) {
+      pushToast(false, "First Name and Last Name cannot be empty.");
+      return false;
+    }
     setSavingProfile(true);
-    setFeedback(null);
     try {
       await apiMutate("/api/admin/data", {
         method: "PUT",
@@ -114,21 +272,54 @@ export default function AdminSettingsPage() {
         },
       });
       await mutate();
-      setFeedback({ ok: true, msg: "Personal profile updated." });
+      setSavedFirstname(firstname);
+      setSavedLastname(lastname);
+      setSavedGender(gender);
+      setSavedPhone(phone);
+      pushToast(true, "Personal profile updated.");
+      return true;
     } catch (err) {
-      setFeedback({
-        ok: false,
-        msg: err instanceof Error ? err.message : "Failed to save profile.",
-      });
+      pushToast(
+        false,
+        err instanceof Error ? err.message : "Failed to save profile."
+      );
+      return false;
     } finally {
       setSavingProfile(false);
     }
+  }, [firstname, lastname, gender, phone, mutate, pushToast]);
+
+  // Topbar Save Changes: persists dirty profile fields and/or previewed theme & language
+  const handleSaveAll = async () => {
+    if (!hasUnsavedChanges) return;
+    let profileOk = true;
+
+    if (isProfileDirty) {
+      profileOk = await commitProfile();
+    }
+
+    if (isAppearanceDirty) {
+      setSavingAppearance(true);
+      try {
+        const res = await saveAppearance({
+          theme: draftTheme,
+          language: draftLanguage,
+        });
+        if (res.ok) {
+          pushToast(true, isProfileDirty && profileOk ? "All changes saved." : "Changes saved");
+        } else {
+          pushToast(false, res.error || "Could not save appearance.");
+        }
+      } finally {
+        setSavingAppearance(false);
+      }
+    }
   };
 
+  // Existing change password handler (unchanged API contract)
   const handleChangePassword = async (e: FormEvent) => {
     e.preventDefault();
     setSavingPw(true);
-    setFeedback(null);
     try {
       await apiMutate("/api/admin/data", {
         method: "PUT",
@@ -145,19 +336,19 @@ export default function AdminSettingsPage() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setFeedback({ ok: true, msg: "Password changed successfully." });
+      pushToast(true, "Password changed successfully.");
     } catch (err) {
-      setFeedback({
-        ok: false,
-        msg: err instanceof Error ? err.message : "Failed to change password.",
-      });
+      pushToast(
+        false,
+        err instanceof Error ? err.message : "Failed to change password."
+      );
     } finally {
       setSavingPw(false);
     }
   };
 
+  // Existing security toggle handler (unchanged API contract)
   const handleToggleSecurity = async (method: "otp" | "pin", nextVal: boolean) => {
-    setFeedback(null);
     try {
       await apiMutate("/api/admin/data", {
         method: "PUT",
@@ -168,17 +359,61 @@ export default function AdminSettingsPage() {
         },
       });
       await mutate();
-      setFeedback({
-        ok: true,
-        msg: `${method.toUpperCase()} verification ${nextVal ? "enabled" : "disabled"}.`,
-      });
+      pushToast(
+        true,
+        `${method.toUpperCase()} verification ${nextVal ? "enabled" : "disabled"}.`
+      );
     } catch (err) {
-      setFeedback({
-        ok: false,
-        msg: err instanceof Error ? err.message : "Failed to update security flag.",
-      });
+      pushToast(
+        false,
+        err instanceof Error ? err.message : "Failed to update security flag."
+      );
     }
   };
+
+  const handleNavigateAway = useCallback(
+    (href: string) => {
+      if (hasUnsavedChanges) {
+        setPendingLeaveHref(href);
+        return;
+      }
+      if (href === "/logout") {
+        window.location.assign(href);
+      } else {
+        router.push(href);
+      }
+    },
+    [hasUnsavedChanges, router]
+  );
+
+  const confirmLeave = () => {
+    if (!pendingLeaveHref) return;
+    const href = pendingLeaveHref;
+    setPendingLeaveHref(null);
+    previewAppearance({ theme, language });
+    if (href === "/logout") {
+      try {
+        window.localStorage.removeItem("icpl-theme-mode");
+        window.localStorage.removeItem("icpl-staff-language");
+      } catch {
+        // ignore storage errors
+      }
+      window.location.assign(href);
+    } else {
+      router.push(href);
+    }
+  };
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return SEARCH_SETTINGS_INDEX.filter(
+      (item) =>
+        item.label.toLowerCase().includes(q) ||
+        item.keywords.includes(q) ||
+        item.sectionLabel.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
 
   const p = data?.profile;
   const sessions = data?.loginActivity ?? [];
@@ -186,28 +421,8 @@ export default function AdminSettingsPage() {
     p?.fullname && !p.fullname.startsWith("gAAAAAB")
       ? p.fullname
       : [firstname, lastname].filter(Boolean).join(" ") || "Administrator";
-
-  const pwRules = {
-    len: newPassword.length >= 8 && newPassword.length <= 64,
-    upper: /[A-Z]/.test(newPassword),
-    lower: /[a-z]/.test(newPassword),
-    num: /[0-9]/.test(newPassword),
-    special: /[@$!%*?&_#^]/.test(newPassword),
-  };
-  const pwMetCount = Object.values(pwRules).filter(Boolean).length;
-  const pwAllMet = pwMetCount === 5;
-  const pwMatches = confirmPassword.length > 0 && newPassword === confirmPassword;
-  const pwStrengthPct = (pwMetCount / 5) * 100;
-  const pwStrengthLabel =
-    newPassword.length === 0
-      ? "—"
-      : pwMetCount <= 2
-      ? "Weak"
-      : pwMetCount <= 4
-      ? "Fair"
-      : "Strong";
-  const pwStrengthColor =
-    pwMetCount <= 2 ? "bg-danger" : pwMetCount <= 4 ? "bg-warn" : "bg-accent2";
+  const initials = getInitials(firstname, lastname, displayName, p?.email ?? "");
+  const showSecurityBadge = Boolean(p && !p.otp_enabled && !p.pin_enabled);
 
   const adminSince = p?.created_at
     ? new Date(p.created_at).toLocaleDateString("en-US", {
@@ -217,691 +432,310 @@ export default function AdminSettingsPage() {
       })
     : "—";
 
-  const sectionTabs: { id: SectionTab; label: string; icon: typeof User }[] = [
-    { id: "overview", label: "Overview", icon: User },
-    { id: "personal", label: "Personal Details", icon: User },
-    { id: "security", label: "Password & Security", icon: ShieldCheck },
-    { id: "appearance", label: "Appearance", icon: Palette },
-  ];
-
   return (
-    <StaffShell title="Settings">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-[1.65rem] font-bold tracking-[-0.03em] text-white">
-            Admin <span className="text-accent">Settings</span>
-          </h1>
-          <p className="mt-1 text-[0.84rem] text-tl">
-            Manage everything about your account from here.
-          </p>
-        </div>
+    <div className="admin-settings-page flex w-full overflow-x-hidden">
+      {/* Left Sidebar (fixed 280px on desktop, slide-in drawer under 1024px) */}
+      <SettingsSidebar
+        activeSection={activeSection}
+        onSelectSection={handleSelectSection}
+        initials={initials}
+        fullname={displayName}
+        email={p?.email || (isLoading ? "Loading..." : "—")}
+        showSecurityBadge={showSecurityBadge}
+        mobileOpen={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
+        onNavigateAway={handleNavigateAway}
+      />
 
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-warn/40 bg-warn/15 px-3 py-1 text-[0.7rem] font-bold uppercase tracking-wider text-accent2">
-          <CheckCircle2 className="h-3.5 w-3.5" />
-          Administrator
-        </span>
-      </div>
-
-      {/* Section Tabs (legacy order: Overview, Personal Details, Password & Security, Appearance) */}
+      {/* Right Main Area (scrolls independently) */}
       <div
-        role="tablist"
-        aria-label="Admin settings sections"
-        className="mb-6 flex flex-wrap gap-1.5 rounded-2xl border border-white/10 bg-white/4 p-1.5"
+        ref={mainScrollRef}
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain"
       >
-        {sectionTabs.map((tab) => {
-          const Icon = tab.icon;
-          const active = activeSection === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setActiveSection(tab.id)}
-              className={`flex flex-1 min-w-[130px] items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-semibold transition cursor-pointer ${
-                active
-                  ? "bg-accent/18 text-accent shadow-sm"
-                  : "text-tl/70 hover:bg-white/6 hover:text-white"
-              }`}
-            >
-              <Icon className="h-3.5 w-3.5 shrink-0" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {feedback && (
-        <div
-          className={`mb-5 flex items-center gap-2.5 rounded-xl border px-4 py-3 text-xs ${
-            feedback.ok
-              ? "border-accent2/30 bg-accent2/12 text-accent2"
-              : "border-danger/30 bg-danger/12 text-danger"
-          }`}
+        {/* Sticky Topbar */}
+        <header
+          className="sticky top-0 z-[100] flex h-[60px] shrink-0 items-center justify-between gap-3 px-5 backdrop-blur-md lg:px-9"
+          style={{
+            backgroundColor: "var(--as-topbar-bg)",
+            borderBottom: "1px solid var(--as-border)",
+          }}
         >
-          {feedback.ok ? (
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-          ) : (
-            <AlertCircle className="h-4 w-4 shrink-0" />
-          )}
-          <span>{feedback.msg}</span>
-        </div>
-      )}
-
-      {/* 1. OVERVIEW */}
-      {activeSection === "overview" && (
-        <div className="space-y-5">
-          <div>
-            <h2 className="text-xl font-bold tracking-[-0.02em] text-white">
-              Good to see you, <span className="text-accent">{displayName}</span>
-            </h2>
-            <p className="mt-1 text-xs text-tl/75">
-              Manage everything about your account from here.
-            </p>
-          </div>
-
-          {/* Quick Cards */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="flex min-w-0 items-center gap-2.5">
             <button
               type="button"
-              onClick={() => setActiveSection("personal")}
-              className="flex flex-col items-start gap-2.5 rounded-2xl border border-white/10 bg-card-glass p-4 text-left transition hover:border-accent/40 cursor-pointer"
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Open settings menu"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition cursor-pointer lg:hidden"
+              style={{
+                border: "1px solid var(--as-border)",
+                color: "var(--as-text-primary)",
+              }}
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/15 text-accent">
-                <User className="h-4 w-4" />
-              </div>
-              <span className="text-xs font-semibold text-white">Personal Details</span>
+              <Menu className="h-5 w-5" aria-hidden="true" />
             </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSection("security")}
-              className="flex flex-col items-start gap-2.5 rounded-2xl border border-white/10 bg-card-glass p-4 text-left transition hover:border-danger/40 cursor-pointer"
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-danger/15 text-danger">
-                <ShieldCheck className="h-4 w-4" />
-              </div>
-              <span className="text-xs font-semibold text-white">Password &amp; Security</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSection("appearance")}
-              className="flex flex-col items-start gap-2.5 rounded-2xl border border-white/10 bg-card-glass p-4 text-left transition hover:border-accent2/40 cursor-pointer"
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent2/15 text-accent2">
-                <Palette className="h-4 w-4" />
-              </div>
-              <span className="text-xs font-semibold text-white">Appearance</span>
-            </button>
-          </div>
-
-          {/* Account Summary */}
-          <div className="rounded-2xl border border-white/10 bg-card-glass overflow-hidden">
-            <div className="flex items-center justify-between border-b border-white/8 px-5 py-3.5">
-              <span className="flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-wider text-accent">
-                <User className="h-4 w-4" /> Account Summary
-              </span>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => setActiveSection("personal")}
-              >
-                Edit
-              </Button>
-            </div>
-
-            <div className="divide-y divide-white/6 text-xs">
-              <div className="flex items-center justify-between gap-4 px-5 py-3.5">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/12 text-accent">
-                    <Mail className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-white">Username / Email</div>
-                    <div className="font-mono text-tl/70">
-                      {isLoading ? "Loading..." : p?.email || "Not signed in"}
-                    </div>
-                  </div>
-                </div>
-                <span className="font-mono text-[0.7rem] uppercase text-accent">
-                  {p?.role || "—"} {p?.id ? `· #${p.id}` : ""}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between gap-4 px-5 py-3.5">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent2/12 text-accent2">
-                    <CheckCircle2 className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-white">Account Status</div>
-                    <div className="text-tl/70">
-                      {p?.is_active && p?.is_approved ? "Active & Verified" : "Pending / Inactive"}
-                    </div>
-                  </div>
-                </div>
-                <span
-                  className={`font-semibold ${
-                    p?.is_active ? "text-accent2" : "text-danger"
-                  }`}
-                >
-                  ● {p?.is_active ? "Active" : "Inactive"}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between gap-4 px-5 py-3.5">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-warn/12 text-warn">
-                    <Calendar className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-white">Admin Since</div>
-                    <div className="text-tl/70">{adminSince}</div>
-                  </div>
-                </div>
-              </div>
+            <div className="flex items-center gap-2.5 text-[1rem] font-bold tracking-[-0.02em]">
+              <Settings
+                className="h-[18px] w-[18px] shrink-0"
+                style={{ color: "var(--accent)" }}
+                aria-hidden="true"
+              />
+              <span>Settings</span>
             </div>
           </div>
 
-          {/* Login Activity */}
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-card-glass">
-            <div className="flex items-center justify-between border-b border-white/8 px-5 py-3.5">
-              <span className="flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-wider text-accent">
-                <Clock className="h-4 w-4" /> Login Activity
-              </span>
-              <span className="rounded-lg border border-accent/25 bg-accent/10 px-2.5 py-1 text-[0.7rem] font-semibold text-accent">
-                Recent sessions
-              </span>
-            </div>
-            <div className="max-h-[280px] overflow-y-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-white/8 bg-white/4 font-mono text-[0.68rem] uppercase text-white/55">
-                    <th className="px-4 py-2.5">Session Token</th>
-                    <th className="px-4 py-2.5">Login At</th>
-                    <th className="px-4 py-2.5">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/6 text-tl">
-                  {sessions.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="px-4 py-6 text-center text-tl/60">
-                        No sessions recorded yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    sessions.map((s) => (
-                      <tr key={s.id} className="hover:bg-white/4">
-                        <td className="px-4 py-2.5 font-mono text-[0.72rem]">
-                          {s.session_token.slice(0, 10)}…
-                        </td>
-                        <td className="px-4 py-2.5 font-mono text-[0.72rem]">
-                          {new Date(s.login_at).toLocaleString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[0.66rem] font-bold ${
-                              s.logout_at
-                                ? "bg-white/8 text-tl/70"
-                                : "border border-accent2/30 bg-accent2/15 text-accent2"
-                            }`}
-                          >
-                            {s.logout_at ? "Ended" : "Active"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 2. PERSONAL DETAILS */}
-      {activeSection === "personal" && (
-        <form onSubmit={handleSaveProfile} className="space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-bold tracking-[-0.02em] text-white">
-                Personal <span className="text-accent">Details</span>
-              </h2>
-              <p className="mt-1 text-xs text-tl/75">Update your profile information.</p>
-            </div>
-            <Button type="submit" variant="accent" size="sm" disabled={savingProfile}>
-              {savingProfile ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Save className="h-3.5 w-3.5" />
-              )}
-              Save Changes
-            </Button>
-          </div>
-
-          {/* Sub-tabs: Profile Info | Contact */}
-          <div className="flex gap-1.5 rounded-xl border border-white/10 bg-black/20 p-1">
-            <button
-              type="button"
-              onClick={() => setPersonalTab("info")}
-              className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition cursor-pointer ${
-                personalTab === "info"
-                  ? "bg-accent/18 text-accent"
-                  : "text-tl/65 hover:bg-white/5 hover:text-white"
-              }`}
-            >
-              <User className="h-3.5 w-3.5" /> Profile Info
-            </button>
-            <button
-              type="button"
-              onClick={() => setPersonalTab("contact")}
-              className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition cursor-pointer ${
-                personalTab === "contact"
-                  ? "bg-accent/18 text-accent"
-                  : "text-tl/65 hover:bg-white/5 hover:text-white"
-              }`}
-            >
-              <Phone className="h-3.5 w-3.5" /> Contact
-            </button>
-          </div>
-
-          {personalTab === "info" && (
-            <div className="rounded-2xl border border-white/10 bg-card-glass overflow-hidden">
-              <div className="border-b border-white/8 px-5 py-3.5">
-                <span className="flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-wider text-accent">
-                  <User className="h-4 w-4" /> Basic Info
-                </span>
-              </div>
-              <div className="space-y-4 p-5">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-tl">
-                      First Name *
-                    </label>
-                    <input
-                      required
-                      maxLength={64}
-                      value={firstname}
-                      onChange={(e) => setFirstname(e.target.value)}
-                      placeholder="First name"
-                      className={INPUT_CLS}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-tl">
-                      Last Name *
-                    </label>
-                    <input
-                      required
-                      maxLength={64}
-                      value={lastname}
-                      onChange={(e) => setLastname(e.target.value)}
-                      placeholder="Last name"
-                      className={INPUT_CLS}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-xs font-semibold text-tl">Gender</label>
-                  <div className="flex flex-wrap gap-2">
-                    {GENDER_OPTIONS.map((opt) => {
-                      const selected = gender === opt;
-                      return (
-                        <button
-                          key={opt}
-                          type="button"
-                          onClick={() => setGender(opt)}
-                          className={`rounded-full border px-4 py-1.5 text-xs font-semibold transition cursor-pointer ${
-                            selected
-                              ? "border-accent bg-accent/20 text-accent"
-                              : "border-white/14 bg-white/6 text-tl/75 hover:border-accent/50 hover:text-white"
-                          }`}
-                        >
-                          {opt}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between gap-4 rounded-xl border border-white/8 bg-bg1/50 px-4 py-3 text-xs">
-                  <div>
-                    <div className="font-semibold text-white">Email / Username</div>
-                    <div className="font-mono text-tl/70">{p?.email || "—"}</div>
-                  </div>
-                  <span className="text-[0.7rem] text-tl/45">Read-only</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {personalTab === "contact" && (
-            <div className="rounded-2xl border border-white/10 bg-card-glass overflow-hidden">
-              <div className="border-b border-white/8 px-5 py-3.5">
-                <span className="flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-wider text-accent">
-                  <Phone className="h-4 w-4" /> Contact
-                </span>
-              </div>
-              <div className="p-5">
-                <label className="mb-1.5 block text-xs font-semibold text-tl">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  maxLength={20}
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. 0917 123 4567"
-                  className={INPUT_CLS}
-                />
-              </div>
-            </div>
-          )}
-        </form>
-      )}
-
-      {/* 3. PASSWORD & SECURITY */}
-      {activeSection === "security" && (
-        <div className="space-y-5">
-          <div>
-            <h2 className="text-xl font-bold tracking-[-0.02em] text-white">
-              Password <span className="text-accent">&amp; Security</span>
-            </h2>
-            <p className="mt-1 text-xs text-tl/75">Keep your account secure.</p>
-          </div>
-
-          {/* Multi-Factor Authentication */}
-          <div className="rounded-2xl border border-white/10 bg-card-glass overflow-hidden">
-            <div className="flex items-center justify-between border-b border-white/8 px-5 py-3.5">
-              <span className="flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-wider text-accent">
-                <ShieldCheck className="h-4 w-4" /> Multi-Factor Authentication
-              </span>
-              <span className="rounded-full bg-accent2/15 px-2.5 py-0.5 text-[0.68rem] font-bold text-accent2">
-                Recommended
-              </span>
-            </div>
-
-            <div className="divide-y divide-white/6">
-              <div className="flex items-center justify-between gap-4 px-5 py-4 text-xs">
-                <div>
-                  <div className="font-semibold text-white">One-Time Password (OTP)</div>
-                  <div className="mt-0.5 text-[0.74rem] text-tl/65">
-                    Send a verification code to your email on login
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  aria-label="Enable One-Time Password (OTP)"
-                  checked={Boolean(p?.otp_enabled)}
-                  onChange={(e) => handleToggleSecurity("otp", e.target.checked)}
-                  className="h-4 w-4 accent-[var(--accent2)] cursor-pointer"
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 text-xs">
-                <div>
-                  <div className="font-semibold text-white">PIN Code</div>
-                  <div className="mt-0.5 text-[0.74rem] text-tl/65">
-                    Require your PIN after your password on login
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Button variant="secondary" size="sm" asChild>
-                    <Link href="/reset-pin">Set / Reset PIN</Link>
-                  </Button>
-                  <input
-                    type="checkbox"
-                    aria-label="Enable PIN Code"
-                    checked={Boolean(p?.pin_enabled)}
-                    onChange={(e) => handleToggleSecurity("pin", e.target.checked)}
-                    className="h-4 w-4 accent-[var(--accent2)] cursor-pointer"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 border-t border-white/6 px-5 py-3 text-[0.74rem] text-tl/60">
-              <Info className="h-3.5 w-3.5 shrink-0 text-accent/70" />
-              <span>Changes to these toggles are saved immediately.</span>
-            </div>
-          </div>
-
-          {/* Change Password */}
-          <form
-            onSubmit={handleChangePassword}
-            className="rounded-2xl border border-white/10 bg-card-glass overflow-hidden"
+          <button
+            type="button"
+            disabled={!hasUnsavedChanges || savingProfile || savingAppearance}
+            onClick={() => void handleSaveAll()}
+            className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[0.78rem] font-semibold transition cursor-pointer disabled:cursor-not-allowed disabled:opacity-45"
+            style={{
+              backgroundColor: "rgba(var(--accent-rgb), 0.12)",
+              border: "1px solid rgba(var(--accent-rgb), 0.24)",
+              color: "var(--accent)",
+            }}
           >
-            <div className="border-b border-white/8 px-5 py-3.5">
-              <span className="flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-wider text-accent">
-                <KeyRound className="h-4 w-4" /> Change Password
-              </span>
-            </div>
+            {savingProfile || savingAppearance ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <Check className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+            <span>Save Changes</span>
+          </button>
+        </header>
 
-            <div className="space-y-4 p-5">
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-tl">
-                  Current Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showCurrentPw ? "text" : "password"}
-                    required
-                    autoComplete="current-password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    placeholder="Current password"
-                    className={`${INPUT_CLS} pr-10`}
-                  />
-                  <button
-                    type="button"
-                    aria-label={showCurrentPw ? "Hide current password" : "Show current password"}
-                    onClick={() => setShowCurrentPw((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-tl/55 hover:text-accent cursor-pointer"
+        {/* Main Content Wrap */}
+        <main className="w-full max-w-[820px] shrink-0 px-5 pt-6 pb-24 lg:px-9 lg:pt-8 lg:pb-24">
+          {/* Find a setting… Search */}
+          <div className="relative mb-7">
+            <Search
+              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2"
+              style={{ color: "var(--as-text-muted)" }}
+              aria-hidden="true"
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Find a setting"
+              placeholder="Find a setting… (e.g. password, theme)"
+              className="min-h-[46px] w-full rounded-[12px] py-3 pl-[42px] pr-10 text-[0.92rem]"
+              style={{
+                backgroundColor: "var(--as-input-bg)",
+                border: "1px solid var(--as-border)",
+                color: "var(--as-text-primary)",
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md cursor-pointer"
+                style={{ color: "var(--as-text-muted)" }}
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
+
+            {searchQuery.trim().length > 0 && (
+              <div
+                className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-[12px] shadow-xl"
+                style={{
+                  backgroundColor: "var(--as-card-bg)",
+                  border: "1px solid var(--as-border)",
+                }}
+              >
+                {searchResults.length === 0 ? (
+                  <div
+                    className="px-4 py-3 text-xs"
+                    style={{ color: "var(--as-text-muted)" }}
                   >
-                    {showCurrentPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-tl">New Password</label>
-                <div className="relative">
-                  <input
-                    type={showNewPw ? "text" : "password"}
-                    required
-                    maxLength={64}
-                    autoComplete="new-password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="New password"
-                    className={`${INPUT_CLS} pr-10`}
-                  />
-                  <button
-                    type="button"
-                    aria-label={showNewPw ? "Hide new password" : "Show new password"}
-                    onClick={() => setShowNewPw((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-tl/55 hover:text-accent cursor-pointer"
-                  >
-                    {showNewPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-
-                {/* Strength Bar */}
-                <div className="mt-2.5 flex items-center gap-3">
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className={`h-full rounded-full transition-all ${pwStrengthColor}`}
-                      style={{ width: `${pwStrengthPct}%` }}
-                    />
+                    No matching settings found.
                   </div>
-                  <span className="min-w-[48px] text-right text-[0.72rem] font-bold text-tl/70">
-                    {pwStrengthLabel}
-                  </span>
-                </div>
-              </div>
-
-              {/* Password Requirements Checklist */}
-              <div className="rounded-xl border border-white/8 bg-black/20 p-4">
-                <div className="mb-3 text-[0.68rem] font-bold uppercase tracking-wider text-tl/55">
-                  All requirements must be met before saving · only letters, numbers and @$!%*?&amp;_#^ are allowed
-                </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {[
-                    { key: "len", met: pwRules.len, label: "At least 8 characters" },
-                    { key: "upper", met: pwRules.upper, label: "Uppercase letter (A–Z)" },
-                    { key: "lower", met: pwRules.lower, label: "Lowercase letter (a–z)" },
-                    { key: "num", met: pwRules.num, label: "Number (0–9)" },
-                    {
-                      key: "special",
-                      met: pwRules.special,
-                      label: "Special character (@$!%*?&_#^)",
-                    },
-                  ].map((rule) => (
-                    <div
-                      key={rule.key}
-                      className={`flex items-center gap-2 text-xs ${
-                        rule.met ? "text-accent2" : "text-tl/50"
-                      }`}
+                ) : (
+                  searchResults.map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => {
+                        handleSelectSection(item.section);
+                        if (item.personalTab) setPersonalTab(item.personalTab);
+                        setSearchQuery("");
+                      }}
+                      className="flex min-h-[44px] w-full items-center justify-between px-4 py-2.5 text-left text-[0.84rem] transition cursor-pointer hover:bg-white/[0.04]"
+                      style={{
+                        borderBottom: "1px solid var(--as-border-subtle)",
+                        color: "var(--as-text-primary)",
+                      }}
                     >
+                      <span className="font-medium">{item.label}</span>
                       <span
-                        className={`flex h-4 w-4 items-center justify-center rounded-full border ${
-                          rule.met
-                            ? "border-accent2 bg-accent2/20 text-accent2"
-                            : "border-white/20 text-transparent"
-                        }`}
+                        className="text-[0.72rem]"
+                        style={{ color: "var(--as-text-muted)" }}
                       >
-                        <Check className="h-2.5 w-2.5" />
+                        {item.sectionLabel}
                       </span>
-                      <span>{rule.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-tl">
-                  Confirm New Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPw ? "text" : "password"}
-                    required
-                    maxLength={64}
-                    autoComplete="new-password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm password"
-                    className={`${INPUT_CLS} pr-10`}
-                  />
-                  <button
-                    type="button"
-                    aria-label={showConfirmPw ? "Hide confirm password" : "Show confirm password"}
-                    onClick={() => setShowConfirmPw((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-tl/55 hover:text-accent cursor-pointer"
-                  >
-                    {showConfirmPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                {confirmPassword.length > 0 && (
-                  <p
-                    className={`mt-1.5 text-[0.72rem] ${
-                      pwMatches ? "text-accent2" : "text-danger"
-                    }`}
-                  >
-                    {pwMatches ? "Passwords match." : "Passwords do not match."}
-                  </p>
+                    </button>
+                  ))
                 )}
               </div>
+            )}
+          </div>
 
-              <div className="flex justify-end border-t border-white/8 pt-4">
-                <Button
-                  type="submit"
-                  variant="accent"
-                  size="sm"
-                  disabled={savingPw || !currentPassword || !pwAllMet || !pwMatches}
-                >
-                  {savingPw ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <KeyRound className="h-3.5 w-3.5" />
-                  )}
-                  Update Password
-                </Button>
-              </div>
-            </div>
-          </form>
-        </div>
-      )}
+          {/* Active Section */}
+          {activeSection === "overview" && (
+            <OverviewSection
+              profile={p}
+              displayName={displayName}
+              isLoading={isLoading}
+              adminSince={adminSince}
+              sessions={sessions}
+              onSelectSection={handleSelectSection}
+            />
+          )}
 
-      {/* 4. APPEARANCE */}
-      {activeSection === "appearance" && (
-        <div className="space-y-5">
-          <div>
-            <h2 className="text-xl font-bold tracking-[-0.02em] text-white">
-              Appearance <span className="text-accent">Settings</span>
-            </h2>
-            <p className="mt-1 text-xs text-tl/75">
-              Customize how the library looks for you.
+          {activeSection === "personal" && (
+            <PersonalDetailsSection
+              personalTab={personalTab}
+              onChangePersonalTab={setPersonalTab}
+              firstname={firstname}
+              lastname={lastname}
+              gender={gender}
+              phone={phone}
+              savedFirstname={savedFirstname}
+              savedLastname={savedLastname}
+              savedGender={savedGender}
+              savedPhone={savedPhone}
+              email={p?.email || ""}
+              savingProfile={savingProfile}
+              onChangeFirstname={setFirstname}
+              onChangeLastname={setLastname}
+              onChangeGender={setGender}
+              onChangePhone={setPhone}
+              onCommitProfile={commitProfile}
+            />
+          )}
+
+          {activeSection === "security" && (
+            <SecuritySection
+              otpEnabled={Boolean(p?.otp_enabled)}
+              pinEnabled={Boolean(p?.pin_enabled)}
+              onToggleSecurity={handleToggleSecurity}
+              currentPassword={currentPassword}
+              newPassword={newPassword}
+              confirmPassword={confirmPassword}
+              onChangeCurrentPassword={setCurrentPassword}
+              onChangeNewPassword={setNewPassword}
+              onChangeConfirmPassword={setConfirmPassword}
+              savingPw={savingPw}
+              onSubmitPassword={handleChangePassword}
+            />
+          )}
+
+          {activeSection === "appearance" && (
+            <AppearanceSection
+              draftTheme={draftTheme}
+              draftLanguage={draftLanguage}
+              isAppearanceDirty={isAppearanceDirty}
+              onSelectTheme={setDraftTheme}
+              onSelectLanguage={setDraftLanguage}
+            />
+          )}
+        </main>
+      </div>
+
+      {/* Unsaved Changes Confirmation Modal */}
+      {pendingLeaveHref && (
+        <div
+          className="fixed inset-0 z-[300] flex items-center justify-center bg-black/65 p-4 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="unsaved-modal-title"
+        >
+          <div
+            className="w-full max-w-[400px] rounded-[16px] p-5 shadow-2xl"
+            style={{
+              backgroundColor: "var(--as-card-bg)",
+              border: "1px solid var(--as-border)",
+            }}
+          >
+            <h3
+              id="unsaved-modal-title"
+              className="mb-2 text-base font-bold"
+              style={{ color: "var(--as-text-primary)" }}
+            >
+              Unsaved Changes
+            </h3>
+            <p
+              className="mb-5 text-[0.84rem] leading-relaxed"
+              style={{ color: "var(--as-text-secondary)" }}
+            >
+              You have unsaved changes. Leave this page without saving?
             </p>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-card-glass overflow-hidden">
-            <div className="border-b border-white/8 px-5 py-3.5">
-              <span className="flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-wider text-accent">
-                <Palette className="h-4 w-4" /> Color Theme
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-4 px-5 py-4 text-xs">
-              <div>
-                <div className="font-semibold text-white">Theme Mode</div>
-                <div className="mt-0.5 text-[0.74rem] text-tl/65">
-                  Switch between Dark and Light mode.
-                </div>
-              </div>
-              <ThemeToggle />
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-card-glass overflow-hidden">
-            <div className="border-b border-white/8 px-5 py-3.5">
-              <span className="flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-wider text-accent">
-                <Globe className="h-4 w-4" /> Language
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 text-xs">
-              <div>
-                <div className="flex items-center gap-2 font-semibold text-white">
-                  <span>Interface Language</span>
-                  <span className="rounded-full border border-white/15 bg-white/6 px-2 py-0.5 text-[0.65rem] font-semibold text-tl/65">
-                    Not available yet
-                  </span>
-                </div>
-                <div className="mt-0.5 text-[0.74rem] text-tl/65">
-                  Changes labeled navigation and UI text
-                </div>
-              </div>
-              <select
-                disabled
-                defaultValue="english"
-                aria-label="Interface Language (not available yet)"
-                className="rounded-xl border border-white/12 bg-bg1/60 px-3 py-2 text-xs text-tl/55 opacity-60 cursor-not-allowed"
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingLeaveHref(null)}
+                className="min-h-[44px] rounded-lg px-4 py-2 text-[0.8rem] font-semibold cursor-pointer"
+                style={{
+                  border: "1px solid var(--as-border)",
+                  color: "var(--as-text-primary)",
+                }}
               >
-                <option value="english">English</option>
-                <option value="filipino">Filipino</option>
-                <option value="hiligaynon">Hiligaynon</option>
-              </select>
+                Stay
+              </button>
+              <button
+                type="button"
+                onClick={confirmLeave}
+                className="min-h-[44px] rounded-lg px-4 py-2 text-[0.8rem] font-semibold cursor-pointer"
+                style={{
+                  backgroundColor: "rgba(var(--danger-rgb), 0.16)",
+                  border: "1px solid rgba(var(--danger-rgb), 0.35)",
+                  color: "var(--danger)",
+                }}
+              >
+                Leave without saving
+              </button>
             </div>
           </div>
         </div>
       )}
-    </StaffShell>
+
+      {/* Toast Notifications */}
+      {toasts.length > 0 && (
+        <div
+          aria-live="polite"
+          className="fixed bottom-6 right-6 z-[400] flex max-w-[340px] flex-col gap-2"
+        >
+          {toasts.map((t) => (
+            <div
+              key={t.id}
+              className="flex items-center gap-2.5 rounded-[10px] px-4 py-2.5 text-[0.82rem] shadow-lg"
+              style={{
+                backgroundColor: "var(--as-card-bg)",
+                border: "1px solid var(--as-border)",
+                borderLeft: `3px solid ${t.ok ? "var(--accent2)" : "var(--danger)"}`,
+                color: "var(--as-text-primary)",
+              }}
+            >
+              {t.ok ? (
+                <CheckCircle2
+                  className="h-4 w-4 shrink-0"
+                  style={{ color: "var(--accent2)" }}
+                  aria-hidden="true"
+                />
+              ) : (
+                <AlertCircle
+                  className="h-4 w-4 shrink-0"
+                  style={{ color: "var(--danger)" }}
+                  aria-hidden="true"
+                />
+              )}
+              <span>{t.msg}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

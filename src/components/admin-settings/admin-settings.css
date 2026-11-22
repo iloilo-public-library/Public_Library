@@ -1,0 +1,167 @@
+/* Scoped styling for Admin Settings page only — does not mutate global tokens */
+html:has(.admin-settings-page),
+body:has(.admin-settings-page) {
+  overflow: hidden;
+  height: 100dvh;
+}
+
+.admin-settings-page {
+  --as-page-bg: #0d1117;
+  --as-sidebar-bg: #11161f;
+  --as-topbar-bg: rgba(13, 17, 23, 0.9);
+  --as-card-bg: #161b22;
+  --as-card-subtle: #1c222b;
+  --as-stat-bg: #131820;
+  --as-input-bg: rgba(255, 255, 255, 0.05);
+  --as-border: rgba(255, 255, 255, 0.08);
+  --as-border-subtle: rgba(255, 255, 255, 0.05);
+  --as-text-primary: #ffffff;
+  --as-text-secondary: rgba(255, 255, 255, 0.72);
+  --as-text-muted: rgba(255, 255, 255, 0.44);
+  --as-text-faint: rgba(255, 255, 255, 0.28);
+  --as-hover-bg: rgba(255, 255, 255, 0.06);
+  --as-active-bg: rgba(159, 193, 225, 0.14);
+  --as-tab-track: rgba(0, 0, 0, 0.28);
+  --as-toggle-off: rgba(255, 255, 255, 0.14);
+  --as-gold-bg: rgba(245, 200, 66, 0.14);
+  --as-gold-border: rgba(245, 200, 66, 0.45);
+  --as-gold-text: var(--gold);
+  --as-hm-l0: rgba(255, 255, 255, 0.07);
+  --as-hm-l1: #e3f2fd;
+  --as-hm-l2: #90caf9;
+  --as-hm-l3: #2196f3;
+  --as-hm-l4: #0d47a1;
+  --as-bar-track: rgba(255, 255, 255, 0.05);
+
+  font-family: "DM Sans", var(--font-sans);
+  background-color: var(--as-page-bg);
+  color: var(--as-text-primary);
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* Legacy Default theme (ocean / slate-blue gradient from staff_appearance.js) */
+html[data-theme="default"] .admin-settings-page {
+  --as-page-bg: #1e2d3d;
+  --as-sidebar-bg: rgba(20, 32, 44, 0.88);
+  --as-topbar-bg: rgba(30, 45, 61, 0.9);
+  --as-card-bg: rgba(255, 255, 255, 0.06);
+  --as-card-subtle: rgba(0, 0, 0, 0.16);
+  --as-stat-bg: rgba(30, 45, 61, 0.65);
+  --as-input-bg: rgba(255, 255, 255, 0.07);
+  --as-border: rgba(255, 255, 255, 0.08);
+  --as-border-subtle: rgba(255, 255, 255, 0.05);
+  --as-text-primary: #ffffff;
+  --as-text-secondary: var(--tl);
+  --as-text-muted: rgba(255, 255, 255, 0.45);
+  --as-text-faint: rgba(255, 255, 255, 0.3);
+  --as-hover-bg: rgba(255, 255, 255, 0.06);
+  --as-active-bg: rgba(159, 193, 225, 0.14);
+  --as-tab-track: rgba(0, 0, 0, 0.2);
+  --as-toggle-off: rgba(255, 255, 255, 0.12);
+  --as-hm-l0: rgba(255, 255, 255, 0.07);
+  --as-hm-l1: #e3f2fd;
+  --as-hm-l2: #90caf9;
+  --as-hm-l3: #2196f3;
+  --as-hm-l4: #0d47a1;
+  --as-bar-track: rgba(255, 255, 255, 0.05);
+
+  background: linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 55%, var(--bg3) 100%);
+}
+
+html[data-theme="light"] .admin-settings-page {
+  --as-page-bg: var(--bg1);
+  --as-sidebar-bg: var(--sb-bg);
+  --as-topbar-bg: rgba(255, 255, 255, 0.92);
+  --as-card-bg: var(--card-b);
+  --as-card-subtle: var(--surface-deep);
+  --as-stat-bg: rgba(255, 255, 255, 0.85);
+  --as-input-bg: #ffffff;
+  --as-border: rgba(27, 42, 58, 0.13);
+  --as-border-subtle: rgba(27, 42, 58, 0.08);
+  --as-text-primary: var(--fg);
+  --as-text-secondary: var(--tl);
+  --as-text-muted: rgba(27, 42, 58, 0.6);
+  --as-text-faint: rgba(27, 42, 58, 0.45);
+  --as-hover-bg: rgba(27, 42, 58, 0.06);
+  --as-active-bg: rgba(37, 99, 166, 0.12);
+  --as-tab-track: rgba(27, 42, 58, 0.06);
+  --as-toggle-off: rgba(27, 42, 58, 0.2);
+  --as-gold-bg: rgba(202, 138, 4, 0.12);
+  --as-gold-border: rgba(202, 138, 4, 0.42);
+  --as-gold-text: var(--gold);
+  --as-hm-l0: rgba(27, 42, 58, 0.09);
+  --as-hm-l1: #bbdefb;
+  --as-hm-l2: #64b5f6;
+  --as-hm-l3: #1e88e5;
+  --as-hm-l4: #0d47a1;
+  --as-bar-track: rgba(27, 42, 58, 0.09);
+}
+
+/* Login Activity heatmap & bar levels */
+.admin-settings-page .as-l0 {
+  background-color: var(--as-hm-l0);
+}
+.admin-settings-page .as-l1 {
+  background-color: var(--as-hm-l1);
+}
+.admin-settings-page .as-l2 {
+  background-color: var(--as-hm-l2);
+}
+.admin-settings-page .as-l3 {
+  background-color: var(--as-hm-l3);
+}
+.admin-settings-page .as-l4 {
+  background-color: var(--as-hm-l4);
+}
+
+.admin-settings-page .as-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes as-bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.admin-settings-page .as-bar-fill {
+  transform-origin: bottom;
+  animation: as-bar-grow 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Collapsible grid-template-rows animation */
+.as-collapsible {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 220ms ease;
+}
+
+.as-collapsible[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+
+.as-collapsible-inner {
+  overflow: hidden;
+}
+
+/* Accessible focus ring scoped to Admin Settings */
+.admin-settings-page :is(a, button, input, select):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-settings-page,
+  .admin-settings-page * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
