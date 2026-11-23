@@ -98,6 +98,7 @@
 - Added `Destroyed` copy condition support (`009_destroyed_condition_and_catalog_code.sql`, `books.ts`, `inventory.ts`, `AdminResourceView.tsx`, `AdminActionModals.tsx`), fixed multi-word table pill wrapping (`whitespace-nowrap`), redesigned all `AdminActionModals`, eliminated focus-stealing `useEffect` loops across modal components, and hardened API route authentication, RBAC, email lookups, and PostgREST embeds. (`b86e840`)
 - Unified the search, filter, sort, and edit command bars across all Admin, Librarian, and Member pages (`AdminResourceView.tsx`, `AccountManagementView.tsx`, `/admin/account-requests`, `BorrowHistoryView.tsx`, `/admin/announcements`, `/admin/error-logs`, `/user/borrowed`, `/user/borrow-history`, `/user/notifications`) to match the `48px` Browse Catalog design language. (`b86e840`)
 - Updated the `/api/cron/event-reminders` schedule in `vercel.json` from `*/15 * * * *` to `0 0 * * *` (daily at 08:00 AM Manila time) with a 24-hour reminder dispatch window to comply with Vercel Hobby plan daily cron limits. (`b86e840`)
+- Added a custom page-turning book loader (`src/components/ui/book-loader.tsx`, `src/app/loading.tsx`) restyled to the ICPL design (navy + gold-tooled cover, Plus Jakarta Sans / DM Mono type) over an animated library backdrop (drifting accent/gold/green aurora, catalog dot grid, bookshelf silhouettes, rising gold dust motes, reading-lamp halo, progress shimmer), theme-aware and `prefers-reduced-motion` safe. (`27e76f2`)
 
 ### Git Commit History
 
@@ -110,6 +111,7 @@
 | 2026-11-23 | 11:39 | `dfafb8f` | `ui: unify member navigation, add missing admin sidebar links, remove developer jargon, and add PROJECT_OVERVIEW.md` |
 | 2026-11-23 | 11:43 | `a572c77` | `Merge branch 'tony@dev' of https://github.com/iloilo-public-library/Public_Library into Neil` |
 | 2026-11-23 | 14:15 | `b86e840` | `feat: redesign modals, add destroyed copy tracking, unify catalog search/filters, and harden api routes` |
+| 2026-11-23 | 15:08 | `27e76f2` | `feat(ui): add animated page-turning book loader and ambient library backdrop` |
 
 
 
