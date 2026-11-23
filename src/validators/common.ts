@@ -3,7 +3,8 @@ import { z } from "zod";
 export const positiveIntSchema = z.coerce.number().int().positive();
 
 export const nullableIdSchema = z
-  .union([z.number().int().positive(), z.string().min(1), z.null(), z.undefined()])
+  .union([z.number().int().positive(), z.string().min(1), z.literal(""), z.null()])
+  .optional()
   .transform((val) => {
     if (val === null || val === undefined || val === "") return null;
     return val;

@@ -7,7 +7,13 @@ import { queryLibraryCards, mutateLibraryCards } from "@/repositories/library-ca
 import { queryReturns, mutateReturns } from "@/repositories/returns";
 import { queryAccountsByRole, mutateAccounts } from "@/repositories/users";
 import { queryAccountRequests, mutateAccountRequests } from "@/repositories/account-requests";
-import { queryEvents, mutateEvents } from "@/repositories/events";
+import {
+  queryEvents,
+  mutateEvents,
+  queryEventCategories,
+  mutateEventCategories,
+  type QueryEventsOptions,
+} from "@/repositories/events";
 import { queryAnnouncements, mutateAnnouncements } from "@/repositories/announcements";
 import {
   queryBackupLogs,
@@ -32,7 +38,8 @@ export * from "@/repositories/admin-profile";
 export async function queryAdminResource(
   supabase: SupabaseClient,
   resource: string,
-  sessionUserId: number | null
+  sessionUserId: number | null,
+  queryOptions?: QueryEventsOptions
 ) {
   switch (resource) {
     case "inventory":
@@ -56,7 +63,10 @@ export async function queryAdminResource(
       return queryAccountRequests(supabase);
 
     case "events":
-      return queryEvents(supabase);
+      return queryEvents(supabase, queryOptions);
+
+    case "event_categories":
+      return queryEventCategories(supabase);
 
     case "announcements":
       return queryAnnouncements(supabase, sessionUserId);
@@ -109,7 +119,10 @@ export async function handleAdminMutation(
       return mutateReturns(supabase, session, action, id, payload);
 
     case "events":
-      return mutateEvents(supabase, action, id, payload);
+      return mutateEvents(supabase, session, action, id, payload);
+
+    case "event_categories":
+      return mutateEventCategories(supabase, session, action, id, payload);
 
     case "announcements":
       return mutateAnnouncements(supabase, session, action, id, payload);

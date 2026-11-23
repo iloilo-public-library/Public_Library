@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root,
-html[data-theme="dark"] {
+html[data-theme="default"] {
   color-scheme: dark;
   --accent: #9fc1e1;
   --accent-rgb: 159, 193, 225;
@@ -40,6 +40,38 @@ html[data-theme="dark"] {
   --scroll-track: #131f2c;
   --scroll-thumb: rgba(159, 193, 225, 0.32);
   --scroll-thumb-hover: rgba(159, 193, 225, 0.62);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --accent: #9fc1e1;
+  --accent-rgb: 159, 193, 225;
+  --accent2: #48c78e;
+  --accent2-rgb: 72, 199, 142;
+  --bg1: #0d1117;
+  --bg2: #141a22;
+  --bg3: #1c2430;
+  --surface-deep: #090d12;
+  --card: rgba(255, 255, 255, 0.05);
+  --card-b: rgba(255, 255, 255, 0.09);
+  --tl: #c9d6e3;
+  --danger: #ff6363;
+  --danger-rgb: 255, 99, 99;
+  --warn: #ff9800;
+  --warn-rgb: 255, 152, 0;
+  --gold: #f5c842;
+  --fg: #ffffff;
+  --fg-rgb: 255, 255, 255;
+  --on-accent: #0d1117;
+  --topbar-bg: #11161f;
+  --topbar-bg-rgb: 17, 22, 31;
+  --sb-bg: #11161f;
+  --sb-bg-deep: #0a0e14;
+  --tip-bg: #090d12;
+  --modal-bg: #161b22;
+  --scroll-track: #0d1117;
+  --scroll-thumb: rgba(159, 193, 225, 0.28);
+  --scroll-thumb-hover: rgba(159, 193, 225, 0.56);
 }
 
 html[data-theme="light"] {

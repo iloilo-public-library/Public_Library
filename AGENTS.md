@@ -1,3 +1,5 @@
+Before every task, read `rules/README.md` and follow the matching rule file (`rules/frontend.md`, `rules/backend.md`, `rules/timeline.md`). Never edit files outside the scope of the request. When unsure, ask first.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know

@@ -1,0 +1,1053 @@
+/* ==========================================================================
+   Iloilo City Public Library — Login Card Animation Set (.ilpl scoped)
+   ========================================================================== */
+
+.ilpl {
+  /* ── Animation Tuning Variables ──────────────────────────────────────── */
+  --dur: 0.9s;                            /* Form & hero side-panel swap duration */
+  --dur-tab: 0.6s;                        /* Mode-switch sliding pill & headline roll */
+  --dur-text: 0.35s;                      /* Subtitle fade/swap duration */
+  --dur-shake: 0.4s;                      /* Invalid field & failed submit shake */
+  --ease: cubic-bezier(0.77, 0, 0.18, 1); /* Primary animation easing curve */
+
+  /* ── Lamp & Palette Tokens ───────────────────────────────────────────── */
+  --glow: 1;
+  --ls: 1;
+  --ilpl-slate-1: #1c2a3a;
+  --ilpl-slate-2: #233346;
+  --ilpl-slate-3: #2a3b50;
+  --ilpl-gold: #f5cf7a;
+  --ilpl-blue: #9fc3ea;
+  --ilpl-btn-ink: #0c1926;
+  --ilpl-header-h: 58px;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  width: 100%;
+  overflow-x: clip; /* zero horizontal scroll during side-panel swap */
+  background: linear-gradient(155deg, var(--ilpl-slate-1) 0%, var(--ilpl-slate-2) 52%, var(--ilpl-slate-3) 100%);
+  color: #f4f8fd;
+  font-family: var(--font-sans, "Plus Jakarta Sans", "DM Sans", sans-serif);
+}
+
+@media (min-width: 1024px) and (min-height: 700px) {
+  .ilpl {
+    height: 100dvh;
+    overflow: hidden;
+  }
+}
+
+/* ── Ambient Lamp Dimming & Warm Atmospheric Wash ────────────────────────── */
+.ilpl-ambient-dim {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(circle at 24% 46%, rgba(7, 14, 24, 0.32), rgba(5, 10, 18, 0.64) 76%);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.ilpl[data-lamp="off"] .ilpl-ambient-dim {
+  opacity: 1;
+}
+
+.ilpl-ambient-wash {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(
+    ellipse 42% 52% at 20% 48%,
+    rgba(245, 207, 122, calc(0.15 * var(--glow))),
+    transparent 68%
+  );
+  opacity: 1;
+  transition: opacity 0.6s ease;
+}
+
+.ilpl[data-lamp="off"] .ilpl-ambient-wash {
+  opacity: 0;
+}
+
+/* ── Top Bar ─────────────────────────────────────────────────────────────── */
+.ilpl-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  height: var(--ilpl-header-h);
+  flex-shrink: 0;
+  width: 100%;
+  padding: env(safe-area-inset-top, 0px) clamp(0.75rem, 2.6vw, 2.25rem) 0;
+  background: rgba(24, 37, 52, 0.92);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.ilpl-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  color: #ffffff;
+  text-decoration: none;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  border-radius: 0.5rem;
+  padding: 0.2rem 0;
+}
+
+.ilpl-brand:focus-visible {
+  outline: 2px solid var(--ilpl-gold);
+  outline-offset: 2px;
+}
+
+.ilpl-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.ilpl-nav-login {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 0.85rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: transparent;
+  color: #e8f1fb;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.ilpl-nav-login:hover {
+  border-color: rgba(245, 207, 122, 0.65);
+  background: rgba(245, 207, 122, 0.1);
+}
+
+.ilpl-nav-login[data-active="true"] {
+  border-color: var(--ilpl-gold);
+  background: rgba(245, 207, 122, 0.16);
+  color: var(--ilpl-gold);
+}
+
+.ilpl-nav-login:focus-visible {
+  outline: 2px solid var(--ilpl-gold);
+  outline-offset: 2px;
+}
+
+.ilpl-nav-signup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 0.95rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(196, 224, 252, 0.55);
+  background: linear-gradient(180deg, #b5d5f5 0%, var(--ilpl-blue) 100%);
+  color: var(--ilpl-btn-ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: filter 0.2s ease;
+}
+
+.ilpl-nav-signup:hover {
+  filter: brightness(1.06);
+}
+
+.ilpl-nav-signup[data-active="true"] {
+  box-shadow: 0 0 0 2px rgba(245, 207, 122, 0.7);
+}
+
+.ilpl-nav-signup:focus-visible {
+  outline: 2px solid var(--ilpl-gold);
+  outline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+  .ilpl-nav-login,
+  .ilpl-nav-signup {
+    padding: 0 0.68rem;
+    font-size: 0.75rem;
+  }
+}
+
+/* ── Main Swapping Two-Column Stage (Hero Text <-> Card) ─────────────────── */
+.ilpl-main {
+  position: relative;
+  z-index: 15;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: clamp(1.5rem, 3vw, 3rem);
+  width: 100%;
+  max-width: 1520px;
+  margin: 0 auto;
+  padding: clamp(0.75rem, 2vh, 1.5rem) clamp(1.25rem, 3vw, 2.75rem)
+    calc(clamp(0.75rem, 2vh, 1.5rem) + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 1024px) and (min-height: 700px) {
+  .ilpl-main {
+    height: calc(100dvh - var(--ilpl-header-h));
+    overflow: hidden;
+  }
+}
+
+/* Swapping columns: [Lamp + Floating Props + Hero Text] <-> [Auth Card] */
+.ilpl-hero-col,
+.ilpl-card-col {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  transition: transform var(--dur) var(--ease);
+}
+
+.ilpl-hero-group {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: clamp(0.5rem, 1.2vw, 1rem);
+  width: 100%;
+}
+
+/* On sign-up: lamp moves to the OUTER right side of the hero text and mirrors so light points at text, not card */
+@media (min-width: 1024px) {
+  .ilpl[data-mode="signup"] .ilpl-hero-group {
+    flex-direction: row-reverse;
+    text-align: right;
+  }
+
+  .ilpl[data-mode="signup"] .ilpl-lamp-mirror {
+    transform: scaleX(-1);
+  }
+}
+
+.ilpl-lamp-mirror {
+  flex-shrink: 0;
+  transition: transform 0.45s var(--ease);
+}
+
+.ilpl[data-swapping="true"] .ilpl-hero-col,
+.ilpl[data-swapping="true"] .ilpl-card-col {
+  will-change: transform;
+}
+
+/* In sign-up mode (>=760px): Card slides to left column, Hero+Lamp+Props slide to right column */
+@media (min-width: 760px) {
+  .ilpl[data-mode="signup"] .ilpl-hero-col {
+    transform: translateX(calc(100% + clamp(1.5rem, 3vw, 3rem)));
+  }
+
+  .ilpl[data-mode="signup"] .ilpl-card-col {
+    transform: translateX(calc(-100% - clamp(1.5rem, 3vw, 3rem)));
+  }
+}
+
+/* <1024px: single column, card first, lamp & props compact */
+@media (max-width: 1023px) {
+  .ilpl-main {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    align-content: start;
+    gap: 1.5rem;
+    padding: 1.25rem 1rem calc(2rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .ilpl-hero-col {
+    order: 2;
+    height: auto;
+    transform: none !important;
+  }
+
+  .ilpl-hero-group {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .ilpl-card-col {
+    order: 1;
+    height: auto;
+    transform: none !important;
+  }
+}
+
+/* ── Hero Text ───────────────────────────────────────────────────────────── */
+.ilpl-hero {
+  position: relative;
+  z-index: 12;
+  max-width: 30rem;
+  transition: opacity 0.5s ease;
+}
+
+.ilpl[data-lamp="off"] .ilpl-hero {
+  opacity: 0.62;
+}
+
+.ilpl-eyebrow {
+  font-size: clamp(0.68rem, 0.78vw, 0.78rem);
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(245, 207, 122, 0.88);
+}
+
+.ilpl-title {
+  margin-top: 0.5rem;
+  font-family: var(--font-serif, "Source Serif 4", Georgia, serif);
+  font-size: clamp(2.05rem, 3.4vw, 3.45rem);
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  text-shadow: 0 4px 28px rgba(245, 207, 122, calc(0.18 * var(--glow)));
+}
+
+.ilpl-subtitle {
+  margin-top: 0.6rem;
+  font-size: clamp(0.82rem, 0.92vw, 0.94rem);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--ilpl-gold);
+}
+
+.ilpl-desc {
+  margin-top: 0.8rem;
+  font-size: clamp(0.9rem, 0.96vw, 0.98rem);
+  line-height: 1.65;
+  color: rgba(218, 232, 245, 0.84);
+}
+
+/* ── Protected PhysicsLamp Light & Pull Chain Styles ─────────────────────── */
+.ilpl-lamp-wrap {
+  position: relative;
+  flex-shrink: 0;
+  transform: scale(var(--ls));
+  transform-origin: center;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.ilpl-physics-lamp {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  user-select: none;
+}
+
+.ilpl-desk-pool {
+  pointer-events: none;
+  position: absolute;
+  left: 42%;
+  bottom: -6%;
+  width: 260px;
+  height: 88px;
+  z-index: 1;
+  border-radius: 9999px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 210, 122, calc(0.3 * var(--glow))) 0%,
+    rgba(245, 185, 86, calc(0.12 * var(--glow))) 46%,
+    transparent 76%
+  );
+  filter: blur(24px);
+  mix-blend-mode: screen;
+  opacity: 0;
+  transition: opacity 300ms ease;
+  will-change: transform, opacity;
+}
+
+.ilpl-physics-lamp[data-lamp-on="true"] .ilpl-desk-pool {
+  opacity: 1;
+}
+
+.ilpl-physics-lamp[data-light-theme="true"] .ilpl-desk-pool {
+  mix-blend-mode: normal;
+  opacity: 0.45;
+}
+
+.ilpl-head-light-pivot {
+  pointer-events: none;
+  position: absolute;
+  left: 59.5%;
+  top: 23.1%;
+  width: 0;
+  height: 0;
+  z-index: 2;
+}
+
+.ilpl-head-light-rotator {
+  position: relative;
+  transform-origin: 0 0;
+  transform: rotate(20deg);
+  opacity: 0;
+  transition: opacity 300ms ease;
+  will-change: transform, opacity;
+}
+
+.ilpl-physics-lamp[data-lamp-on="true"] .ilpl-head-light-rotator {
+  opacity: 1;
+  animation: ilpl-lamp-soft-flicker 6.5s ease-in-out infinite;
+}
+
+@keyframes ilpl-lamp-soft-flicker {
+  0%, 100% { opacity: 1; }
+  38% { opacity: 0.96; }
+  46% { opacity: 0.92; }
+  54% { opacity: 0.99; }
+  78% { opacity: 0.94; }
+  85% { opacity: 1; }
+}
+
+.ilpl-bulb-glow {
+  position: absolute;
+  left: 54px;
+  top: 2px;
+  width: 152px;
+  height: 152px;
+  transform: translate(-50%, -50%);
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 248, 224, calc(0.66 * var(--glow))) 0%,
+    rgba(255, 210, 122, calc(0.34 * var(--glow))) 34%,
+    rgba(245, 185, 86, calc(0.1 * var(--glow))) 62%,
+    transparent 80%
+  );
+  filter: blur(18px);
+  mix-blend-mode: screen;
+}
+
+.ilpl-soft-cone {
+  position: absolute;
+  left: 48px;
+  top: 2px;
+  width: 270px;
+  height: 240px;
+  transform: translate(0, -50%);
+  background: conic-gradient(
+    from 64deg at 0% 50%,
+    transparent 0deg,
+    rgba(255, 224, 152, calc(0.22 * var(--glow))) 16deg,
+    rgba(255, 210, 122, calc(0.3 * var(--glow))) 26deg,
+    rgba(255, 224, 152, calc(0.22 * var(--glow))) 36deg,
+    transparent 54deg
+  );
+  -webkit-mask-image: radial-gradient(ellipse 90% 82% at 0% 50%, #000 14%, rgba(0, 0, 0, 0.45) 46%, transparent 86%);
+  mask-image: radial-gradient(ellipse 90% 82% at 0% 50%, #000 14%, rgba(0, 0, 0, 0.45) 46%, transparent 86%);
+  filter: blur(28px);
+  mix-blend-mode: screen;
+  opacity: 0.72;
+}
+
+.ilpl-physics-lamp[data-light-theme="true"] .ilpl-bulb-glow,
+.ilpl-physics-lamp[data-light-theme="true"] .ilpl-soft-cone {
+  mix-blend-mode: normal;
+  opacity: 0.36;
+}
+
+.ilpl-chain-btn {
+  pointer-events: auto;
+  position: absolute;
+  left: 65.5%;
+  top: 59%;
+  width: 44px;
+  height: 44px;
+  margin-left: -22px;
+  margin-top: -22px;
+  z-index: 25;
+  border-radius: 9999px;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  will-change: transform;
+}
+
+.ilpl-chain-btn:active {
+  cursor: grabbing;
+}
+
+.ilpl-chain-btn:focus-visible {
+  outline: 2px solid var(--ilpl-gold);
+  outline-offset: 2px;
+  box-shadow: 0 0 12px rgba(245, 207, 122, 0.65);
+}
+
+@media (max-width: 1023px) {
+  .ilpl-lamp-wrap {
+    transform: scale(0.84);
+  }
+}
+
+/* ── Auth Card (Preserved Navy Translucent + Gold Border + Corner Ornaments) */
+.ilpl-card-wrap {
+  position: relative;
+  width: clamp(440px, 34vw, 560px);
+  max-width: 100%;
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .ilpl-card-wrap {
+    width: clamp(420px, 40vw, 500px);
+  }
+}
+
+@media (max-width: 1023px) {
+  .ilpl-card-wrap {
+    width: 100%;
+    max-width: 520px;
+  }
+}
+
+.ilpl-card {
+  position: relative;
+  border-radius: 1.15rem;
+  padding: clamp(22px, 2.4vw, 36px) clamp(24px, 2.8vw, 40px);
+  border: 1px solid rgba(245, 207, 122, 0.36);
+  box-shadow:
+    0 0 36px rgba(245, 207, 122, 0.14),
+    0 22px 48px rgba(4, 10, 18, 0.56);
+  overflow: hidden;
+}
+
+/* Fit card cleanly between top bar and viewport bottom (>=16px top & bottom margin) */
+@media (min-width: 1024px) and (min-height: 700px) {
+  .ilpl-card {
+    max-height: calc(100dvh - var(--ilpl-header-h) - 32px);
+  }
+}
+
+/* Tighten vertical padding & wizard gaps in sign-up mode so step 1 never clips at 1366x768 */
+.ilpl-card-wrap[data-mode="signup"] .ilpl-card {
+  padding-top: clamp(16px, 2vh, 26px);
+  padding-bottom: clamp(14px, 1.8vh, 22px);
+}
+
+.ilpl-card-wrap[data-mode="signup"] .ilpl-card-header {
+  margin-bottom: 0.75rem;
+}
+
+.ilpl-card-wrap[data-mode="signup"] .ilpl-headline-roll {
+  font-size: clamp(1.55rem, 1.9vw, 2rem);
+}
+
+.ilpl-card-wrap[data-mode="signup"] .ilpl-card-desc {
+  margin-top: 0.25rem;
+  font-size: 0.92rem;
+}
+
+.ilpl-card-glass {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: rgba(14, 25, 42, 0.86);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.ilpl-card-inner {
+  position: relative;
+  z-index: 5;
+}
+
+/* ── 3. Headline Roll + Fading Subtitle (sits cleanly at top of card) ────── */
+.ilpl-card-header {
+  margin-bottom: 1.15rem;
+}
+
+.ilpl-card-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #9fc3ea;
+}
+
+.ilpl-headline-roll {
+  margin-top: 0.3rem;
+  height: 1.22em;
+  overflow: hidden;
+  font-family: var(--font-serif, "Source Serif 4", Georgia, serif);
+  font-size: clamp(1.95rem, 2.25vw, 2.4rem);
+  font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: -0.02em;
+  color: var(--ilpl-gold);
+}
+
+.ilpl-headline-track {
+  display: flex;
+  flex-direction: column;
+  transform: translateY(0%);
+  transition: transform var(--dur-tab) var(--ease);
+}
+
+.ilpl-card-wrap[data-mode="signup"] .ilpl-headline-track {
+  transform: translateY(-50%);
+}
+
+.ilpl-headline-line {
+  display: block;
+  height: 1.22em;
+  line-height: 1.22;
+}
+
+.ilpl-card-desc {
+  margin-top: 0.45rem;
+  font-size: clamp(0.96rem, 1.04vw, 1.05rem);
+  line-height: 1.48;
+  color: #c2d4e7;
+  animation: ilpl-text-fade var(--dur-text) ease both;
+}
+
+@keyframes ilpl-text-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── 4. Expanding Fields (grid-template-rows: 0fr -> 1fr) ────────────────── */
+.ilpl-expand-region {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--dur-tab) var(--ease),
+    opacity var(--dur-text) ease;
+}
+
+.ilpl-expand-region[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.ilpl-expand-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── 5. Floating Labels, Gold Focus Ring & Animated Eye-Slash SVG ────────── */
+.ilpl-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.ilpl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ilpl-float-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ilpl-input {
+  width: 100%;
+  height: 54px;
+  padding: 1.15rem 3.2rem 0.25rem 3rem;
+  border: 1px solid rgba(159, 195, 234, 0.32);
+  border-radius: 0.75rem;
+  background: rgba(11, 21, 36, 0.88);
+  color: #ffffff;
+  font-size: 1rem;
+  line-height: 1.3;
+  transition: border-color 0.22s ease, box-shadow 0.25s ease, background-color 0.22s ease;
+}
+
+.ilpl-input:focus {
+  outline: none;
+  background: rgba(14, 27, 46, 0.98);
+  border-color: var(--ilpl-gold);
+  box-shadow: 0 0 0 3px rgba(245, 207, 122, 0.3);
+}
+
+.ilpl-float-wrap[data-invalid="true"] .ilpl-input {
+  border-color: #ff6b6b;
+  box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.22);
+}
+
+.ilpl-float-label {
+  pointer-events: none;
+  position: absolute;
+  left: 3rem;
+  top: 50%;
+  transform: translateY(-50%) scale(1);
+  transform-origin: left center;
+  font-size: 0.96rem;
+  font-weight: 600;
+  color: #a6bcd3;
+  transition: transform 0.22s var(--ease), color 0.22s ease;
+}
+
+.ilpl-float-input:focus + .ilpl-float-label,
+.ilpl-float-input:not(:placeholder-shown) + .ilpl-float-label {
+  transform: translateY(-1.22rem) scale(0.78);
+  color: var(--ilpl-gold);
+}
+
+.ilpl-eye-btn {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: #b6cadf;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.ilpl-eye-btn:hover {
+  color: #ffffff;
+}
+
+.ilpl-eye-btn:focus-visible {
+  outline: 2px solid var(--ilpl-gold);
+  outline-offset: 2px;
+}
+
+.ilpl-eye-slash {
+  stroke-dasharray: 28;
+  stroke-dashoffset: 28;
+  transition: stroke-dashoffset 0.28s var(--ease);
+}
+
+.ilpl-eye-slash[data-drawn="true"] {
+  stroke-dashoffset: 0;
+}
+
+/* ── 6. Validation Shake & 0fr -> 1fr Error Reveal ───────────────────────── */
+.ilpl-shake {
+  animation: ilpl-shake-x var(--dur-shake) ease;
+}
+
+@keyframes ilpl-shake-x {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(7px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(4px); }
+}
+
+.ilpl-error-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.24s ease, opacity 0.2s ease;
+}
+
+.ilpl-error-collapse[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.ilpl-error-collapse-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ilpl-field-error {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-top: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #ffb4b4;
+}
+
+/* ── 7. Submit Button Morph (idle -> circle spinner -> SVG checkmark) ────── */
+.ilpl-submit-slot {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.ilpl-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  width: 100%;
+  height: 54px;
+  padding: 0 1.5rem;
+  border: 1px solid rgba(196, 224, 252, 0.65);
+  border-radius: 0.75rem;
+  background: linear-gradient(180deg, #b5d5f5 0%, var(--ilpl-blue) 100%);
+  color: var(--ilpl-btn-ink);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(5, 12, 22, 0.42);
+  transition:
+    width 0.36s var(--ease),
+    border-radius 0.36s var(--ease),
+    background-color 0.3s ease,
+    filter 0.2s ease;
+}
+
+.ilpl-submit[data-state="loading"],
+.ilpl-submit[data-state="success"] {
+  width: 54px;
+  padding: 0;
+  border-radius: 9999px;
+  cursor: wait;
+}
+
+.ilpl-submit[data-state="success"] {
+  background: linear-gradient(180deg, #5fd39e 0%, #3fb57f 100%);
+  border-color: #7ee3b4;
+}
+
+.ilpl-submit:hover:not([aria-disabled="true"]) {
+  filter: brightness(1.06);
+}
+
+.ilpl-submit:focus-visible {
+  outline: 2px solid var(--ilpl-gold);
+  outline-offset: 2px;
+}
+
+.ilpl-btn-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  border: 2.5px solid rgba(12, 25, 38, 0.22);
+  border-top-color: #0c1926;
+  animation: ilpl-spin 0.75s linear infinite;
+}
+
+.ilpl-btn-loading-text {
+  display: none;
+}
+
+@keyframes ilpl-spin {
+  to { transform: rotate(360deg); }
+}
+
+.ilpl-check-path {
+  stroke-dasharray: 32;
+  stroke-dashoffset: 32;
+  animation: ilpl-check-draw 0.52s var(--ease) forwards;
+}
+
+@keyframes ilpl-check-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Sign-up Toast (slides up + fades in) */
+.ilpl-toast {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  max-width: 24rem;
+  padding: 0.9rem 1.2rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(72, 199, 142, 0.45);
+  background: rgba(14, 34, 28, 0.95);
+  color: #d8f9e8;
+  font-size: 0.92rem;
+  font-weight: 600;
+  box-shadow: 0 14px 36px rgba(4, 10, 18, 0.55);
+  animation: ilpl-toast-in 0.38s var(--ease) both;
+}
+
+@keyframes ilpl-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Bottom links row (0.9375rem, >=44px tap targets) */
+.ilpl-card-footer {
+  margin-top: 1.15rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(245, 207, 122, 0.2);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.ilpl-footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0 0.25rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #c2d4e7;
+  text-decoration: none;
+  border-radius: 0.45rem;
+  transition: color 0.2s ease;
+}
+
+.ilpl-footer-link:hover {
+  color: var(--ilpl-gold);
+}
+
+.ilpl-footer-link:focus-visible {
+  outline: 2px solid var(--ilpl-gold);
+  outline-offset: 2px;
+}
+
+.ilpl-footer-link-accent {
+  font-weight: 600;
+  color: var(--ilpl-blue);
+}
+
+/* Bottom mode-switch text link (0.9375rem, >=44px tap target, separate from footer row) */
+.ilpl-mode-switch {
+  margin-top: 0.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+.ilpl-mode-switch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 44px;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #c2d4e7;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.ilpl-mode-switch-btn:hover {
+  color: #ffffff;
+}
+
+.ilpl-mode-switch-btn:focus-visible {
+  outline: 2px solid var(--ilpl-gold);
+  outline-offset: 2px;
+}
+
+/* SignupWizard spacing tightened so all 3 steps fit cleanly without clipping at 1366x768 */
+.ilpl-signup-wrap form,
+.ilpl-signup-wrap .space-y-3,
+.ilpl-signup-wrap .space-y-2\.5 {
+  gap: 0.5rem;
+}
+
+.ilpl-signup-wrap input,
+.ilpl-signup-wrap select {
+  min-height: 44px !important;
+  font-size: 1rem !important;
+}
+
+@media (min-height: 820px) {
+  .ilpl-signup-wrap input,
+  .ilpl-signup-wrap select {
+    min-height: 48px !important;
+  }
+}
+
+.ilpl-signup-wrap label {
+  font-size: 0.86rem !important;
+}
+
+.ilpl-signup-wrap button[type="submit"],
+.ilpl-signup-wrap button[type="button"] {
+  min-height: 44px;
+}
+
+/* Preserve WCAG AA readability inside navy card & header in light theme */
+html[data-theme="light"] .ilpl-card,
+html[data-theme="light"] .ilpl-card .text-white,
+html[data-theme="light"] .ilpl-header .text-white\/85,
+html[data-theme="light"] .ilpl-header .ilpl-brand {
+  color: #f4f8fd;
+}
+
+/* ── Reduced Motion (0.01ms durations, no shake/spin, static Loading..., crossfade) */
+@media (prefers-reduced-motion: reduce) {
+  .ilpl {
+    --dur: 0.01ms;
+    --dur-tab: 0.01ms;
+    --dur-text: 0.01ms;
+    --dur-shake: 0.01ms;
+  }
+
+  .ilpl-head-light-rotator,
+  .ilpl-shake,
+  .ilpl-btn-spinner,
+  .ilpl-check-path,
+  .ilpl-toast,
+  .ilpl-card-desc {
+    animation: none !important;
+  }
+
+  .ilpl[data-mode="signup"] .ilpl-hero-col,
+  .ilpl[data-mode="signup"] .ilpl-card-col {
+    transform: none !important;
+  }
+
+  .ilpl-submit[data-state="loading"] {
+    width: 100%;
+    border-radius: 0.75rem;
+  }
+
+  .ilpl-btn-spinner {
+    display: none;
+  }
+
+  .ilpl-btn-loading-text {
+    display: inline;
+  }
+
+  .ilpl-check-path {
+    stroke-dashoffset: 0;
+  }
+}

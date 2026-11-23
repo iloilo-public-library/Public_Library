@@ -381,6 +381,22 @@ export async function updateMemberNotificationState(
     throw new AdminMutationError("Announcement ID is required.", 400);
   }
 
+  // Enforce recipient privacy: a member may only mark/dismiss broadcast announcements
+  // or announcements explicitly addressed to them.
+  const { data: annRow, error: annErr } = await supabase
+    .from("announcements")
+    .select("id, target_user_id")
+    .eq("id", announcementId)
+    .single();
+
+  if (
+    annErr ||
+    !annRow ||
+    (annRow.target_user_id !== null && Number(annRow.target_user_id) !== userId)
+  ) {
+    throw new AdminMutationError("Announcement not found.", 404);
+  }
+
   const { error } = await supabase.from("notification_reads").upsert(
     {
       user_id: userId,

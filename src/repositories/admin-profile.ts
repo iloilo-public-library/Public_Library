@@ -4,11 +4,19 @@ import type { SessionPayload } from "@/lib/auth/session";
 import { safeDecryptPii } from "@/lib/crypto/fernet";
 import {
   AdminMutationError,
-  PW_ALLOWED_RE,
-  PW_COMPLEXITY_RE,
   formatFullName,
   resolveEmail,
 } from "@/repositories/shared";
+import {
+  adminChangePasswordSchema,
+  adminSetPinSchema,
+  adminToggleSecuritySchema,
+  adminUpdateProfileSchema,
+} from "@/validators/admin";
+
+const PIN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+const SESSION_HISTORY_DAYS = 366;
+const SESSION_HISTORY_LIMIT = 1000;
 
 export async function queryAdminProfile(
   supabase: SupabaseClient,
@@ -17,11 +25,16 @@ export async function queryAdminProfile(
   if (!sessionUserId) {
     throw new Error("Unauthorized");
   }
+
+  const cutoffIso = new Date(
+    Date.now() - SESSION_HISTORY_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+
   const [userRes, sessionsRes] = await Promise.all([
     supabase
       .from("users")
       .select(
-        "id, username, email_display, firstname, lastname, gender, phone_number, role, is_active, is_approved, otp_enabled, pin_enabled, created_at, last_seen"
+        "id, username, email_display, firstname, lastname, gender, phone_number, role, is_active, is_approved, otp_enabled, pin_enabled, pin_code, pin_set_at, created_at, last_seen"
       )
       .eq("id", sessionUserId)
       .single(),
@@ -29,11 +42,19 @@ export async function queryAdminProfile(
       .from("login_sessions")
       .select("id, session_token, login_at, last_active_at, logout_at")
       .eq("user_id", sessionUserId)
+      .gte("login_at", cutoffIso)
       .order("login_at", { ascending: false })
-      .limit(15),
+      .limit(SESSION_HISTORY_LIMIT),
   ]);
+
   if (userRes.error) throw userRes.error;
   const u = userRes.data;
+  const hasPin = Boolean(u.pin_code);
+  const pinSetMs = u.pin_set_at ? Date.parse(String(u.pin_set_at)) : NaN;
+  const pinExpired = Boolean(
+    hasPin && Number.isFinite(pinSetMs) && Date.now() - pinSetMs > PIN_EXPIRY_MS
+  );
+
   return {
     profile: {
       id: u.id,
@@ -48,6 +69,8 @@ export async function queryAdminProfile(
       is_approved: u.is_approved,
       otp_enabled: u.otp_enabled,
       pin_enabled: u.pin_enabled,
+      has_pin: hasPin,
+      pin_expired: pinExpired,
       created_at: u.created_at,
       last_seen: u.last_seen,
     },
@@ -62,56 +85,59 @@ export async function mutateAdminProfile(
   payload: Record<string, unknown>
 ) {
   if (action === "update_profile") {
-    const firstname = String(payload.firstname ?? "").trim();
-    const lastname = String(payload.lastname ?? "").trim();
-    const gender = String(payload.gender ?? "").trim();
-    const phone = String(payload.phone_number ?? "").trim();
-
-    if (firstname.length < 2 || lastname.length < 2) {
-      throw new AdminMutationError("First name and last name must each be at least 2 characters.");
+    const parsed = adminUpdateProfileSchema.safeParse(payload);
+    if (!parsed.success) {
+      throw new AdminMutationError(
+        parsed.error.issues[0]?.message || "Invalid profile details.",
+        400
+      );
     }
 
+    const { firstname, lastname, gender, phone_number } = parsed.data;
     const { error } = await supabase
       .from("users")
       .update({
         firstname,
         lastname,
         gender: gender || null,
-        phone_number: phone || null,
+        phone_number: phone_number || null,
       })
       .eq("id", session.userId);
 
     if (error) throw new AdminMutationError(error.message, 500);
-    return { ok: true };
+    return {
+      ok: true,
+      profile: {
+        firstname,
+        lastname,
+        fullname: `${firstname} ${lastname}`.trim(),
+        gender,
+        phone_number,
+      },
+    };
   }
 
   if (action === "change_password") {
-    const current = String(payload.current_password ?? "");
-    const nextPw = String(payload.new_password ?? "");
-    const confirm = String(payload.confirm_password ?? "");
-    if (!current || !nextPw || !confirm) {
-      throw new AdminMutationError("All password fields are required.");
-    }
-    if (nextPw !== confirm) {
-      throw new AdminMutationError("New password and confirmation do not match.");
-    }
-    if (!PW_ALLOWED_RE.test(nextPw) || !PW_COMPLEXITY_RE.test(nextPw)) {
+    const parsed = adminChangePasswordSchema.safeParse(payload);
+    if (!parsed.success) {
       throw new AdminMutationError(
-        "New password must be 8-64 chars with uppercase, lowercase, number, and symbol (@$!%*?&_#^)."
+        parsed.error.issues[0]?.message || "Invalid password input.",
+        400
       );
     }
 
+    const { current_password, new_password } = parsed.data;
     const { data: user } = await supabase
       .from("users")
       .select("password")
       .eq("id", session.userId)
       .single();
 
-    if (!user || !(await bcrypt.compare(current, user.password as string))) {
+    if (!user || !(await bcrypt.compare(current_password, user.password as string))) {
       throw new AdminMutationError("Current password is incorrect.", 403);
     }
 
-    const hashed = await bcrypt.hash(nextPw, 12);
+    const hashed = await bcrypt.hash(new_password, 12);
     const { error } = await supabase
       .from("users")
       .update({
@@ -127,14 +153,73 @@ export async function mutateAdminProfile(
   }
 
   if (action === "toggle_security") {
-    const method = payload.method === "otp" ? "otp_enabled" : payload.method === "pin" ? "pin_enabled" : null;
-    if (!method) throw new AdminMutationError("Invalid security method.");
+    const parsed = adminToggleSecuritySchema.safeParse(payload);
+    if (!parsed.success) {
+      throw new AdminMutationError(
+        parsed.error.issues[0]?.message || "Invalid security method.",
+        400
+      );
+    }
+
+    const { method, enabled } = parsed.data;
+    if (method === "pin" && enabled) {
+      const { data: user, error: userErr } = await supabase
+        .from("users")
+        .select("pin_code")
+        .eq("id", session.userId)
+        .single();
+      if (userErr) throw new AdminMutationError(userErr.message, 500);
+      if (!user?.pin_code) {
+        throw new AdminMutationError(
+          "Please set a 6-digit PIN before enabling PIN login.",
+          400
+        );
+      }
+    }
+
+    const col = method === "otp" ? "otp_enabled" : "pin_enabled";
     const { error } = await supabase
       .from("users")
-      .update({ [method]: Boolean(payload.enabled) })
+      .update({ [col]: enabled })
       .eq("id", session.userId);
+
     if (error) throw new AdminMutationError(error.message, 500);
-    return { ok: true };
+    return { ok: true, method, enabled };
+  }
+
+  if (action === "set_pin") {
+    const parsed = adminSetPinSchema.safeParse(payload);
+    if (!parsed.success) {
+      throw new AdminMutationError(
+        parsed.error.issues[0]?.message || "Invalid PIN payload.",
+        400
+      );
+    }
+
+    const { password, pin } = parsed.data;
+    const { data: user } = await supabase
+      .from("users")
+      .select("password")
+      .eq("id", session.userId)
+      .single();
+
+    if (!user || !(await bcrypt.compare(password, user.password as string))) {
+      throw new AdminMutationError("Current password is incorrect.", 403);
+    }
+
+    const hashedPin = await bcrypt.hash(pin, 12);
+    const nowIso = new Date().toISOString();
+    const { error } = await supabase
+      .from("users")
+      .update({
+        pin_code: hashedPin,
+        pin_enabled: true,
+        pin_set_at: nowIso,
+      })
+      .eq("id", session.userId);
+
+    if (error) throw new AdminMutationError(error.message, 500);
+    return { ok: true, has_pin: true, pin_enabled: true };
   }
 
   throw new AdminMutationError(`Unknown admin_profile action: ${action}`);

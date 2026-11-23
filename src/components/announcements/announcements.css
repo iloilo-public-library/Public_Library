@@ -1,0 +1,151 @@
+/* Scoped styling for Admin Announcements page only — does not mutate global tokens */
+.admin-announcements-page {
+  --ann-card-bg: var(--card);
+  --ann-card-hover: var(--card-b);
+  --ann-border: rgba(255, 255, 255, 0.08);
+  --ann-border-hover: rgba(255, 255, 255, 0.14);
+  --ann-text-primary: var(--fg);
+  --ann-text-secondary: rgba(255, 255, 255, 0.65);
+  --ann-text-muted: rgba(255, 255, 255, 0.42);
+  --ann-text-faint: rgba(255, 255, 255, 0.28);
+  --ann-pill-bg: rgba(255, 255, 255, 0.07);
+  --ann-pill-border: rgba(255, 255, 255, 0.11);
+  --ann-input-bg: rgba(255, 255, 255, 0.07);
+  --ann-input-border: rgba(255, 255, 255, 0.14);
+  --ann-preview-bg: rgba(255, 255, 255, 0.04);
+  --ann-modal-bg: linear-gradient(150deg, #1e2d3d, #273848);
+  --ann-modal-border: rgba(159, 193, 225, 0.18);
+  --ann-pinned-bg: rgba(255, 152, 0, 0.05);
+  --ann-pinned-border: rgba(255, 152, 0, 0.24);
+  --ann-toast-bg: #1e2d3d;
+
+  font-family: "DM Sans", var(--font-sans);
+}
+
+html[data-theme="dark"] .admin-announcements-page {
+  --ann-modal-bg: linear-gradient(150deg, #141a22, #1c2430);
+  --ann-toast-bg: #161b22;
+}
+
+html[data-theme="light"] .admin-announcements-page {
+  --ann-card-bg: var(--card-b);
+  --ann-card-hover: #ffffff;
+  --ann-border: rgba(27, 42, 58, 0.13);
+  --ann-border-hover: rgba(37, 99, 166, 0.32);
+  --ann-text-primary: var(--fg);
+  --ann-text-secondary: var(--tl);
+  --ann-text-muted: rgba(27, 42, 58, 0.62);
+  --ann-text-faint: rgba(27, 42, 58, 0.45);
+  --ann-pill-bg: rgba(27, 42, 58, 0.05);
+  --ann-pill-border: rgba(27, 42, 58, 0.14);
+  --ann-input-bg: #ffffff;
+  --ann-input-border: rgba(27, 42, 58, 0.2);
+  --ann-preview-bg: rgba(27, 42, 58, 0.04);
+  --ann-modal-bg: #ffffff;
+  --ann-modal-border: rgba(27, 42, 58, 0.14);
+  --ann-pinned-bg: rgba(217, 119, 6, 0.06);
+  --ann-pinned-border: rgba(217, 119, 6, 0.35);
+  --ann-toast-bg: #ffffff;
+}
+
+@keyframes ann-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ann-toast-in {
+  from {
+    transform: translateX(110%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.admin-announcements-page .ann-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 20px 22px;
+  background: var(--ann-card-bg);
+  border: 1px solid var(--ann-border);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  animation: ann-card-in 0.3s ease both;
+}
+
+.admin-announcements-page .ann-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--bar-color, var(--accent));
+}
+
+.admin-announcements-page .ann-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  border-color: var(--ann-border-hover);
+}
+
+.admin-announcements-page .ann-card.is-pinned {
+  background: var(--ann-pinned-bg);
+  border-color: var(--ann-pinned-border);
+}
+
+.admin-announcements-page .ann-card.is-pinned::before {
+  background: var(--warn);
+}
+
+.admin-announcements-page .ann-body-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.admin-announcements-page .ann-section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ann-text-muted);
+  margin-bottom: 14px;
+}
+
+.admin-announcements-page .ann-section-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--ann-border);
+}
+
+.admin-announcements-page .ann-toast {
+  animation: ann-toast-in 0.3s ease;
+}
+
+.admin-announcements-page :is(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-announcements-page,
+  .admin-announcements-page * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

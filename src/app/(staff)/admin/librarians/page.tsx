@@ -1,22 +1,33 @@
-import { AdminResourceView } from "@/components/admin/AdminResourceView";
+import { AccountManagementView } from "@/components/admin/accounts/AccountManagementView";
 
 export default function AdminLibrariansPage() {
   return (
-    <AdminResourceView
-      title="Librarian"
-      accentWord="Management"
-      subtitle="Library staff accounts with circulation and catalog permissions."
-      resource="librarians"
-      columns={[
-        { key: "id", label: "ID", mono: true },
-        { key: "fullname", label: "Full Name" },
-        { key: "email", label: "Email", mono: true },
-        { key: "status", label: "Session" },
-        { key: "is_approved", label: "Approved" },
-        { key: "is_active", label: "Active" },
-        { key: "is_locked", label: "Locked" },
-        { key: "last_seen", label: "Last Seen", mono: true },
-      ]}
+    <AccountManagementView
+      config={{
+        resource: "librarians",
+        topbarTitle: "Librarian Management",
+        headingPrefix: "Librarian",
+        headingAccent: "Management",
+        subtitle: "View, manage and control librarian accounts",
+        singularLabel: "librarian",
+        pluralLabel: "librarians",
+        totalStatLabel: "Total Librarians",
+        searchPlaceholder: "Search username, name…",
+        emptyText: "No librarian accounts found.",
+        showUsernameColumn: true,
+        showLastSeenColumn: true,
+        showAccountStatusColumn: false,
+        showDeactivatedStat: false,
+        showFilterTabs: false,
+        enablePagination: false,
+        enableViewDetails: false,
+        enableDeactivateToggle: false,
+        enableAddModal: true,
+        addRole: "librarian",
+        deletePromptPrefix: "Delete librarian",
+        deleteSubtext: "This action cannot be undone.",
+        deleteSuccessToast: "Librarian deleted",
+      }}
     />
   );
 }

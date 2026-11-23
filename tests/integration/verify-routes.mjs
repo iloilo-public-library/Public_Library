@@ -109,6 +109,13 @@ const API_CHECKS = [
   },
   { method: "GET", path: "/api/auth/qr?token=short", expect: 400 },
   { method: "GET", path: "/cover/not-valid.png", expect: 400 },
+  { method: "GET", path: "/cover/events/not-valid.png", expect: 400 },
+  { method: "GET", path: "/api/cron/event-reminders", expect: 401 },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=events&from=2026-01-01&to=2026-12-31",
+    expect: 400,
+  },
 ];
 
 async function main() {
