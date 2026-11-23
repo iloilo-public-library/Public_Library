@@ -11,6 +11,7 @@ export const ADMIN_RESOURCES = [
   "admins",
   "account_requests",
   "events",
+  "event_categories",
   "announcements",
   "system_settings",
   "backup_logs",
@@ -25,6 +26,8 @@ export type AdminResource = z.infer<typeof adminResourceSchema>;
 export const adminQuerySchema = z.object({
   resource: adminResourceSchema,
   isbn: z.string().trim().optional(),
+  from: z.string().trim().optional(),
+  to: z.string().trim().optional(),
 });
 
 export const adminMutationSchema = z.object({
@@ -110,6 +113,57 @@ export const adminSetPinSchema = z
 export const adminUsersQuerySchema = z.object({
   id: z.coerce.number().int().positive().optional(),
   q: z.string().trim().max(120).optional().default(""),
-  role: z.enum(["all", "user", "librarian", "admin"]).optional().default("all"),
-  limit: z.coerce.number().int().min(1).max(100).optional().default(25),
+  role: z.enum(["all", "user", "member", "librarian", "admin"]).optional().default("all"),
+  mode: z.enum(["full", "picker"]).optional().default("full"),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+const optionalRecipientIdSchema = z
+  .union([
+    z.number().int().positive("Recipient ID must be a positive integer."),
+    z
+      .string()
+      .trim()
+      .regex(/^\d+$/, "Recipient ID must be a positive integer.")
+      .transform((v) => Number(v))
+      .refine((n) => Number.isSafeInteger(n) && n > 0, "Recipient ID must be a positive integer."),
+    z.literal(""),
+    z.null(),
+  ])
+  .optional()
+  .transform((val) => (val === null || val === undefined || val === "" ? null : val));
+
+export const announcementCreateSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, "Announcement title is required.")
+    .max(120, "Announcement title must be 120 characters or fewer."),
+  body: z
+    .string()
+    .trim()
+    .min(1, "Announcement message body is required.")
+    .max(1000, "Announcement message must be 1000 characters or fewer."),
+  category: z.enum(["general", "urgent", "event", "reminder"]).optional().default("general"),
+  pinned: z.boolean().optional().default(false),
+  target_user_id: optionalRecipientIdSchema,
+});
+
+export const announcementUpdateSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, "Announcement title is required.")
+    .max(120, "Announcement title must be 120 characters or fewer."),
+  body: z
+    .string()
+    .trim()
+    .min(1, "Announcement message body is required.")
+    .max(1000, "Announcement message must be 1000 characters or fewer."),
+  category: z.enum(["general", "urgent", "event", "reminder"]).optional().default("general"),
+  pinned: z.boolean().optional().default(false),
+});
+
+export const announcementTogglePinSchema = z.object({
+  pinned: z.boolean(),
 });

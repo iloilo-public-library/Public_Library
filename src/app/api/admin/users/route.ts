@@ -58,7 +58,8 @@ export async function GET(request: Request) {
     id: url.searchParams.get("id") || undefined,
     q: url.searchParams.get("q") || "",
     role: url.searchParams.get("role") || "all",
-    limit: url.searchParams.get("limit") || 25,
+    mode: url.searchParams.get("mode") || "full",
+    limit: url.searchParams.get("limit") || undefined,
   });
 
   if (!parsed.success) {
@@ -67,6 +68,11 @@ export async function GET(request: Request) {
       { status: 400 }
     );
   }
+
+  const isPickerMode = parsed.data.mode === "picker" || parsed.data.role === "member";
+  const effectiveLimit = isPickerMode
+    ? Math.min(parsed.data.limit ?? 8, 25)
+    : (parsed.data.limit ?? 25);
 
   const supabase = createSupabaseServerClient(true);
   const selectCols =
@@ -95,6 +101,57 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, user: formatUserRow(user) });
     }
 
+    // Minimal member picker mode (?role=member&q=...&limit=8 or ?mode=picker)
+    if (isPickerMode) {
+      let pickerQuery = supabase
+        .from("users")
+        .select("id, firstname, lastname")
+        .eq("role", "user")
+        .eq("is_active", true)
+        .eq("is_approved", true)
+        .order("id", { ascending: false });
+
+      const q = parsed.data.q.trim();
+      if (q) {
+        const safeQ = q.replace(/[%_,()]/g, "");
+        if (safeQ) {
+          pickerQuery = pickerQuery.or(
+            `firstname.ilike.%${safeQ}%,lastname.ilike.%${safeQ}%`
+          );
+        }
+      }
+
+      const { data: memberRows, error: memberErr } = await pickerQuery.limit(effectiveLimit);
+      if (memberErr) throw memberErr;
+
+      const rows = memberRows ?? [];
+      const memberIds = rows.map((r) => Number(r.id));
+      const cardMap = new Map<number, string>();
+
+      if (memberIds.length > 0) {
+        const { data: cardRows } = await supabase
+          .from("library_cards")
+          .select("id, user_id")
+          .in("user_id", memberIds)
+          .order("id", { ascending: false });
+
+        for (const c of cardRows ?? []) {
+          const uid = Number(c.user_id);
+          if (!cardMap.has(uid)) {
+            cardMap.set(uid, `LC-${String(c.id).padStart(6, "0")}`);
+          }
+        }
+      }
+
+      const users = rows.map((u) => ({
+        id: Number(u.id),
+        fullname: formatFullName(u.firstname, u.lastname),
+        library_card_number: cardMap.get(Number(u.id)) ?? null,
+      }));
+
+      return NextResponse.json({ ok: true, users, count: users.length });
+    }
+
     // Search users/members (?q=...&role=...&limit=...)
     let query = supabase.from("users").select(selectCols).order("id", { ascending: false });
 
@@ -113,7 +170,7 @@ export async function GET(request: Request) {
       }
     }
 
-    const { data, error } = await query.limit(parsed.data.limit);
+    const { data, error } = await query.limit(effectiveLimit);
     if (error) throw error;
 
     const users = (data ?? []).map((u) => formatUserRow(u));

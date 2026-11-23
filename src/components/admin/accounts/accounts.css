@@ -1,0 +1,80 @@
+/* Scoped styling for Admin / Librarian / User Management pages — does not mutate global tokens */
+.admin-accounts-page {
+  --acct-card-bg: var(--card);
+  --acct-card-hover: var(--card-b);
+  --acct-border: rgba(255, 255, 255, 0.08);
+  --acct-border-subtle: rgba(255, 255, 255, 0.05);
+  --acct-thead-bg: rgba(159, 193, 225, 0.09);
+  --acct-row-hover: rgba(255, 255, 255, 0.05);
+  --acct-input-bg: rgba(255, 255, 255, 0.08);
+  --acct-input-border: rgba(255, 255, 255, 0.14);
+  --acct-pill-bg: rgba(255, 255, 255, 0.07);
+  --acct-pill-border: rgba(255, 255, 255, 0.12);
+  --acct-inner-bg: rgba(255, 255, 255, 0.04);
+  --acct-modal-bg: linear-gradient(150deg, #1e2d3d, #273848);
+  --acct-modal-border: rgba(159, 193, 225, 0.18);
+  --acct-toast-bg: #1e2d3d;
+  --acct-text-primary: var(--fg);
+  --acct-text-secondary: var(--tl);
+  --acct-text-muted: rgba(255, 255, 255, 0.52);
+  --acct-text-faint: rgba(255, 255, 255, 0.34);
+
+  font-family: "DM Sans", var(--font-sans);
+}
+
+html[data-theme="dark"] .admin-accounts-page {
+  --acct-modal-bg: linear-gradient(150deg, #141a22, #1c2430);
+  --acct-toast-bg: #161b22;
+}
+
+html[data-theme="light"] .admin-accounts-page {
+  --acct-card-bg: var(--card-b);
+  --acct-card-hover: #ffffff;
+  --acct-border: rgba(27, 42, 58, 0.13);
+  --acct-border-subtle: rgba(27, 42, 58, 0.08);
+  --acct-thead-bg: rgba(37, 99, 166, 0.07);
+  --acct-row-hover: rgba(37, 99, 166, 0.05);
+  --acct-input-bg: #ffffff;
+  --acct-input-border: rgba(27, 42, 58, 0.2);
+  --acct-pill-bg: rgba(27, 42, 58, 0.05);
+  --acct-pill-border: rgba(27, 42, 58, 0.14);
+  --acct-inner-bg: rgba(27, 42, 58, 0.04);
+  --acct-modal-bg: #ffffff;
+  --acct-modal-border: rgba(27, 42, 58, 0.14);
+  --acct-toast-bg: #ffffff;
+  --acct-text-primary: var(--fg);
+  --acct-text-secondary: var(--tl);
+  --acct-text-muted: rgba(27, 42, 58, 0.62);
+  --acct-text-faint: rgba(27, 42, 58, 0.45);
+}
+
+.admin-accounts-page .acct-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes acct-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.admin-accounts-page .acct-pulse-dot {
+  animation: acct-pulse 2s infinite;
+}
+
+.admin-accounts-page :is(a, button, input, select):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-accounts-page,
+  .admin-accounts-page * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

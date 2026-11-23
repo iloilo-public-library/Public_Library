@@ -3,6 +3,7 @@ import { logger } from "@/lib/logger";
 const DROPBOX_TOKEN_URL = "https://api.dropboxapi.com/oauth2/token";
 const DROPBOX_UPLOAD_URL = "https://content.dropboxapi.com/2/files/upload";
 const DROPBOX_DOWNLOAD_URL = "https://content.dropboxapi.com/2/files/download";
+const DROPBOX_DELETE_URL = "https://api.dropboxapi.com/2/files/delete_v2";
 const DROPBOX_TEMP_LINK_URL = "https://api.dropboxapi.com/2/files/get_temporary_link";
 
 let cachedAccessToken: { token: string; expiresAt: number } | null = null;
@@ -140,4 +141,26 @@ export async function getDropboxTemporaryLink(dropboxPath: string): Promise<stri
   if (!resp.ok) return null;
   const json = (await resp.json()) as { link?: string };
   return json.link ?? null;
+}
+
+export async function deleteFromDropbox(dropboxPath: string): Promise<boolean> {
+  try {
+    const token = await getDropboxAccessToken();
+    const resp = await fetch(DROPBOX_DELETE_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ path: dropboxPath }),
+    });
+    if (resp.ok || resp.status === 409) return true;
+    logger.warn("Dropbox delete returned non-OK status", { status: resp.status });
+    return false;
+  } catch (err) {
+    logger.warn("Dropbox delete failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
 }

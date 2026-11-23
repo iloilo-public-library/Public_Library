@@ -4,6 +4,7 @@ import {
   AdminMutationError,
   handleAdminMutation,
   queryAdminResource,
+  type QueryEventsOptions,
 } from "@/repositories";
 import { recordAuditEvent } from "@/lib/audit/audit-logger";
 import type { AdminResource } from "@/validators/admin";
@@ -13,9 +14,10 @@ export { AdminMutationError };
 export async function getAdminResourceData(
   supabase: SupabaseClient,
   resource: AdminResource,
-  sessionUserId: number | null
+  sessionUserId: number | null,
+  queryOptions?: QueryEventsOptions
 ) {
-  return queryAdminResource(supabase, resource, sessionUserId);
+  return queryAdminResource(supabase, resource, sessionUserId, queryOptions);
 }
 
 export async function executeAdminMutation(
@@ -38,6 +40,13 @@ export async function executeAdminMutation(
     params.payload
   );
 
+  const auditDetails =
+    typeof result.audit_details === "string"
+      ? result.audit_details
+      : typeof result.target_user_id === "number"
+        ? `target_user_id=${result.target_user_id}`
+        : undefined;
+
   await recordAuditEvent(
     {
       action: params.action,
@@ -47,6 +56,7 @@ export async function executeAdminMutation(
       actorRole: session.role,
       route: `/api/admin/data?resource=${params.resource}`,
       method: params.method ?? "POST",
+      details: auditDetails,
     },
     supabase
   );

@@ -1,0 +1,903 @@
+/* Scoped Legacy Borrowing Form & Borrow History Styles */
+.admin-circulation-page {
+  --circ-accent: #9fc1e1;
+  --circ-accent2: #48c78e;
+  --circ-warn: #ff9800;
+  --circ-danger: #ff6363;
+  --circ-tl: #dae8f5;
+  --circ-text: #ffffff;
+  --circ-muted: rgba(255, 255, 255, 0.55);
+  --circ-faint: rgba(255, 255, 255, 0.34);
+  --circ-card: rgba(255, 255, 255, 0.055);
+  --circ-card-hover: rgba(255, 255, 255, 0.09);
+  --circ-border: rgba(159, 193, 225, 0.14);
+  --circ-surface: rgba(255, 255, 255, 0.04);
+  --circ-input-bg: rgba(255, 255, 255, 0.07);
+  --circ-drop-bg: #18293a;
+  --circ-modal-bg: linear-gradient(150deg, #1e2d3d, #273848);
+
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 6px 0 48px;
+  color: var(--circ-text);
+  overflow-x: clip;
+}
+
+html[data-theme="light"] .admin-circulation-page {
+  --circ-accent: #1d4ed8;
+  --circ-accent2: #15803d;
+  --circ-warn: #b45309;
+  --circ-danger: #b91c1c;
+  --circ-tl: #475569;
+  --circ-text: #0f172a;
+  --circ-muted: #475569;
+  --circ-faint: #64748b;
+  --circ-card: #ffffff;
+  --circ-card-hover: #f8fafc;
+  --circ-border: rgba(15, 23, 42, 0.12);
+  --circ-surface: #f8fafc;
+  --circ-input-bg: #f8fafc;
+  --circ-drop-bg: #ffffff;
+  --circ-modal-bg: #ffffff;
+}
+
+/* Header */
+.admin-circulation-page .circ-phdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.admin-circulation-page .circ-phdr-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.admin-circulation-page .circ-phdr-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  background: rgba(159, 193, 225, 0.14);
+  border: 1px solid rgba(159, 193, 225, 0.28);
+  color: var(--circ-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-circulation-page .circ-phdr h1 {
+  font-size: 1.52rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin: 0;
+  color: var(--circ-text);
+}
+
+.admin-circulation-page .circ-phdr p {
+  font-size: 0.79rem;
+  color: var(--circ-tl);
+  margin: 3px 0 0;
+}
+
+/* Tabs */
+.admin-circulation-page .circ-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.admin-circulation-page .circ-tab-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 20px;
+  border-radius: 12px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--circ-border);
+  background: var(--circ-card);
+  color: var(--circ-muted);
+  transition: all 0.18s;
+}
+
+.admin-circulation-page .circ-tab-btn.active {
+  background: rgba(159, 193, 225, 0.16);
+  border-color: rgba(159, 193, 225, 0.36);
+  color: var(--circ-accent);
+}
+
+.admin-circulation-page .circ-tab-btn.active.green {
+  background: rgba(72, 199, 142, 0.14);
+  border-color: rgba(72, 199, 142, 0.34);
+  color: var(--circ-accent2);
+}
+
+/* Section Cards */
+.admin-circulation-page .circ-sc {
+  background: var(--circ-card);
+  border: 1px solid var(--circ-border);
+  border-radius: 20px;
+  padding: 22px 24px;
+  margin-bottom: 14px;
+  position: relative;
+}
+
+.admin-circulation-page .circ-sc::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 20px;
+  right: 20px;
+  height: 2px;
+  border-radius: 0 0 4px 4px;
+  background: linear-gradient(90deg, var(--circ-accent), transparent);
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.admin-circulation-page .circ-sc.g::before {
+  background: linear-gradient(90deg, var(--circ-accent2), transparent);
+}
+
+.admin-circulation-page .circ-sc.o::before {
+  background: linear-gradient(90deg, var(--circ-warn), transparent);
+}
+
+.admin-circulation-page .circ-sh {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--circ-border);
+}
+
+.admin-circulation-page .circ-shi {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-circulation-page .si-b { background: rgba(159, 193, 225, 0.15); color: var(--circ-accent); }
+.admin-circulation-page .si-g { background: rgba(72, 199, 142, 0.15); color: var(--circ-accent2); }
+.admin-circulation-page .si-o { background: rgba(255, 152, 0, 0.15); color: var(--circ-warn); }
+
+.admin-circulation-page .circ-sh h2 {
+  font-size: 0.94rem;
+  font-weight: 700;
+  color: var(--circ-text);
+  margin: 0;
+}
+
+.admin-circulation-page .circ-sh p {
+  font-size: 0.74rem;
+  color: var(--circ-tl);
+  margin: 2px 0 0;
+}
+
+/* Form Layout & Controls (works on page and inside modals) */
+.admin-circulation-page .circ-form-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.circ-fg {
+  margin-bottom: 12px;
+}
+
+.circ-fg label {
+  display: block;
+  font-size: 0.71rem;
+  font-weight: 700;
+  color: var(--circ-tl, #b8cde0);
+  margin-bottom: 5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.circ-fg input,
+.circ-fg select {
+  width: 100%;
+  min-height: 44px;
+  background: var(--circ-input-bg, rgba(255, 255, 255, 0.07));
+  border: 1px solid var(--circ-border, rgba(159, 193, 225, 0.18));
+  border-radius: 10px;
+  color: var(--circ-text, #ffffff);
+  padding: 9px 13px;
+  font-size: 0.87rem;
+  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+}
+
+.circ-fg input[readonly] {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.circ-fg input:focus,
+.circ-fg select:focus {
+  border-color: var(--circ-accent, #9fc1e1);
+  box-shadow: 0 0 0 3px rgba(159, 193, 225, 0.16);
+}
+
+.circ-fg select option {
+  background: #233547;
+  color: #ffffff;
+}
+
+html[data-theme="light"] .circ-fg label {
+  color: #475569;
+}
+
+html[data-theme="light"] .circ-fg input,
+html[data-theme="light"] .circ-fg select {
+  background: #f8fafc;
+  border-color: rgba(15, 23, 42, 0.14);
+  color: #0f172a;
+}
+
+html[data-theme="light"] .circ-fg select option {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+/* Search Combobox Dropdown */
+.admin-circulation-page .circ-combo {
+  position: relative;
+}
+
+.admin-circulation-page .circ-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--circ-input-bg);
+  border: 1px solid rgba(159, 193, 225, 0.35);
+}
+
+.admin-circulation-page .circ-search-bar.green {
+  border-color: rgba(72, 199, 142, 0.38);
+}
+
+.admin-circulation-page .circ-search-bar input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--circ-text);
+  font-size: 0.88rem;
+  outline: none;
+}
+
+.admin-circulation-page .circ-drop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  background: var(--circ-drop-bg);
+  border: 1px solid var(--circ-border);
+  border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.admin-circulation-page .circ-drop-item {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--circ-border);
+  background: transparent;
+  color: var(--circ-text);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-circulation-page .circ-drop-item:hover:not(:disabled),
+.admin-circulation-page .circ-drop-item.highlighted:not(:disabled) {
+  background: rgba(159, 193, 225, 0.14);
+}
+
+.admin-circulation-page .circ-drop-item:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+/* Selected Book Chip */
+.admin-circulation-page .circ-book-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(72, 199, 142, 0.08);
+  border: 1px solid rgba(72, 199, 142, 0.25);
+  border-radius: 12px;
+  padding: 11px 13px;
+  margin-top: 12px;
+}
+
+.admin-circulation-page .circ-book-chip.warn {
+  background: rgba(255, 99, 99, 0.08);
+  border-color: rgba(255, 99, 99, 0.4);
+}
+
+/* Disabled Not Available Yet Box */
+.admin-circulation-page .circ-disabled-box {
+  border: 2px dashed var(--circ-border);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  opacity: 0.65;
+  background: var(--circ-surface);
+  font-size: 0.79rem;
+  color: var(--circ-muted);
+}
+
+/* Stat Cards (Records & Returns) */
+.admin-circulation-page .circ-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.admin-circulation-page .circ-stat-card {
+  background: var(--circ-card);
+  border: 1px solid var(--circ-border);
+  border-radius: 18px;
+  padding: 18px 20px;
+  text-align: left;
+  width: 100%;
+  color: var(--circ-text);
+  transition: transform 0.18s, border-color 0.18s;
+}
+
+.admin-circulation-page button.circ-stat-card {
+  cursor: pointer;
+}
+
+.admin-circulation-page button.circ-stat-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--circ-accent);
+}
+
+.admin-circulation-page .circ-stat-num {
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1;
+  margin: 10px 0 4px;
+}
+
+.admin-circulation-page .circ-stat-bar {
+  height: 3px;
+  border-radius: 2px;
+  margin-top: 12px;
+  background: rgba(159, 193, 225, 0.12);
+  overflow: hidden;
+}
+
+/* Main Table Card */
+.admin-circulation-page .circ-tbl-card {
+  background: var(--circ-card);
+  border: 1px solid var(--circ-border);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.admin-circulation-page .circ-rec-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--circ-border);
+  background: rgba(0, 0, 0, 0.12);
+  overflow-x: auto;
+}
+
+html[data-theme="light"] .admin-circulation-page .circ-rec-tabs {
+  background: #f8fafc;
+}
+
+.admin-circulation-page .circ-rec-tab {
+  min-height: 50px;
+  padding: 12px 22px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--circ-muted);
+  font-size: 0.87rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.admin-circulation-page .circ-rec-tab.active {
+  color: var(--circ-accent);
+  border-bottom-color: var(--circ-accent);
+}
+
+.admin-circulation-page .circ-rec-tab.active.green {
+  color: var(--circ-accent2);
+  border-bottom-color: var(--circ-accent2);
+}
+
+.admin-circulation-page .circ-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--circ-border);
+}
+
+.admin-circulation-page .circ-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-circulation-page table.circ-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 780px;
+}
+
+.admin-circulation-page table.circ-table thead th {
+  padding: 11px 14px;
+  text-align: left;
+  font-size: 0.69rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--circ-faint);
+  border-bottom: 1px solid var(--circ-border);
+  white-space: nowrap;
+}
+
+.admin-circulation-page table.circ-table tbody td {
+  padding: 12px 14px;
+  font-size: 0.83rem;
+  border-bottom: 1px solid var(--circ-border);
+  vertical-align: middle;
+}
+
+.admin-circulation-page table.circ-table tbody tr:hover {
+  background: var(--circ-card-hover);
+}
+
+/* Badges & Buttons (global within circulation pages AND modals) */
+.circ-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.circ-btn {
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 11px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  border: 1px solid rgba(159, 193, 225, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.88);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, color 0.18s, transform 0.18s, box-shadow 0.18s;
+}
+
+.circ-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(159, 193, 225, 0.36);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.circ-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.circ-btn.primary {
+  background: linear-gradient(135deg, #86b2db, #a9cbe9);
+  border-color: transparent;
+  color: #0d1a24;
+  font-weight: 700;
+}
+
+.circ-btn.primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #9fc1e1, #c2ddf2);
+  color: #0d1a24;
+  box-shadow: 0 8px 20px rgba(159, 193, 225, 0.28);
+}
+
+.circ-btn.green {
+  background: linear-gradient(135deg, #2fb377, #48c78e);
+  border-color: transparent;
+  color: #091d14;
+  font-weight: 700;
+}
+
+.circ-btn.green:hover:not(:disabled) {
+  filter: brightness(1.06);
+  color: #091d14;
+  box-shadow: 0 8px 20px rgba(72, 199, 142, 0.28);
+}
+
+.circ-btn.warn {
+  background: linear-gradient(135deg, #e59400, #ffb74d);
+  border-color: transparent;
+  color: #1a0e00;
+  font-weight: 700;
+}
+
+.circ-btn.warn:hover:not(:disabled) {
+  filter: brightness(1.06);
+  color: #1a0e00;
+  box-shadow: 0 8px 20px rgba(255, 183, 77, 0.28);
+}
+
+.circ-btn.danger {
+  background: rgba(255, 99, 99, 0.14);
+  border-color: rgba(255, 99, 99, 0.34);
+  color: #ff8585;
+  font-weight: 700;
+}
+
+.circ-btn.danger:hover:not(:disabled) {
+  background: rgba(255, 99, 99, 0.28);
+  border-color: rgba(255, 99, 99, 0.55);
+  color: #ffffff;
+}
+
+.circ-btn.export {
+  background: rgba(159, 193, 225, 0.12);
+  border-color: rgba(159, 193, 225, 0.28);
+  color: #9fc1e1;
+}
+
+.circ-btn.export:hover:not(:disabled) {
+  background: rgba(159, 193, 225, 0.22);
+  color: #ffffff;
+}
+
+.circ-btn.active {
+  background: rgba(159, 193, 225, 0.18);
+  border-color: #9fc1e1;
+  color: #9fc1e1;
+}
+
+html[data-theme="light"] .circ-btn {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.15);
+  color: #334155;
+}
+
+html[data-theme="light"] .circ-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: rgba(15, 23, 42, 0.26);
+  color: #0f172a;
+}
+
+html[data-theme="light"] .circ-btn.primary {
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+  color: #ffffff;
+}
+
+html[data-theme="light"] .circ-btn.green {
+  background: linear-gradient(135deg, #15803d, #16a34a);
+  color: #ffffff;
+}
+
+html[data-theme="light"] .circ-btn.danger {
+  background: rgba(185, 28, 28, 0.08);
+  border-color: rgba(185, 28, 28, 0.28);
+  color: #b91c1c;
+}
+
+html[data-theme="light"] .circ-btn.danger:hover:not(:disabled) {
+  background: #b91c1c;
+  color: #ffffff;
+}
+
+html[data-theme="light"] .circ-btn.export,
+html[data-theme="light"] .circ-btn.active {
+  background: rgba(29, 78, 216, 0.08);
+  border-color: rgba(29, 78, 216, 0.3);
+  color: #1d4ed8;
+}
+
+/* Action Icon Buttons */
+.circ-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  border: 1px solid rgba(159, 193, 225, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.78);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.16s, background 0.16s, border-color 0.16s, color 0.16s;
+}
+
+.circ-icon-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.circ-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.circ-icon-btn.view {
+  background: rgba(72, 199, 142, 0.12);
+  border-color: rgba(72, 199, 142, 0.26);
+  color: #48c78e;
+}
+.circ-icon-btn.view:hover:not(:disabled) {
+  background: rgba(72, 199, 142, 0.26);
+  color: #ffffff;
+}
+
+.circ-icon-btn.ret {
+  background: rgba(255, 152, 0, 0.12);
+  border-color: rgba(255, 152, 0, 0.26);
+  color: #ffb74d;
+}
+.circ-icon-btn.ret:hover:not(:disabled) {
+  background: rgba(255, 152, 0, 0.26);
+  color: #ffffff;
+}
+
+.circ-icon-btn.edit {
+  background: rgba(159, 193, 225, 0.12);
+  border-color: rgba(159, 193, 225, 0.26);
+  color: #9fc1e1;
+}
+.circ-icon-btn.edit:hover:not(:disabled) {
+  background: rgba(159, 193, 225, 0.26);
+  color: #ffffff;
+}
+
+.circ-icon-btn.del {
+  background: rgba(255, 99, 99, 0.12);
+  border-color: rgba(255, 99, 99, 0.26);
+  color: #ff8585;
+}
+.circ-icon-btn.del:hover:not(:disabled) {
+  background: rgba(255, 99, 99, 0.26);
+  color: #ffffff;
+}
+
+.circ-icon-btn.close:hover:not(:disabled) {
+  background: rgba(255, 99, 99, 0.2);
+  border-color: rgba(255, 99, 99, 0.35);
+  color: #ff9999;
+}
+
+html[data-theme="light"] .circ-icon-btn {
+  background: #f1f5f9;
+  border-color: rgba(15, 23, 42, 0.12);
+  color: #475569;
+}
+
+html[data-theme="light"] .circ-icon-btn.view {
+  background: rgba(21, 128, 61, 0.08);
+  border-color: rgba(21, 128, 61, 0.24);
+  color: #15803d;
+}
+
+html[data-theme="light"] .circ-icon-btn.ret {
+  background: rgba(180, 83, 9, 0.08);
+  border-color: rgba(180, 83, 9, 0.24);
+  color: #b45309;
+}
+
+html[data-theme="light"] .circ-icon-btn.edit {
+  background: rgba(29, 78, 216, 0.08);
+  border-color: rgba(29, 78, 216, 0.24);
+  color: #1d4ed8;
+}
+
+html[data-theme="light"] .circ-icon-btn.del {
+  background: rgba(185, 28, 28, 0.08);
+  border-color: rgba(185, 28, 28, 0.24);
+  color: #b91c1c;
+}
+
+/* Mobile stacked cards (<640px) */
+.admin-circulation-page .circ-mobile-cards {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+}
+
+.admin-circulation-page .circ-mobile-card {
+  border: 1px solid var(--circ-border);
+  border-radius: 14px;
+  padding: 14px;
+  background: var(--circ-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Modals */
+.circ-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(6, 12, 24, 0.74);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.circ-modal-box {
+  width: 100%;
+  max-width: 620px;
+  max-height: calc(100vh - 36px);
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(155deg, #1b2a3a 0%, #233547 100%);
+  border: 1px solid rgba(159, 193, 225, 0.22);
+  border-radius: 20px;
+  color: #ffffff;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.58);
+  overflow: hidden;
+}
+
+html[data-theme="light"] .circ-modal-box {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.14);
+}
+
+.circ-modal-box.sm {
+  max-width: 460px;
+}
+
+.circ-modal-hdr {
+  padding: 18px 22px 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+html[data-theme="light"] .circ-modal-hdr {
+  border-bottom-color: rgba(15, 23, 42, 0.08);
+}
+
+.circ-modal-body {
+  padding: 20px 22px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.circ-modal-foot {
+  padding: 14px 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+html[data-theme="light"] .circ-modal-foot {
+  border-top-color: rgba(15, 23, 42, 0.08);
+}
+
+/* Toast */
+.circ-toast {
+  position: fixed;
+  bottom: 22px;
+  right: 22px;
+  z-index: 2500;
+  background: #1e2d3d;
+  border: 1px solid rgba(159, 193, 225, 0.25);
+  border-radius: 11px;
+  padding: 12px 16px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #ffffff;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Printable Receipt */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .circ-print-receipt,
+  .circ-print-receipt * {
+    visibility: visible;
+  }
+  .circ-print-receipt {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    padding: 24px !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* Focus rings & Reduced motion */
+.admin-circulation-page button:focus-visible,
+.circ-modal-box button:focus-visible {
+  outline: 2px solid var(--circ-accent, #9fc1e1);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-circulation-page *,
+  .circ-modal-box * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-circulation-page .circ-form-cols {
+    grid-template-columns: 1fr;
+  }
+  .admin-circulation-page .circ-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-circulation-page .circ-stats-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-circulation-page .circ-desktop-table {
+    display: none;
+  }
+  .admin-circulation-page .circ-mobile-cards {
+    display: flex;
+  }
+}

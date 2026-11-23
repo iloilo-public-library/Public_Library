@@ -124,14 +124,16 @@ export async function GET(request: Request) {
   const parsedQuery = adminQuerySchema.safeParse({
     resource: searchParams.get("resource") || "",
     isbn: searchParams.get("isbn") || undefined,
+    from: searchParams.get("from") || undefined,
+    to: searchParams.get("to") || undefined,
   });
 
   if (!parsedQuery.success) {
     return NextResponse.json({ error: "Invalid resource parameter" }, { status: 400 });
   }
 
-  const { resource, isbn } = parsedQuery.data;
-  const publicResources = new Set(["events", "announcements"]);
+  const { resource, isbn, from, to } = parsedQuery.data;
+  const publicResources = new Set(["events", "event_categories", "announcements"]);
   const session = await getServerSession();
   const isStaff = Boolean(session && isStaffRole(session.role));
 
@@ -159,10 +161,14 @@ export async function GET(request: Request) {
     const payload = await getAdminResourceData(
       supabase,
       resource,
-      isStaff && session ? session.userId : null
+      isStaff && session ? session.userId : null,
+      resource === "events" ? { from, to, isStaff } : undefined
     );
     return NextResponse.json(payload);
   } catch (err) {
+    if (err instanceof AdminMutationError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     const message = err instanceof Error ? err.message : "Database query failed";
     await recordErrorLog({
       level: "error",

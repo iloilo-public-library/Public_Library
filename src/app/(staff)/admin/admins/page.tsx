@@ -1,21 +1,33 @@
-import { AdminResourceView } from "@/components/admin/AdminResourceView";
+import { AccountManagementView } from "@/components/admin/accounts/AccountManagementView";
 
 export default function AdminAdminsPage() {
   return (
-    <AdminResourceView
-      title="Admin"
-      accentWord="Accounts"
-      subtitle="System administrators with full governance, audit, and security access."
-      resource="admins"
-      columns={[
-        { key: "id", label: "ID", mono: true },
-        { key: "fullname", label: "Full Name" },
-        { key: "email", label: "Email", mono: true },
-        { key: "status", label: "Session" },
-        { key: "is_active", label: "Active" },
-        { key: "is_locked", label: "Locked" },
-        { key: "last_seen", label: "Last Seen", mono: true },
-      ]}
+    <AccountManagementView
+      config={{
+        resource: "admins",
+        topbarTitle: "Admin Management",
+        headingPrefix: "Admin",
+        headingAccent: "Management",
+        subtitle: "View, manage and control Admin accounts",
+        singularLabel: "admin",
+        pluralLabel: "admins",
+        totalStatLabel: "Total Admins",
+        searchPlaceholder: "Search username, name…",
+        emptyText: "No admin accounts found.",
+        showUsernameColumn: true,
+        showLastSeenColumn: true,
+        showAccountStatusColumn: false,
+        showDeactivatedStat: false,
+        showFilterTabs: false,
+        enablePagination: false,
+        enableViewDetails: false,
+        enableDeactivateToggle: false,
+        enableAddModal: true,
+        addRole: "admin",
+        deletePromptPrefix: "Delete admin",
+        deleteSubtext: "This action cannot be undone.",
+        deleteSuccessToast: "Admin deleted",
+      }}
     />
   );
 }
