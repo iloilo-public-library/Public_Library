@@ -1,7 +1,16 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import useSWR from "swr";
-import { CheckCircle2, History, RefreshCw } from "lucide-react";
+import {
+  ArrowUpDown,
+  CheckCircle2,
+  History,
+  RefreshCw,
+  Search,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import { MemberShell } from "@/components/layout/MemberShell";
 import { Button } from "@/components/ui/button";
 import { swrPrivateConfig } from "@/lib/api";
@@ -23,7 +32,29 @@ export default function UserBorrowHistoryPage() {
     "/api/user/return-history",
     swrPrivateConfig
   );
+  const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"recent" | "title">("recent");
+
   const returns = data?.returns ?? [];
+
+  const filteredReturns = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = returns.filter((r) => {
+      if (!q) return true;
+      return (
+        r.book_title.toLowerCase().includes(q) ||
+        (r.book_author || "").toLowerCase().includes(q) ||
+        (r.book_isbn || "").toLowerCase().includes(q) ||
+        (r.return_date || "").toLowerCase().includes(q)
+      );
+    });
+    return [...list].sort((a, b) => {
+      if (sortBy === "title") {
+        return a.book_title.localeCompare(b.book_title);
+      }
+      return String(b.return_date || "").localeCompare(String(a.return_date || ""));
+    });
+  }, [returns, query, sortBy]);
 
   return (
     <MemberShell>
@@ -36,9 +67,73 @@ export default function UserBorrowHistoryPage() {
             Archive of your previously borrowed and returned library materials.
           </p>
         </div>
-        <Button variant="secondary" size="sm" onClick={() => mutate()}>
-          <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          {query.trim() !== "" && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-tl transition hover:border-white/20 hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" /> Reset
+            </button>
+          )}
+          <Button variant="secondary" size="sm" onClick={() => mutate()}>
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Unified Browse-Catalog Command Search & Sort Bar */}
+      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="group relative flex-1">
+          <div className="pointer-events-none absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-accent/20 via-accent2/10 to-accent/20 opacity-0 blur transition duration-300 group-focus-within:opacity-100" />
+          <div className="relative flex h-[48px] items-center rounded-2xl border border-white/12 bg-bg1/90 px-4 shadow-[0_8px_30px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-all duration-200 focus-within:border-accent/50 focus-within:bg-bg1">
+            <Search className="h-4.5 w-4.5 shrink-0 text-accent/80" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search returned books by title, author, ISBN, or return date..."
+              className="w-full bg-transparent py-2 pl-3 pr-3 text-[0.9rem] text-white placeholder:text-white/38 focus:outline-none"
+            />
+            {query ? (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-white/8 text-white/60 hover:text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <kbd className="hidden shrink-0 items-center rounded-lg border border-white/10 bg-white/5 px-2 py-1 font-mono text-[0.68rem] text-white/45 sm:inline-flex">
+                ⌘K
+              </kbd>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSortBy((s) => (s === "recent" ? "title" : "recent"))}
+            className="inline-flex h-[48px] cursor-pointer items-center gap-2 rounded-2xl border border-white/12 bg-bg1/85 px-4 text-xs font-semibold text-white/80 transition hover:border-white/22 hover:bg-white/8 hover:text-white"
+          >
+            <ArrowUpDown className="h-3.5 w-3.5 text-accent/80" />
+            <span className="text-white/45">Sort:</span>
+            <span className="text-white">
+              {sortBy === "recent" ? "Most Recent Return" : "Title (A–Z)"}
+            </span>
+          </button>
+
+          <div className="ml-auto flex h-[48px] items-center gap-1.5 rounded-2xl border border-white/8 bg-white/[0.03] px-3.5 text-xs text-tl lg:ml-0">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-accent/70" />
+            <span className="whitespace-nowrap">
+              <strong className="font-semibold text-white">{filteredReturns.length}</strong> /{" "}
+              {returns.length}
+            </span>
+          </div>
+        </div>
       </div>
 
       {isLoading ? (
@@ -47,12 +142,16 @@ export default function UserBorrowHistoryPage() {
             <div key={i} className="h-20 animate-pulse rounded-2xl bg-white/5" />
           ))}
         </div>
-      ) : returns.length === 0 ? (
+      ) : filteredReturns.length === 0 ? (
         <div className="rounded-2xl border border-white/10 bg-card-glass p-12 text-center">
           <History className="mx-auto mb-3 h-10 w-10 text-accent/55" />
-          <h2 className="text-base font-bold text-white">No Past Return Records Yet</h2>
+          <h2 className="text-base font-bold text-white">
+            {returns.length === 0 ? "No Past Return Records Yet" : "No Matching Returns"}
+          </h2>
           <p className="mx-auto mt-1.5 max-w-[420px] text-xs leading-relaxed text-tl/75">
-            Completed returns processed by library staff will be logged here automatically.
+            {returns.length === 0
+              ? "Completed returns processed by library staff will be logged here automatically."
+              : "No returned items match your current search filter."}
           </p>
         </div>
       ) : (
@@ -70,7 +169,7 @@ export default function UserBorrowHistoryPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/6">
-                {returns.map((r) => (
+                {filteredReturns.map((r) => (
                   <tr key={r.id} className="hover:bg-white/4">
                     <td className="px-4 py-3 font-semibold text-white">{r.book_title}</td>
                     <td className="px-4 py-3 text-tl/85">{r.book_author || "—"}</td>
@@ -78,7 +177,7 @@ export default function UserBorrowHistoryPage() {
                     <td className="px-4 py-3 font-mono text-white">{r.qty_returned}</td>
                     <td className="px-4 py-3 font-mono text-tl">{r.return_date || "—"}</td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1 rounded-full border border-accent2/30 bg-accent2/12 px-2.5 py-0.5 text-[0.68rem] font-bold text-accent2">
+                      <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-accent2/30 bg-accent2/12 px-2.5 py-0.5 text-[0.68rem] font-bold text-accent2">
                         <CheckCircle2 className="h-3 w-3" /> Returned
                       </span>
                     </td>

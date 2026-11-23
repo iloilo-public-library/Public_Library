@@ -249,59 +249,74 @@ export default function AdminErrorLogsPage() {
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/8 bg-card-glass p-3.5 backdrop-blur-sm">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-accent/70" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search route, error message, user, or ID..."
-            className="w-full rounded-xl border border-white/10 bg-bg1/75 py-2 pl-9 pr-9 text-xs text-white placeholder:text-tl/45 focus:border-accent/50 focus:outline-none"
-          />
-          {search && (
-            <button
-              type="button"
-              onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/45 hover:text-white cursor-pointer"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
+      {/* Unified Browse-Catalog Command Search & Severity/Source Filter Bar */}
+      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="group relative flex-1">
+          <div className="pointer-events-none absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-accent/20 via-accent2/10 to-accent/20 opacity-0 blur transition duration-300 group-focus-within:opacity-100" />
+          <div className="relative flex h-[48px] items-center rounded-2xl border border-white/12 bg-bg1/90 px-4 shadow-[0_8px_30px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-all duration-200 focus-within:border-accent/50 focus-within:bg-bg1">
+            <Search className="h-4.5 w-4.5 shrink-0 text-accent/80" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search route, error message, user email, or event ID..."
+              className="w-full bg-transparent py-2 pl-3 pr-3 text-[0.9rem] text-white placeholder:text-white/38 focus:outline-none"
+            />
+            {search ? (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+                className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-white/8 text-white/60 transition hover:bg-white/15 hover:text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <kbd className="hidden shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 font-mono text-[0.68rem] font-medium text-white/45 sm:inline-flex">
+                <span>⌘K</span>
+              </kbd>
+            )}
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           {["all", "error", "security", "warning"].map((lvl) => (
             <button
               key={lvl}
               type="button"
               onClick={() => setLevelFilter(lvl)}
-              className={`rounded-lg border px-2.5 py-1 text-[0.7rem] font-semibold capitalize transition cursor-pointer ${
+              className={`inline-flex h-[48px] cursor-pointer items-center rounded-2xl border px-4 text-xs font-semibold capitalize transition-all ${
                 levelFilter === lvl
-                  ? "border-accent bg-accent/20 text-accent"
-                  : "border-white/10 bg-white/5 text-tl/70 hover:text-white"
+                  ? "border-accent/45 bg-accent/15 text-accent shadow-[0_0_20px_rgba(147,197,253,0.14)]"
+                  : "border-white/12 bg-bg1/85 text-white/80 hover:border-white/22 hover:bg-white/8 hover:text-white"
               }`}
             >
-              {lvl}
+              {lvl === "all" ? "All Levels" : lvl}
             </button>
           ))}
-        </div>
 
-        <select
-          value={sourceFilter}
-          onChange={(e) => setSourceFilter(e.target.value)}
-          className="rounded-xl border border-white/10 bg-bg1/80 px-3 py-1.5 text-xs text-white focus:border-accent/50 focus:outline-none"
-        >
-          <option value="all" className="bg-modal text-white">
-            All Sources
-          </option>
-          {sources.map((src) => (
-            <option key={src} value={src} className="bg-modal text-white">
-              {src}
+          <select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            className="h-[48px] rounded-2xl border border-white/12 bg-bg1/85 px-4 text-xs font-semibold text-white focus:border-accent/50 focus:outline-none"
+          >
+            <option value="all" className="bg-modal text-white">
+              Source: All
             </option>
-          ))}
-        </select>
+            {sources.map((src) => (
+              <option key={src} value={src} className="bg-modal text-white">
+                Source: {src}
+              </option>
+            ))}
+          </select>
+
+          <div className="ml-auto flex h-[48px] items-center gap-1.5 rounded-2xl border border-white/8 bg-white/[0.03] px-3.5 text-xs text-tl lg:ml-0">
+            <span className="whitespace-nowrap">
+              <strong className="font-semibold text-white">{filtered.length}</strong> /{" "}
+              {rows.length}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Table */}

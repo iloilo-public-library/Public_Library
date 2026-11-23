@@ -1,7 +1,17 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
+import { getServerSession } from "@/lib/auth/session";
+import { isStaffRole } from "@/lib/auth/rbac";
 
 export async function GET() {
+  const session = await getServerSession();
+  if (!session || !isStaffRole(session.role)) {
+    return NextResponse.json(
+      { error: "Unauthorized — staff session required." },
+      { status: 401 }
+    );
+  }
+
   if (!getSupabaseSecretKey()) {
     return NextResponse.json(
       { error: "SUPABASE_SECRET_KEY is missing from environment variables." },

@@ -188,11 +188,22 @@ export async function mutateEvents(
     }
     const { scope, occurrence_date } = parsedDel.data;
 
-    const { data: existing } = await supabase
+    let { data: existing, error: existErr } = await supabase
       .from("events")
       .select("id, event_date, cover_image, image, recurrence_freq")
       .eq("id", id)
       .maybeSingle();
+
+    if (existErr) {
+      const fallback = await supabase
+        .from("events")
+        .select("id, event_date, image")
+        .eq("id", id)
+        .maybeSingle();
+      existing = fallback.data
+        ? ({ ...fallback.data, cover_image: null, recurrence_freq: null } as typeof existing)
+        : null;
+    }
 
     if (!existing) throw new AdminMutationError("Event not found.", 404);
 
@@ -232,11 +243,19 @@ export async function mutateEvents(
     }
     const d = parsed.data;
     const scope = d.scope ?? "all";
-    const { data: existing } = await supabase
+    let { data: existing, error: existErr } = await supabase
       .from("events")
       .select(EXTENDED_EVENT_SELECT)
       .eq("id", id)
       .maybeSingle();
+    if (existErr) {
+      const fallback = await supabase
+        .from("events")
+        .select(BASE_EVENT_SELECT)
+        .eq("id", id)
+        .maybeSingle();
+      existing = fallback.data as typeof existing;
+    }
     if (!existing) throw new AdminMutationError("Event not found.", 404);
 
     if (existing.recurrence_freq && scope === "this") {
@@ -266,7 +285,17 @@ export async function mutateEvents(
       all_day: d.all_day ?? (!d.start_time && !d.end_time),
     };
     const { error } = await supabase.from("events").update(updateFields).eq("id", id);
-    if (error) throw new AdminMutationError(error.message, 500);
+    if (error) {
+      const fallbackErr = await supabase
+        .from("events")
+        .update({
+          event_date: d.event_date,
+          start_time: d.all_day ? null : d.start_time ?? null,
+          end_time: d.all_day ? null : d.end_time ?? null,
+        })
+        .eq("id", id);
+      if (fallbackErr.error) throw new AdminMutationError(fallbackErr.error.message, 500);
+    }
     return { ok: true, id, scope, audit_details: `reschedule date=${d.event_date}` };
   }
 
@@ -355,11 +384,22 @@ export async function mutateEvents(
     if (!id) throw new AdminMutationError("Event ID is required.", 400);
     const scope = d.scope ?? "all";
 
-    const { data: existing } = await supabase
+    let { data: existing, error: existErr } = await supabase
       .from("events")
       .select("id, event_date, cover_image, image, recurrence_freq")
       .eq("id", id)
       .maybeSingle();
+
+    if (existErr) {
+      const fallback = await supabase
+        .from("events")
+        .select("id, event_date, image")
+        .eq("id", id)
+        .maybeSingle();
+      existing = fallback.data
+        ? ({ ...fallback.data, cover_image: null, recurrence_freq: null } as typeof existing)
+        : null;
+    }
 
     if (!existing) throw new AdminMutationError("Event not found.", 404);
     const oldCover = (existing.cover_image as string | null) || (existing.image as string | null);

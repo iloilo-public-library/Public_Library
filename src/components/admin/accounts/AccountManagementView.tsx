@@ -500,108 +500,140 @@ export function AccountManagementView({
           ))}
         </div>
 
-        {/* Toolbar: Search + Optional Filter Tabs + Count */}
-        <div className="mb-4 flex flex-wrap items-center gap-2.5">
-          <div className="relative min-w-[240px] max-w-[380px] flex-1">
-            <Search
-              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2"
-              style={{ color: "var(--tl)" }}
-              aria-hidden="true"
-            />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              aria-label={config.searchPlaceholder}
-              placeholder={config.searchPlaceholder}
-              className="min-h-[44px] w-full rounded-[10px] py-2 pl-10 pr-9 text-[0.88rem]"
-              style={{
-                backgroundColor: "var(--acct-input-bg)",
-                border: "1px solid var(--acct-input-border)",
-                color: "var(--acct-text-primary)",
-              }}
-            />
-            {searchInput && (
+        {/* Unified Browse-Catalog Command Bar: 48px Search + Status Filter Pills + Sort + Counter */}
+        <div className="mb-5 space-y-2.5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="group relative flex-1">
+              <div className="pointer-events-none absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-accent/20 via-accent2/10 to-accent/20 opacity-0 blur transition duration-300 group-focus-within:opacity-100" />
+              <div className="relative flex h-[48px] items-center rounded-2xl border border-white/12 bg-bg1/90 px-4 shadow-[0_8px_30px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-all duration-200 focus-within:border-accent/50 focus-within:bg-bg1">
+                <Search
+                  className="h-4.5 w-4.5 shrink-0 text-accent/80 transition-transform duration-200 group-focus-within:scale-110"
+                  aria-hidden="true"
+                />
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  aria-label={config.searchPlaceholder}
+                  placeholder={config.searchPlaceholder}
+                  className="w-full bg-transparent py-2 pl-3 pr-3 text-[0.9rem] text-white placeholder:text-white/38 focus:outline-none"
+                />
+                {searchInput ? (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    onClick={() => setSearchInput("")}
+                    className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-white/8 text-white/60 transition hover:bg-white/15 hover:text-white"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                ) : (
+                  <kbd className="hidden shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 font-mono text-[0.68rem] font-medium text-white/45 sm:inline-flex">
+                    <span>⌘K</span>
+                  </kbd>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {config.showFilterTabs && (
+                <div
+                  role="group"
+                  aria-label="Filter users by status"
+                  className="flex flex-wrap items-center gap-2"
+                >
+                  {(
+                    [
+                      { id: "all", label: "All Accounts", tone: "accent" },
+                      { id: "active", label: "Active", tone: "accent2" },
+                      { id: "deactivated", label: "Deactivated", tone: "warn" },
+                      { id: "locked", label: "Locked", tone: "danger" },
+                    ] as const
+                  ).map((tab) => {
+                    const active = filter === tab.id;
+                    const toneCls =
+                      tab.tone === "warn"
+                        ? "border-warn/45 bg-warn/15 text-warn"
+                        : tab.tone === "danger"
+                          ? "border-danger/45 bg-danger/15 text-danger"
+                          : tab.tone === "accent2"
+                            ? "border-accent2/45 bg-accent2/15 text-accent2"
+                            : "border-accent/45 bg-accent/15 text-accent";
+
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => {
+                          setFilter(tab.id);
+                          setPage(1);
+                        }}
+                        className={`inline-flex h-[48px] cursor-pointer items-center gap-2 rounded-2xl border px-4 text-xs font-semibold transition-all ${
+                          active
+                            ? toneCls
+                            : "border-white/12 bg-bg1/85 text-white/75 hover:border-white/22 hover:bg-white/8 hover:text-white"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               <button
                 type="button"
-                aria-label="Clear search"
-                onClick={() => setSearchInput("")}
-                className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md cursor-pointer"
-                style={{ color: "var(--acct-text-muted)" }}
+                onClick={() => toggleSort(sortKey === "name" ? "registered" : "name")}
+                className="inline-flex h-[48px] cursor-pointer items-center gap-2 rounded-2xl border border-white/12 bg-bg1/85 px-4 text-xs font-semibold text-white/80 transition hover:border-white/22 hover:bg-white/8 hover:text-white"
               >
-                <X className="h-4 w-4" aria-hidden="true" />
+                <ArrowUpDown className="h-3.5 w-3.5 text-accent/80" aria-hidden="true" />
+                <span className="text-white/45">Sort:</span>
+                <span className="capitalize text-white">
+                  {sortKey ?? "Default"} ({sortDir === "asc" ? "↑" : "↓"})
+                </span>
               </button>
-            )}
+
+              <div className="ml-auto flex h-[48px] items-center gap-1.5 rounded-2xl border border-white/8 bg-white/[0.03] px-3.5 text-xs text-tl lg:ml-0">
+                <span className="acct-tabular whitespace-nowrap">
+                  <strong className="font-semibold text-white">{processedRows.length}</strong> /{" "}
+                  {rows.length}{" "}
+                  {processedRows.length === 1 ? config.singularLabel : config.pluralLabel}
+                </span>
+              </div>
+            </div>
           </div>
 
-          {config.showFilterTabs && (
-            <div
-              role="group"
-              aria-label="Filter users by status"
-              className="flex flex-wrap gap-1.5"
-            >
-              {(
-                [
-                  { id: "all", label: "All", tone: "accent" },
-                  { id: "active", label: "Active", tone: "accent" },
-                  { id: "deactivated", label: "Deactivated", tone: "warn" },
-                  { id: "locked", label: "Locked", tone: "danger" },
-                ] as const
-              ).map((tab) => {
-                const active = filter === tab.id;
-                const activeStyle =
-                  tab.tone === "warn"
-                    ? {
-                        backgroundColor: "rgba(var(--warn-rgb), 0.15)",
-                        border: "1px solid rgba(var(--warn-rgb), 0.35)",
-                        color: "var(--warn)",
-                      }
-                    : tab.tone === "danger"
-                    ? {
-                        backgroundColor: "rgba(var(--danger-rgb), 0.15)",
-                        border: "1px solid rgba(var(--danger-rgb), 0.35)",
-                        color: "var(--danger)",
-                      }
-                    : {
-                        backgroundColor: "rgba(var(--accent-rgb), 0.18)",
-                        border: "1px solid rgba(var(--accent-rgb), 0.35)",
-                        color: "var(--accent)",
-                      };
-
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => {
-                      setFilter(tab.id);
-                      setPage(1);
-                    }}
-                    className="min-h-[44px] rounded-full px-4 py-1.5 text-[0.78rem] font-semibold transition cursor-pointer"
-                    style={
-                      active
-                        ? activeStyle
-                        : {
-                            backgroundColor: "var(--acct-pill-bg)",
-                            border: "1px solid var(--acct-pill-border)",
-                            color: "var(--acct-text-muted)",
-                          }
-                    }
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
+          {(debouncedSearch || filter !== "all") && (
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              <span className="text-[0.72rem] font-semibold uppercase tracking-wider text-white/40">
+                Active filters:
+              </span>
+              {filter !== "all" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilter("all");
+                    setPage(1);
+                  }}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-accent/30 bg-accent/12 px-2.5 py-1 text-xs font-medium capitalize text-accent transition hover:bg-accent/20"
+                >
+                  <span>Status: {filter}</span>
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+              {debouncedSearch && (
+                <button
+                  type="button"
+                  onClick={() => setSearchInput("")}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/15 bg-white/8 px-2.5 py-1 text-xs font-medium text-white/85 transition hover:bg-white/14"
+                >
+                  <span>Query: &ldquo;{debouncedSearch}&rdquo;</span>
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
           )}
-
-          <span
-            className="acct-tabular ml-auto whitespace-nowrap text-[0.82rem]"
-            style={{ color: "var(--tl)" }}
-          >
-            {processedRows.length}{" "}
-            {processedRows.length === 1 ? config.singularLabel : config.pluralLabel}
-          </span>
         </div>
 
         {/* Error State */}

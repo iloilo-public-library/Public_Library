@@ -36,14 +36,17 @@ export async function POST(request: Request) {
   try {
     if (parsed.data.action === "request") {
       const email = parsed.data.email;
-      const lookupKeys = [email];
-      const hashedEmail = emailBlindIndex(email);
-      if (hashedEmail) lookupKeys.unshift(hashedEmail);
+      const lookupKeys = Array.from(
+        new Set([email, emailBlindIndex(email)].filter((k): k is string => Boolean(k)))
+      );
+      const safeEmail = email.replace(/"/g, "");
 
       const { data: users, error: queryErr } = await supabase
         .from("users")
         .select("id, role, is_active")
-        .in("username", lookupKeys)
+        .or(
+          `username.in.(${lookupKeys.map((k) => `"${k.replace(/"/g, "")}"`).join(",")}),email_display.eq."${safeEmail}"`
+        )
         .limit(1);
 
       if (queryErr) throw queryErr;

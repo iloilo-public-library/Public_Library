@@ -2,27 +2,49 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { safeDecryptData } from "@/lib/crypto/fernet";
 import { AdminMutationError } from "@/repositories/shared";
 
-function computeConditionSummary(
+export function computeConditionSummary(
   availableCopies: number,
   damagedCopies: number,
-  lostCopies: number
+  lostCopies: number,
+  destroyedCopies = 0
 ): string {
-  if (damagedCopies > 0 && lostCopies > 0) return "Damaged & Lost Copies";
-  if (damagedCopies > 0) return "Has Damaged Copies";
-  if (lostCopies > 0) return "Has Lost Copies";
+  const hasDamaged = damagedCopies > 0;
+  const hasLost = lostCopies > 0;
+  const hasDestroyed = destroyedCopies > 0;
+
+  const issues: string[] = [];
+  if (hasDamaged) issues.push("Damaged");
+  if (hasDestroyed) issues.push("Destroyed");
+  if (hasLost) issues.push("Lost");
+
+  if (issues.length > 1) {
+    return `${issues.join(" & ")} Copies`;
+  }
+  if (hasDestroyed) return "Has Destroyed Copies";
+  if (hasDamaged) return "Has Damaged Copies";
+  if (hasLost) return "Has Lost Copies";
   if (availableCopies <= 0) return "Out of Stock";
   return "All Good";
 }
 
-function buildGeneratedCopies(
+export function buildGeneratedCopies(
   bookId: number,
   volumes: number,
   availableCopies: number,
   damagedCopies: number,
   lostCopies: number,
-  shelfLocation: string
+  shelfLocation: string,
+  destroyedCopies = 0,
+  accessionPrefix?: string | null
 ) {
-  const cap = Math.max(1, Math.min(volumes || 1, 25));
+  const cap = Math.max(1, Math.min(volumes || 1, 100));
+  const prefix = (
+    accessionPrefix?.trim() ||
+    `ICPL-${String(bookId).padStart(4, "0")}`
+  )
+    .toUpperCase()
+    .replace(/\s+/g, "-");
+
   const list: Array<{
     copy_number: number;
     accession_number: string;
@@ -40,17 +62,21 @@ function buildGeneratedCopies(
       condition = "Damaged";
       circulation_status = "Unusable";
       condition_notes = `Copy #${c} flagged as damaged — awaiting repair/replacement`;
-    } else if (c <= damagedCopies + lostCopies) {
+    } else if (c <= damagedCopies + destroyedCopies) {
+      condition = "Destroyed";
+      circulation_status = "Unusable";
+      condition_notes = `Copy #${c} marked as destroyed / beyond repair`;
+    } else if (c <= damagedCopies + destroyedCopies + lostCopies) {
       condition = "Lost";
       circulation_status = "Unusable";
       condition_notes = `Copy #${c} reported lost`;
-    } else if (c > damagedCopies + lostCopies + availableCopies) {
+    } else if (c > damagedCopies + destroyedCopies + lostCopies + availableCopies) {
       condition = "Good";
       circulation_status = "Borrowed";
     }
     list.push({
       copy_number: c,
-      accession_number: `ICPL-${String(bookId).padStart(4, "0")}-C${String(c).padStart(2, "0")}`,
+      accession_number: `${prefix}-C${String(c).padStart(3, "0")}`,
       condition,
       circulation_status,
       condition_notes,
@@ -60,17 +86,102 @@ function buildGeneratedCopies(
   return list;
 }
 
+export async function syncBookCopiesInDb(
+  supabase: SupabaseClient,
+  bookId: number,
+  copiesPayload: unknown
+): Promise<{
+  synced: boolean;
+  volumes: number;
+  availableCopies: number;
+  damagedCopies: number;
+  destroyedCopies: number;
+  lostCopies: number;
+} | null> {
+  if (!Array.isArray(copiesPayload) || copiesPayload.length === 0) return null;
+
+  let availableCopies = 0;
+  let damagedCopies = 0;
+  let destroyedCopies = 0;
+  let lostCopies = 0;
+
+  for (let i = 0; i < copiesPayload.length; i++) {
+    const raw = copiesPayload[i] as Record<string, unknown>;
+    const copyNumber = Number(raw.copy_number ?? i + 1) || i + 1;
+    const accessionNumber =
+      String(raw.accession_number ?? "").trim() ||
+      `ICPL-${String(bookId).padStart(4, "0")}-C${String(copyNumber).padStart(3, "0")}`;
+    const condition = String(raw.condition ?? "Good").trim() || "Good";
+    const isUnusable =
+      condition === "Damaged" ||
+      condition === "Destroyed" ||
+      condition === "Lost" ||
+      condition === "Under Repair";
+    const circulationStatus = isUnusable
+      ? "Unusable"
+      : String(raw.circulation_status ?? "Available").trim() || "Available";
+    const conditionNotes = String(raw.condition_notes ?? "").trim();
+    const shelfLocation = String(raw.shelf_location ?? "").trim() || null;
+
+    if (condition === "Damaged" || condition === "Under Repair") {
+      damagedCopies++;
+    } else if (condition === "Destroyed") {
+      destroyedCopies++;
+    } else if (condition === "Lost") {
+      lostCopies++;
+    } else if (circulationStatus === "Available") {
+      availableCopies++;
+    }
+
+    try {
+      if (raw.id) {
+        await supabase
+          .from("book_copies")
+          .update({
+            condition,
+            circulation_status: circulationStatus,
+            condition_notes: conditionNotes,
+            shelf_location: shelfLocation,
+          })
+          .eq("id", Number(raw.id));
+      } else {
+        await supabase.from("book_copies").upsert(
+          {
+            book_id: bookId,
+            copy_number: copyNumber,
+            accession_number: accessionNumber,
+            condition,
+            circulation_status: circulationStatus,
+            condition_notes: conditionNotes,
+            shelf_location: shelfLocation,
+          },
+          { onConflict: "book_id,copy_number" }
+        );
+      }
+    } catch {
+      // Graceful fallback if book_copies table or Destroyed check constraint not yet migrated
+    }
+  }
+
+  return {
+    synced: true,
+    volumes: copiesPayload.length,
+    availableCopies,
+    damagedCopies,
+    destroyedCopies,
+    lostCopies,
+  };
+}
+
 export async function queryInventory(supabase: SupabaseClient) {
   const [invRes, booksRes, copiesRes] = await Promise.all([
     supabase
       .from("book_inventory")
-      .select(
-        "id, book_id, volumes, available_copies, damaged_copies, lost_copies, shelf_location, status, created_at"
-      )
+      .select("*")
       .order("id", { ascending: false }),
     supabase
       .from("books")
-      .select("id, call_number, title, author, isbn, is_borrowable"),
+      .select("id, call_number, title, author, isbn, category, class, publisher, published_date, is_borrowable"),
     supabase
       .from("book_copies")
       .select(
@@ -86,6 +197,10 @@ export async function queryInventory(supabase: SupabaseClient) {
       title: string | null;
       author: string | null;
       isbn: string | null;
+      category: string | null;
+      class: string | null;
+      publisher: string | null;
+      published_date: string | null;
       is_borrowable: boolean;
     }
   >();
@@ -110,8 +225,25 @@ export async function queryInventory(supabase: SupabaseClient) {
     const availableCopies = Number(inv.available_copies ?? 0);
     const damagedCopies = Number(inv.damaged_copies ?? 0);
     const lostCopies = Number(inv.lost_copies ?? 0);
-    const borrowedCopies = Math.max(0, volumes - availableCopies - damagedCopies - lostCopies);
     const dbCopies = copiesByBook.get(bookId);
+
+    const dbDestroyedCount = (dbCopies ?? []).filter(
+      (cp) => String(cp.condition) === "Destroyed"
+    ).length;
+    const destroyedCopies = Math.max(
+      Number((inv as Record<string, unknown>).destroyed_copies ?? 0),
+      dbDestroyedCount
+    );
+
+    const borrowedCopies = Math.max(
+      0,
+      volumes - availableCopies - damagedCopies - destroyedCopies - lostCopies
+    );
+
+    const callNumber = b?.call_number ?? "";
+    const catalogCode =
+      callNumber.trim() || `ICPL-BK-${String(bookId).padStart(4, "0")}`;
+
     const copies =
       dbCopies && dbCopies.length > 0
         ? dbCopies
@@ -121,25 +253,49 @@ export async function queryInventory(supabase: SupabaseClient) {
             availableCopies,
             damagedCopies,
             lostCopies,
-            String(inv.shelf_location ?? "")
+            String(inv.shelf_location ?? ""),
+            destroyedCopies,
+            callNumber || null
           );
 
-    const damagedAccessions = copies
-      .filter((cp) => String(cp.condition) === "Damaged")
-      .map((cp) => String(cp.accession_number))
+    const flaggedAccessions = copies
+      .filter((cp) => {
+        const cond = String(cp.condition);
+        return (
+          cond === "Damaged" ||
+          cond === "Destroyed" ||
+          cond === "Lost" ||
+          cond === "Under Repair"
+        );
+      })
+      .map((cp) => `${String(cp.accession_number)} (${String(cp.condition)})`)
       .join(", ");
 
     return {
       ...inv,
+      catalog_code: catalogCode,
       book_title: b ? safeDecryptData(b.title) : `Book #${inv.book_id}`,
       book_author: b ? safeDecryptData(b.author) : "—",
-      call_number: b?.call_number ?? "",
+      call_number: callNumber,
       isbn: b ? safeDecryptData(b.isbn) : "",
+      category: b ? safeDecryptData(b.category) : "",
+      class: b ? safeDecryptData(b.class) : "",
+      publisher: b ? safeDecryptData(b.publisher) : "",
+      published_date: b?.published_date ?? "",
       is_borrowable: b?.is_borrowable ?? true,
       borrowed_copies: borrowedCopies,
-      condition_status: computeConditionSummary(availableCopies, damagedCopies, lostCopies),
+      destroyed_copies: destroyedCopies,
+      condition_status: computeConditionSummary(
+        availableCopies,
+        damagedCopies,
+        lostCopies,
+        destroyedCopies
+      ),
       damaged_accessions:
-        damagedAccessions || (damagedCopies > 0 ? `${damagedCopies} copy/copies` : "None"),
+        flaggedAccessions ||
+        (damagedCopies + destroyedCopies + lostCopies > 0
+          ? `${damagedCopies + destroyedCopies + lostCopies} flagged copy/copies`
+          : "None"),
       copies,
     };
   });
@@ -153,28 +309,71 @@ export async function mutateInventory(
 ) {
   if (!id) throw new AdminMutationError("Inventory ID is required.");
 
-  const volumes = Math.max(0, Number(payload.volumes ?? 0) || 0);
-  const availableCopies = Math.max(0, Number(payload.available_copies ?? 0) || 0);
-  const damagedCopies = Math.max(0, Number(payload.damaged_copies ?? 0) || 0);
-  const lostCopies = Math.max(0, Number(payload.lost_copies ?? 0) || 0);
+  const { data: currentInv } = await supabase
+    .from("book_inventory")
+    .select("book_id")
+    .eq("id", id)
+    .single();
+
+  const bookId = Number(currentInv?.book_id ?? payload.book_id ?? 0);
+
+  let volumes = Math.max(0, Number(payload.volumes ?? 0) || 0);
+  let availableCopies = Math.max(0, Number(payload.available_copies ?? 0) || 0);
+  let damagedCopies = Math.max(0, Number(payload.damaged_copies ?? 0) || 0);
+  let destroyedCopies = Math.max(0, Number(payload.destroyed_copies ?? 0) || 0);
+  let lostCopies = Math.max(0, Number(payload.lost_copies ?? 0) || 0);
+
+  if (bookId && Array.isArray(payload.copies) && payload.copies.length > 0) {
+    const synced = await syncBookCopiesInDb(supabase, bookId, payload.copies);
+    if (synced && payload.sync_counts_from_copies !== false) {
+      volumes = Math.max(volumes, synced.volumes);
+      availableCopies = synced.availableCopies;
+      damagedCopies = synced.damagedCopies;
+      destroyedCopies = synced.destroyedCopies;
+      lostCopies = synced.lostCopies;
+    }
+  }
+
   const shelfLocation = String(payload.shelf_location ?? "").trim() || null;
   const status = String(payload.status ?? "Available").trim() || "Available";
+  const conditionStatus = computeConditionSummary(
+    availableCopies,
+    damagedCopies,
+    lostCopies,
+    destroyedCopies
+  );
 
-  const { data: updatedInv, error } = await supabase
+  const baseUpdate: Record<string, unknown> = {
+    volumes,
+    available_copies: Math.min(volumes, availableCopies),
+    damaged_copies: damagedCopies,
+    lost_copies: lostCopies,
+    shelf_location: shelfLocation,
+    status,
+  };
+
+  let { data: updatedInv, error } = await supabase
     .from("book_inventory")
     .update({
-      volumes,
-      available_copies: Math.min(volumes, availableCopies),
-      damaged_copies: damagedCopies,
-      lost_copies: lostCopies,
-      shelf_location: shelfLocation,
-      status,
+      ...baseUpdate,
+      destroyed_copies: destroyedCopies,
+      condition_status: conditionStatus,
     })
     .eq("id", id)
     .select("book_id")
     .single();
 
-  if (error) throw new AdminMutationError(error.message, 500);
+  if (error) {
+    // Fallback if migration 004/009 columns (destroyed_copies / condition_status) aren't in DB yet
+    const retry = await supabase
+      .from("book_inventory")
+      .update(baseUpdate)
+      .eq("id", id)
+      .select("book_id")
+      .single();
+    if (retry.error) throw new AdminMutationError(retry.error.message, 500);
+    updatedInv = retry.data;
+  }
 
   if (updatedInv?.book_id && payload.is_borrowable !== undefined) {
     await supabase

@@ -8,7 +8,7 @@ export default function AdminBooksPage() {
       subtitle="Cataloged titles, call numbers, ISBN lookup, available & damaged copy counts, and borrowing policies."
       resource="books"
       columns={[
-        { key: "id", label: "ID", mono: true },
+        { key: "id", label: "Book ID", mono: true },
         { key: "call_number", label: "Call No.", mono: true },
         { key: "title", label: "Title" },
         { key: "author", label: "Author" },

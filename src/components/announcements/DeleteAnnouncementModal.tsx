@@ -21,6 +21,9 @@ export function DeleteAnnouncementModal({
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const cancelBtnRef = useRef<HTMLButtonElement | null>(null);
 
+  const stateRef = useRef({ deleting, onCancel });
+  stateRef.current = { deleting, onCancel };
+
   useEffect(() => {
     if (!open) return;
     cancelBtnRef.current?.focus();
@@ -28,7 +31,7 @@ export function DeleteAnnouncementModal({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        if (!deleting) onCancel();
+        if (!stateRef.current.deleting) stateRef.current.onCancel();
         return;
       }
       if (e.key !== "Tab" || !dialogRef.current) return;
@@ -49,7 +52,7 @@ export function DeleteAnnouncementModal({
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open, deleting, onCancel]);
+  }, [open]);
 
   if (!open) return null;
 

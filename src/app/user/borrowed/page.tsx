@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import {
   AlertCircle,
+  ArrowUpDown,
   BookmarkCheck,
   BookOpen,
   CalendarClock,
@@ -12,6 +13,9 @@ import {
   Loader2,
   RefreshCw,
   RotateCw,
+  Search,
+  SlidersHorizontal,
+  X,
 } from "lucide-react";
 import { MemberShell } from "@/components/layout/MemberShell";
 import { Button } from "@/components/ui/button";
@@ -44,8 +48,34 @@ export default function UserBorrowedPage() {
   );
   const [renewingCardId, setRenewingCardId] = useState<number | null>(null);
   const [banner, setBanner] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "renewable" | "pending_renewal">("all");
+  const [sortBy, setSortBy] = useState<"due" | "title">("due");
 
   const books = data?.borrowedBooks ?? [];
+
+  const filteredBooks = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = books.filter((item) => {
+      if (statusFilter === "renewable" && !item.can_renew) return false;
+      if (statusFilter === "pending_renewal" && !item.has_pending_renewal) return false;
+      if (!q) return true;
+      return (
+        item.book_title.toLowerCase().includes(q) ||
+        item.book_author.toLowerCase().includes(q) ||
+        (item.book_isbn || "").toLowerCase().includes(q) ||
+        String(item.card_id).includes(q) ||
+        String(item.book_id ?? "").includes(q)
+      );
+    });
+
+    return [...list].sort((a, b) => {
+      if (sortBy === "title") {
+        return a.book_title.localeCompare(b.book_title);
+      }
+      return String(a.date_return || "9999").localeCompare(String(b.date_return || "9999"));
+    });
+  }, [books, query, statusFilter, sortBy]);
 
   const handleRenew = async (cardId: number) => {
     setRenewingCardId(cardId);
@@ -81,9 +111,98 @@ export default function UserBorrowedPage() {
             Track active loans, due dates, and library card renewal eligibility.
           </p>
         </div>
-        <Button variant="secondary" size="sm" onClick={() => mutate()}>
-          <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          {(query.trim() !== "" || statusFilter !== "all") && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                setStatusFilter("all");
+              }}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-tl transition hover:border-white/20 hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" /> Reset
+            </button>
+          )}
+          <Button variant="secondary" size="sm" onClick={() => mutate()}>
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Unified Browse-Catalog Command Search & Filter Bar */}
+      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="group relative flex-1">
+          <div className="pointer-events-none absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-accent/20 via-accent2/10 to-accent/20 opacity-0 blur transition duration-300 group-focus-within:opacity-100" />
+          <div className="relative flex h-[48px] items-center rounded-2xl border border-white/12 bg-bg1/90 px-4 shadow-[0_8px_30px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-all duration-200 focus-within:border-accent/50 focus-within:bg-bg1">
+            <Search className="h-4.5 w-4.5 shrink-0 text-accent/80" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search borrowed books by title, author, ISBN, or Card #..."
+              className="w-full bg-transparent py-2 pl-3 pr-3 text-[0.9rem] text-white placeholder:text-white/38 focus:outline-none"
+            />
+            {query ? (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-white/8 text-white/60 hover:text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <kbd className="hidden shrink-0 items-center rounded-lg border border-white/10 bg-white/5 px-2 py-1 font-mono text-[0.68rem] text-white/45 sm:inline-flex">
+                ⌘K
+              </kbd>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {(
+            [
+              { id: "all", label: "All Loans" },
+              { id: "renewable", label: "Eligible to Renew" },
+              { id: "pending_renewal", label: "Pending Approval" },
+            ] as const
+          ).map((pill) => {
+            const active = statusFilter === pill.id;
+            return (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => setStatusFilter(pill.id)}
+                className={`inline-flex h-[48px] cursor-pointer items-center gap-2 rounded-2xl border px-4 text-xs font-semibold transition-all ${
+                  active
+                    ? "border-accent/45 bg-accent/15 text-accent shadow-[0_0_20px_rgba(147,197,253,0.14)]"
+                    : "border-white/12 bg-bg1/85 text-white/80 hover:border-white/22 hover:bg-white/8 hover:text-white"
+                }`}
+              >
+                {pill.label}
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={() => setSortBy((s) => (s === "due" ? "title" : "due"))}
+            className="inline-flex h-[48px] cursor-pointer items-center gap-2 rounded-2xl border border-white/12 bg-bg1/85 px-4 text-xs font-semibold text-white/80 transition hover:border-white/22 hover:bg-white/8 hover:text-white"
+          >
+            <ArrowUpDown className="h-3.5 w-3.5 text-accent/80" />
+            <span className="text-white/45">Sort:</span>
+            <span className="text-white">{sortBy === "due" ? "Due Date" : "Title (A–Z)"}</span>
+          </button>
+
+          <div className="ml-auto flex h-[48px] items-center gap-1.5 rounded-2xl border border-white/8 bg-white/[0.03] px-3.5 text-xs text-tl lg:ml-0">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-accent/70" />
+            <span className="whitespace-nowrap">
+              <strong className="font-semibold text-white">{filteredBooks.length}</strong> /{" "}
+              {books.length}
+            </span>
+          </div>
+        </div>
       </div>
 
       {banner && (
@@ -113,13 +232,16 @@ export default function UserBorrowedPage() {
             <div key={i} className="h-24 animate-pulse rounded-2xl bg-white/5" />
           ))}
         </div>
-      ) : books.length === 0 ? (
+      ) : filteredBooks.length === 0 ? (
         <div className="rounded-2xl border border-white/10 bg-card-glass p-12 text-center">
           <BookmarkCheck className="mx-auto mb-3 h-10 w-10 text-accent/55" />
-          <h2 className="text-base font-bold text-white">No Active Borrowed Books</h2>
+          <h2 className="text-base font-bold text-white">
+            {books.length === 0 ? "No Active Borrowed Books" : "No Matching Loans Found"}
+          </h2>
           <p className="mx-auto mt-1.5 max-w-[420px] text-xs leading-relaxed text-tl/75">
-            Books checked out using your Iloilo City Public Library card will appear here with due
-            dates and renewal options.
+            {books.length === 0
+              ? "Books checked out using your Iloilo City Public Library card will appear here with due dates and renewal options."
+              : "Try clearing your search or status filter to view all active loans."}
           </p>
           <Button variant="accent" size="sm" className="mt-5" asChild>
             <Link href="/user/browse">
@@ -129,18 +251,19 @@ export default function UserBorrowedPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {books.map((item) => (
+          {filteredBooks.map((item) => (
             <article
               key={`${item.card_id}-${item.id}`}
               className="flex flex-col justify-between rounded-2xl border border-white/10 bg-card-glass p-5 backdrop-blur-sm"
             >
               <div>
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="rounded-full border border-accent/25 bg-accent/10 px-2.5 py-0.5 font-mono text-[0.68rem] font-semibold text-accent">
-                    Card #{item.card_id} · Qty {item.quantity}
+                  <span className="whitespace-nowrap rounded-full border border-accent/25 bg-accent/10 px-2.5 py-0.5 font-mono text-[0.68rem] font-semibold text-accent">
+                    Card #{item.card_id}
+                    {item.book_id ? ` · Book #${item.book_id}` : ""} · Qty {item.quantity}
                   </span>
                   {item.date_return && (
-                    <span className="inline-flex items-center gap-1 font-mono text-[0.72rem] text-warn">
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap font-mono text-[0.72rem] text-warn">
                       <CalendarClock className="h-3.5 w-3.5" />
                       Due {item.date_return}
                     </span>
@@ -159,9 +282,10 @@ export default function UserBorrowedPage() {
                 <span className="font-mono text-[0.7rem] text-white/50">
                   Issued {item.date_issued || "—"}
                 </span>
+
                 {item.has_pending_renewal ? (
-                  <span className="rounded-full border border-warn/30 bg-warn/12 px-2.5 py-1 text-[0.68rem] font-semibold text-warn">
-                    Renewal Pending
+                  <span className="whitespace-nowrap rounded-lg border border-warn/30 bg-warn/12 px-2.5 py-1 text-[0.7rem] font-semibold text-warn">
+                    Renewal Pending Approval
                   </span>
                 ) : item.can_renew ? (
                   <Button
@@ -178,7 +302,7 @@ export default function UserBorrowedPage() {
                     Request Renewal
                   </Button>
                 ) : (
-                  <span className="text-[0.68rem] text-white/40">Max renewals reached</span>
+                  <span className="text-[0.7rem] text-white/40">Max renewals used</span>
                 )}
               </div>
             </article>

@@ -101,10 +101,11 @@ export async function runSupabaseBackup(
       errorMessage = "Dropbox credentials not configured (DROPBOX_APP_KEY / SECRET / REFRESH_TOKEN).";
     }
 
+    const dbBackupType = options.backupType === "manual" ? "manual" : "auto";
     const { data: logRow, error: logErr } = await supabase
       .from("backup_logs")
       .insert({
-        backup_type: options.backupType,
+        backup_type: dbBackupType,
         scope,
         file_name: fileName,
         file_size_bytes: byteSize,
@@ -129,10 +130,11 @@ export async function runSupabaseBackup(
     const message = err instanceof Error ? err.message : "Backup execution failed.";
     logger.error("Supabase backup job failed", { error: message });
 
+    const dbBackupType = options.backupType === "manual" ? "manual" : "auto";
     const { data: logRow } = await supabase
       .from("backup_logs")
       .insert({
-        backup_type: options.backupType,
+        backup_type: dbBackupType,
         scope,
         file_name: fileName,
         file_size_bytes: 0,

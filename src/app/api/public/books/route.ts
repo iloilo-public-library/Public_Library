@@ -66,7 +66,11 @@ export async function GET() {
     }
 
     const books = ((data ?? []) as BookRow[]).map((b) => {
-      const inv = Array.isArray(b.book_inventory) ? b.book_inventory : [];
+      const inv = Array.isArray(b.book_inventory)
+        ? b.book_inventory
+        : b.book_inventory
+          ? [b.book_inventory]
+          : [];
       const totalCopies = inv.reduce((sum, row) => sum + (row.volumes ?? 0), 0);
       const availableCopies = inv.reduce((sum, row) => sum + (row.available_copies ?? 0), 0);
 

@@ -165,7 +165,7 @@ export async function GET(request: Request) {
       const safeQ = q.replace(/[%_,()]/g, "");
       if (safeQ) {
         query = query.or(
-          `firstname.ilike.%${safeQ}%,lastname.ilike.%${safeQ}%,email_display.ilike.%${safeQ}%,phone_number.ilike.%${safeQ}%`
+          `firstname.ilike.%${safeQ}%,lastname.ilike.%${safeQ}%,email_display.ilike.%${safeQ}%,username.ilike.%${safeQ}%,phone_number.ilike.%${safeQ}%`
         );
       }
     }

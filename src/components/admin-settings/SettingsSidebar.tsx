@@ -45,6 +45,9 @@ export function SettingsSidebar({
   const drawerRef = useRef<HTMLElement | null>(null);
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
 
+  const onCloseMobileRef = useRef(onCloseMobile);
+  onCloseMobileRef.current = onCloseMobile;
+
   // Escape key & focus trap when mobile drawer is open
   useEffect(() => {
     if (!mobileOpen) return;
@@ -55,7 +58,7 @@ export function SettingsSidebar({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onCloseMobile();
+        onCloseMobileRef.current();
         return;
       }
       if (e.key !== "Tab" || !drawerRef.current) return;
@@ -79,7 +82,7 @@ export function SettingsSidebar({
       document.removeEventListener("keydown", handleKeyDown);
       prevFocused?.focus();
     };
-  }, [mobileOpen, onCloseMobile]);
+  }, [mobileOpen]);
 
   const handleItemClick = (section: SectionId) => {
     onSelectSection(section);

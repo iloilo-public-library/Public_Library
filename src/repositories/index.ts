@@ -39,8 +39,20 @@ export async function queryAdminResource(
   supabase: SupabaseClient,
   resource: string,
   sessionUserId: number | null,
-  queryOptions?: QueryEventsOptions
+  queryOptions?: QueryEventsOptions,
+  sessionRole?: string | null
 ) {
+  const adminOnlyReadResources = new Set([
+    "admins",
+    "librarians",
+    "system_settings",
+    "error_logs",
+    "backup_logs",
+  ]);
+  if (adminOnlyReadResources.has(resource) && sessionRole !== "admin") {
+    throw new AdminMutationError("Forbidden — administrator privileges required.", 403);
+  }
+
   switch (resource) {
     case "inventory":
       return queryInventory(supabase);
@@ -59,8 +71,18 @@ export async function queryAdminResource(
     case "admins":
       return queryAccountsByRole(supabase, resource);
 
-    case "account_requests":
-      return queryAccountRequests(supabase);
+    case "account_requests": {
+      const res = await queryAccountRequests(supabase);
+      if (sessionRole === "librarian") {
+        return {
+          ...res,
+          rows: (res.rows ?? []).filter(
+            (r) => String((r as Record<string, unknown>).request_type) === "renew"
+          ),
+        };
+      }
+      return res;
+    }
 
     case "events":
       return queryEvents(supabase, queryOptions);

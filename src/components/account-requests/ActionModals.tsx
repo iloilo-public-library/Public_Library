@@ -18,6 +18,8 @@ import { type AccountRequestRow, type RequestType, getDisplayName } from "./type
 
 function useDialogAccessibility(isOpen: boolean, onClose: () => void, busy: boolean) {
   const ref = useRef<HTMLDivElement>(null);
+  const stateRef = useRef({ onClose, busy });
+  stateRef.current = { onClose, busy };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -25,9 +27,9 @@ function useDialogAccessibility(isOpen: boolean, onClose: () => void, busy: bool
     ref.current?.focus();
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) {
+      if (e.key === "Escape" && !stateRef.current.busy) {
         e.preventDefault();
-        onClose();
+        stateRef.current.onClose();
         return;
       }
       if (e.key === "Tab" && ref.current) {
@@ -52,7 +54,7 @@ function useDialogAccessibility(isOpen: boolean, onClose: () => void, busy: bool
       document.removeEventListener("keydown", onKeyDown);
       prev?.focus();
     };
-  }, [isOpen, onClose, busy]);
+  }, [isOpen]);
 
   return ref;
 }

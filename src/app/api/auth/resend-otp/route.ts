@@ -47,7 +47,7 @@ export async function POST(request: Request) {
   try {
     let query = supabase
       .from("users")
-      .select("id, role, email_display, is_active");
+      .select("id, role, username, email_display, is_active");
 
     if (session) {
       query = query.eq("id", session.userId);
@@ -76,7 +76,10 @@ export async function POST(request: Request) {
 
       if (updateErr) throw updateErr;
 
-      const deliveryEmail = targetEmail || String(user.email_display || "");
+      const deliveryEmail =
+        targetEmail ||
+        String(user.email_display || "") ||
+        (String(user.username || "").includes("@") ? String(user.username) : "");
       if (deliveryEmail.includes("@")) {
         await sendOtpEmail(deliveryEmail, otp);
       }

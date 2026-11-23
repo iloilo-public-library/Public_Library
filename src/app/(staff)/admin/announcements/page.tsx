@@ -422,74 +422,69 @@ export default function AdminAnnouncementsPage() {
           </div>
         </div>
 
-        {/* Filter Bar */}
-        <div className="mb-6 flex flex-wrap items-center gap-2">
-          <div
-            className="flex flex-wrap items-center gap-2"
-            role="group"
-            aria-label="Filter announcements by category"
-          >
-            {FILTER_PILLS.map((pill) => {
-              const active = currentFilter === pill.value;
-              return (
-                <button
-                  key={pill.value}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setCurrentFilter(pill.value)}
-                  className="min-h-[44px] rounded-full px-4 py-1.5 text-[0.8rem] font-semibold transition cursor-pointer"
-                  style={
-                    active
-                      ? {
-                          backgroundColor: "rgba(var(--accent-rgb), 0.15)",
-                          border: "1px solid var(--accent)",
-                          color: "var(--accent)",
-                        }
-                      : {
-                          backgroundColor: "var(--ann-pill-bg)",
-                          border: "1px solid var(--ann-pill-border)",
-                          color: "var(--ann-text-muted)",
-                        }
-                  }
-                >
-                  {pill.label}
-                </button>
-              );
-            })}
-          </div>
+        {/* Unified Browse-Catalog Command Search & Category Filter Bar */}
+        <div className="mb-6 space-y-2.5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="group relative flex-1">
+              <div className="pointer-events-none absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-accent/20 via-accent2/10 to-accent/20 opacity-0 blur transition duration-300 group-focus-within:opacity-100" />
+              <div className="relative flex h-[48px] items-center rounded-2xl border border-white/12 bg-bg1/90 px-4 shadow-[0_8px_30px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-all duration-200 focus-within:border-accent/50 focus-within:bg-bg1">
+                <Search className="h-4.5 w-4.5 shrink-0 text-accent/80" aria-hidden="true" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  aria-label="Search announcements"
+                  placeholder="Search announcements by title, body content, or author..."
+                  className="w-full bg-transparent py-2 pl-3 pr-3 text-[0.9rem] text-white placeholder:text-white/38 focus:outline-none"
+                />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    onClick={() => setSearchQuery("")}
+                    className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-white/8 text-white/60 transition hover:bg-white/15 hover:text-white"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                ) : (
+                  <kbd className="hidden shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 font-mono text-[0.68rem] font-medium text-white/45 sm:inline-flex">
+                    <span>⌘K</span>
+                  </kbd>
+                )}
+              </div>
+            </div>
 
-          <div
-            className="relative flex min-h-[44px] w-full items-center gap-2 rounded-full px-4 py-1.5 md:ml-auto md:w-auto"
-            style={{
-              backgroundColor: "var(--ann-input-bg)",
-              border: "1px solid var(--ann-input-border)",
-            }}
-          >
-            <Search
-              className="h-3.5 w-3.5 shrink-0"
-              style={{ color: "var(--ann-text-muted)" }}
-              aria-hidden="true"
-            />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              aria-label="Search announcements"
-              placeholder="Search announcements…"
-              className="w-full bg-transparent text-[0.84rem] outline-none md:w-[190px]"
-              style={{ color: "var(--ann-text-primary)" }}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                aria-label="Clear search"
-                onClick={() => setSearchQuery("")}
-                className="flex h-7 w-7 items-center justify-center rounded-full cursor-pointer"
-                style={{ color: "var(--ann-text-muted)" }}
-              >
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-            )}
+            <div
+              className="flex flex-wrap items-center gap-2"
+              role="group"
+              aria-label="Filter announcements by category"
+            >
+              {FILTER_PILLS.map((pill) => {
+                const active = currentFilter === pill.value;
+                return (
+                  <button
+                    key={pill.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setCurrentFilter(pill.value)}
+                    className={`inline-flex h-[48px] cursor-pointer items-center gap-2 rounded-2xl border px-4 text-xs font-semibold transition-all ${
+                      active
+                        ? "border-accent/45 bg-accent/15 text-accent shadow-[0_0_20px_rgba(147,197,253,0.14)]"
+                        : "border-white/12 bg-bg1/85 text-white/80 hover:border-white/22 hover:bg-white/8 hover:text-white"
+                    }`}
+                  >
+                    {pill.label}
+                  </button>
+                );
+              })}
+
+              <div className="ml-auto flex h-[48px] items-center gap-1.5 rounded-2xl border border-white/8 bg-white/[0.03] px-3.5 text-xs text-tl lg:ml-0">
+                <span className="whitespace-nowrap">
+                  <strong className="font-semibold text-white">{filtered.length}</strong> /{" "}
+                  {totalCount}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 

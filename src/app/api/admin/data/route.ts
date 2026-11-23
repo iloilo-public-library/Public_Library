@@ -23,13 +23,119 @@ async function requireStaffSession() {
   return session;
 }
 
-async function lookupByIsbn(rawIsbn: string) {
-  const isbn = rawIsbn.replace(/[^0-9Xx-]/g, "").trim();
-  if (!isbn) return { found: false };
+const NOISY_SUBJECT_RE =
+  /^(accessible book|protected daisy|in library|overdrive|large type|open library|lending library|internet archive|reading level|nyt:|series:|place:|time:|person:|award:|collection:|ddc:|lcc:|bisac:|dewey )/i;
 
+const GENRE_KEYWORDS: Array<{ match: RegExp; genre: string; category: string }> = [
+  { match: /\b(fantasy|magic|wizards|hogwarts|dragons)\b/i, genre: "Fantasy", category: "Fantasy & Young Adult" },
+  { match: /\b(cybersecurity|information security|network security|cryptography|hacking)\b/i, genre: "Cybersecurity", category: "Computer Science & IT" },
+  { match: /\b(computer|programming|software|algorithm|database|artificial intelligence|data science)\b/i, genre: "Computer Science", category: "Computer Science & IT" },
+  { match: /\b(mystery|detective|crime|thriller|suspense|sherlock)\b/i, genre: "Mystery", category: "Mystery & Detective" },
+  { match: /\b(romance|love stories)\b/i, genre: "Romance", category: "Contemporary Fiction" },
+  { match: /\b(science fiction|sci-fi|dystopian|space opera)\b/i, genre: "Science Fiction", category: "Fiction & Literature" },
+  { match: /\b(historical fiction)\b/i, genre: "Historical Fiction", category: "Fiction & Literature" },
+  { match: /\b(philippine|filipino|tagalog|rizal|iloilo)\b/i, genre: "Philippine Literature", category: "Philippine Literature" },
+  { match: /\b(biography|autobiography|memoir)\b/i, genre: "Biography", category: "Biography & History" },
+  { match: /\b(history|historical|civilization|war)\b/i, genre: "History", category: "Biography & History" },
+  { match: /\b(philosophy|ethics|stoicism|metaphysics|justice)\b/i, genre: "Philosophy", category: "Philosophy & Ethics" },
+  { match: /\b(adventure|travel|pilgrimage|explorers)\b/i, genre: "Adventure", category: "Fiction & Literature" },
+  { match: /\b(classic|classics|19th century|shakespeare)\b/i, genre: "Classics", category: "Classic Literature" },
+  { match: /\b(poetry|poems)\b/i, genre: "Poetry", category: "Fiction & Literature" },
+  { match: /\b(young adult|juvenile fiction|children's stories|children)\b/i, genre: "Young Adult Fiction", category: "Fantasy & Young Adult" },
+  { match: /\b(science|physics|chemistry|biology|mathematics|astronomy|medicine)\b/i, genre: "Science", category: "Science & Technology" },
+  { match: /\b(fiction|novels|stories)\b/i, genre: "Fiction", category: "Fiction & Literature" },
+];
+
+function cleanSubjectTokens(rawList: string[]): string[] {
+  const seen = new Set<string>();
+  const tokens: string[] = [];
+
+  for (const raw of rawList) {
+    if (!raw) continue;
+    const parts = raw
+      .split(/[\/—]|--/)
+      .map((p) => p.replace(/_/g, " ").trim())
+      .filter(Boolean);
+
+    for (const part of parts) {
+      if (part.includes(":") || NOISY_SUBJECT_RE.test(part)) continue;
+      if (part.length < 2 || part.length > 70) continue;
+      const key = part.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        tokens.push(part);
+      }
+    }
+  }
+  return tokens;
+}
+
+function resolveCategoryAndGenre(
+  rawSubjects: string[],
+  title = "",
+  description = ""
+): { category: string; genre: string } {
+  const tokens = cleanSubjectTokens(rawSubjects);
+  const combinedHaystack = `${tokens.join(" | ")} ${title} ${description}`;
+
+  let matchedCategory = "";
+  let matchedGenre = "";
+
+  for (const rule of GENRE_KEYWORDS) {
+    if (rule.match.test(combinedHaystack)) {
+      if (!matchedGenre) matchedGenre = rule.genre;
+      if (!matchedCategory) matchedCategory = rule.category;
+      break;
+    }
+  }
+
+  const primaryToken = tokens[0] || "";
+  const secondaryToken =
+    tokens.find((t) => t.toLowerCase() !== primaryToken.toLowerCase()) || "";
+
+  const category = matchedCategory || primaryToken || "General Reference";
+  const genre =
+    matchedGenre ||
+    secondaryToken ||
+    primaryToken ||
+    "General";
+
+  return { category, genre };
+}
+
+async function lookupByIsbn(rawIsbn: string) {
+  const cleanDigits = rawIsbn.replace(/[^0-9Xx]/g, "").toUpperCase();
+  if (!cleanDigits) return { found: false };
+
+  let gBook: {
+    title: string;
+    subtitle: string;
+    author: string;
+    publisher: string;
+    published_date: string;
+    description: string;
+    page_count: number | string;
+    subjects: string[];
+    language: string;
+    thumbnail_url: string;
+  } | null = null;
+
+  let olBook: {
+    title: string;
+    subtitle: string;
+    author: string;
+    publisher: string;
+    published_date: string;
+    description: string;
+    page_count: number | string;
+    subjects: string[];
+    thumbnail_url: string;
+  } | null = null;
+
+  // 1. Fetch Google Books (using digits-only ISBN for exact matching)
   try {
     const gRes = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}`,
+      `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(cleanDigits)}`,
       { next: { revalidate: 3600 } }
     );
     if (gRes.ok) {
@@ -45,37 +151,46 @@ async function lookupByIsbn(rawIsbn: string) {
             pageCount?: number;
             categories?: string[];
             language?: string;
-            imageLinks?: { thumbnail?: string };
+            imageLinks?: { thumbnail?: string; smallThumbnail?: string };
+            industryIdentifiers?: Array<{ type?: string; identifier?: string }>;
           };
         }[];
       };
-      const info = gJson.items?.[0]?.volumeInfo;
+      const items = gJson.items ?? [];
+      const exactItem =
+        items.find((it) =>
+          (it.volumeInfo?.industryIdentifiers ?? []).some(
+            (id) => (id.identifier || "").replace(/[^0-9Xx]/g, "").toUpperCase() === cleanDigits
+          )
+        ) ?? items[0];
+      const info = exactItem?.volumeInfo;
       if (info?.title) {
-        return {
-          found: true,
-          book: {
-            title: info.title,
-            subtitle: info.subtitle ?? "",
-            author: (info.authors ?? []).join(", "),
-            publisher: info.publisher ?? "",
-            published_date: info.publishedDate ?? "",
-            description: info.description ?? "",
-            page_count: info.pageCount ?? "",
-            category: info.categories?.[0] ?? "",
-            language: (info.language ?? "en").slice(0, 5),
-            thumbnail_url: info.imageLinks?.thumbnail?.replace("http://", "https://") ?? "",
-            api_source: "Google Books",
-          },
+        gBook = {
+          title: info.title,
+          subtitle: info.subtitle ?? "",
+          author: (info.authors ?? []).join(", "),
+          publisher: info.publisher ?? "",
+          published_date: info.publishedDate ?? "",
+          description: info.description ?? "",
+          page_count: info.pageCount ?? "",
+          subjects: info.categories ?? [],
+          language: (info.language ?? "en").slice(0, 5),
+          thumbnail_url:
+            (info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || "").replace(
+              "http://",
+              "https://"
+            ),
         };
       }
     }
   } catch {
-    // Fallback to OpenLibrary
+    // Continue to Open Library
   }
 
+  // 2. Fetch Open Library (enriches subjects/genre or serves as primary when Google Books misses)
   try {
     const olRes = await fetch(
-      `https://openlibrary.org/api/books?bibkeys=ISBN:${encodeURIComponent(isbn)}&format=json&jscmd=data`,
+      `https://openlibrary.org/api/books?bibkeys=ISBN:${encodeURIComponent(cleanDigits)}&format=json&jscmd=data`,
       { next: { revalidate: 3600 } }
     );
     if (olRes.ok) {
@@ -88,35 +203,73 @@ async function lookupByIsbn(rawIsbn: string) {
           publishers?: { name: string }[];
           publish_date?: string;
           number_of_pages?: number;
-          subjects?: { name: string }[];
+          subjects?: Array<{ name?: string } | string>;
+          notes?: string | { value?: string };
           cover?: { medium?: string; large?: string };
         }
       >;
-      const rec = olJson[`ISBN:${isbn}`];
+      const rec = olJson[`ISBN:${cleanDigits}`];
       if (rec?.title) {
-        return {
-          found: true,
-          book: {
-            title: rec.title,
-            subtitle: rec.subtitle ?? "",
-            author: (rec.authors ?? []).map((a) => a.name).join(", "),
-            publisher: rec.publishers?.[0]?.name ?? "",
-            published_date: rec.publish_date ?? "",
-            description: "",
-            page_count: rec.number_of_pages ?? "",
-            category: rec.subjects?.[0]?.name ?? "",
-            language: "en",
-            thumbnail_url: rec.cover?.medium ?? rec.cover?.large ?? "",
-            api_source: "Open Library",
-          },
+        const subjects = (rec.subjects ?? [])
+          .map((s) => (typeof s === "string" ? s : s?.name ?? ""))
+          .filter(Boolean);
+        const notes =
+          typeof rec.notes === "string"
+            ? rec.notes
+            : typeof rec.notes?.value === "string"
+              ? rec.notes.value
+              : "";
+        olBook = {
+          title: rec.title,
+          subtitle: rec.subtitle ?? "",
+          author: (rec.authors ?? []).map((a) => a.name).join(", "),
+          publisher: rec.publishers?.[0]?.name ?? "",
+          published_date: rec.publish_date ?? "",
+          description: notes,
+          page_count: rec.number_of_pages ?? "",
+          subjects,
+          thumbnail_url: rec.cover?.medium ?? rec.cover?.large ?? "",
         };
       }
     }
   } catch {
-    // Not found
+    // Ignore Open Library network error if Google Books succeeded
   }
 
-  return { found: false };
+  if (!gBook && !olBook) {
+    return { found: false };
+  }
+
+  const title = gBook?.title || olBook?.title || "";
+  const subtitle = gBook?.subtitle || olBook?.subtitle || "";
+  const author = gBook?.author || olBook?.author || "";
+  const publisher = gBook?.publisher || olBook?.publisher || "";
+  const publishedDate = gBook?.published_date || olBook?.published_date || "";
+  const description = gBook?.description || olBook?.description || "";
+  const pageCount = gBook?.page_count || olBook?.page_count || "";
+  const language = gBook?.language || "en";
+  const thumbnailUrl = gBook?.thumbnail_url || olBook?.thumbnail_url || "";
+  const mergedSubjects = [...(gBook?.subjects ?? []), ...(olBook?.subjects ?? [])];
+  const { category, genre } = resolveCategoryAndGenre(mergedSubjects, title, description);
+
+  return {
+    found: true,
+    book: {
+      title,
+      subtitle,
+      author,
+      publisher,
+      published_date: publishedDate,
+      description,
+      page_count: pageCount,
+      category,
+      class: genre,
+      genre,
+      language,
+      thumbnail_url: thumbnailUrl,
+      api_source: gBook && olBook ? "Google Books + Open Library" : gBook ? "Google Books" : "Open Library",
+    },
+  };
 }
 
 export async function GET(request: Request) {
@@ -162,7 +315,8 @@ export async function GET(request: Request) {
       supabase,
       resource,
       isStaff && session ? session.userId : null,
-      resource === "events" ? { from, to, isStaff } : undefined
+      resource === "events" ? { from, to, isStaff } : undefined,
+      isStaff && session ? session.role : null
     );
     return NextResponse.json(payload);
   } catch (err) {

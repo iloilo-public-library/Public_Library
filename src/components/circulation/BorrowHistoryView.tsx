@@ -18,6 +18,7 @@ import {
   Trash2,
   UserCheck,
   UserPlus,
+  X,
 } from "lucide-react";
 import { StaffShell } from "@/components/layout/StaffShell";
 import { apiMutate, swrPrivateConfig } from "@/lib/api";
@@ -414,78 +415,111 @@ export function BorrowHistoryView() {
             </button>
           </div>
 
-          {/* Toolbar */}
-          <div className="circ-toolbar">
-            <div className="circ-search-bar" style={{ flex: "1 1 220px", minHeight: 42 }}>
-              <Search className="h-4 w-4 opacity-60 shrink-0" aria-hidden="true" />
-              <input
-                type="text"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder={
-                  activeTab === "all"
-                    ? "Search name, book, or ISBN…"
-                    : "Search borrower or book…"
-                }
-                aria-label="Search records"
-              />
-            </div>
+          {/* Unified Browse-Catalog Command Search & Filter Toolbar */}
+          <div className="p-4 border-b border-white/8 space-y-2.5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="group relative flex-1">
+                <div className="pointer-events-none absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-accent/20 via-accent2/10 to-accent/20 opacity-0 blur transition duration-300 group-focus-within:opacity-100" />
+                <div className="relative flex h-[48px] items-center rounded-2xl border border-white/12 bg-bg1/90 px-4 shadow-[0_8px_30px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-all duration-200 focus-within:border-accent/50 focus-within:bg-bg1">
+                  <Search className="h-4.5 w-4.5 shrink-0 text-accent/80" aria-hidden="true" />
+                  <input
+                    type="text"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    placeholder={
+                      activeTab === "all"
+                        ? "Search borrower name, book title, Book ID, or ISBN..."
+                        : "Search borrower name, returned book title, or ISBN..."
+                    }
+                    aria-label="Search records"
+                    className="w-full bg-transparent py-2 pl-3 pr-3 text-[0.9rem] text-white placeholder:text-white/38 focus:outline-none"
+                  />
+                  {searchInput ? (
+                    <button
+                      type="button"
+                      onClick={() => setSearchInput("")}
+                      aria-label="Clear search"
+                      className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-white/8 text-white/60 transition hover:bg-white/15 hover:text-white"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  ) : (
+                    <kbd className="hidden shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 font-mono text-[0.68rem] font-medium text-white/45 sm:inline-flex">
+                      <span>⌘K</span>
+                    </kbd>
+                  )}
+                </div>
+              </div>
 
-            {activeTab === "all" && (
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {(
-                  [
-                    { key: "", label: "All" },
-                    { key: "member", label: "Members" },
-                    { key: "borrower", label: "Borrowers" },
-                    { key: "overdue", label: "Overdue" },
-                  ] as const
-                ).map((f) => (
-                  <button
-                    key={f.key || "all"}
-                    type="button"
-                    className={`circ-btn ${typeFilter === f.key ? "active" : ""}`}
-                    style={{ minHeight: 40, padding: "0 12px", fontSize: "0.78rem" }}
-                    aria-pressed={typeFilter === f.key}
-                    onClick={() => {
-                      setTypeFilter(f.key);
+              <div className="flex flex-wrap items-center gap-2">
+                {activeTab === "all" && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {(
+                      [
+                        { key: "", label: "All Records" },
+                        { key: "member", label: "Members" },
+                        { key: "borrower", label: "Borrowers" },
+                        { key: "overdue", label: "Overdue" },
+                      ] as const
+                    ).map((f) => {
+                      const active = typeFilter === f.key;
+                      return (
+                        <button
+                          key={f.key || "all"}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => {
+                            setTypeFilter(f.key);
+                            setPage(1);
+                          }}
+                          className={`inline-flex h-[48px] cursor-pointer items-center gap-2 rounded-2xl border px-4 text-xs font-semibold transition-all ${
+                            active
+                              ? f.key === "overdue"
+                                ? "border-danger/45 bg-danger/15 text-danger"
+                                : "border-accent/45 bg-accent/15 text-accent shadow-[0_0_20px_rgba(147,197,253,0.14)]"
+                              : "border-white/12 bg-bg1/85 text-white/80 hover:border-white/22 hover:bg-white/8 hover:text-white"
+                          }`}
+                        >
+                          {f.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => {
+                      setDateFrom(e.target.value);
                       setPage(1);
                     }}
-                  >
-                    {f.label}
-                  </button>
-                ))}
+                    aria-label="Filter from date"
+                    className="h-[48px] rounded-2xl border border-white/12 bg-bg1/85 px-3 text-xs font-medium text-white focus:border-accent/50 focus:outline-none"
+                  />
+                  <span className="text-xs text-tl/60">to</span>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => {
+                      setDateTo(e.target.value);
+                      setPage(1);
+                    }}
+                    aria-label="Filter to date"
+                    className="h-[48px] rounded-2xl border border-white/12 bg-bg1/85 px-3 text-xs font-medium text-white focus:border-accent/50 focus:outline-none"
+                  />
+                </div>
+
+                <div className="ml-auto flex h-[48px] items-center gap-1.5 rounded-2xl border border-white/8 bg-white/[0.03] px-3.5 text-xs text-tl lg:ml-0">
+                  <span className="whitespace-nowrap">
+                    <strong className="font-semibold text-white">{activeList.length}</strong>{" "}
+                    {activeTab === "all" ? "record" : "return"}
+                    {activeList.length === 1 ? "" : "s"}
+                  </span>
+                </div>
               </div>
-            )}
-
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => {
-                  setDateFrom(e.target.value);
-                  setPage(1);
-                }}
-                aria-label="Filter from date"
-                style={{ minHeight: 40, borderRadius: 9, padding: "0 10px", background: "var(--circ-input-bg)", border: "1px solid var(--circ-border)", color: "var(--circ-text)", fontSize: "0.78rem" }}
-              />
-              <span style={{ fontSize: "0.75rem", opacity: 0.6 }}>to</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => {
-                  setDateTo(e.target.value);
-                  setPage(1);
-                }}
-                aria-label="Filter to date"
-                style={{ minHeight: 40, borderRadius: 9, padding: "0 10px", background: "var(--circ-input-bg)", border: "1px solid var(--circ-border)", color: "var(--circ-text)", fontSize: "0.78rem" }}
-              />
             </div>
-          </div>
-
-          <div aria-live="polite" style={{ padding: "8px 20px", fontSize: "0.74rem", color: "var(--circ-faint)" }}>
-            {activeList.length} matching {activeTab === "all" ? "record" : "return"}
-            {activeList.length === 1 ? "" : "s"}
           </div>
 
           {activeError ? (
@@ -558,7 +592,8 @@ export function BorrowHistoryView() {
                               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                                 {c.books.slice(0, 3).map((b, i) => (
                                   <div key={b.id ?? i} style={{ fontSize: "0.78rem" }}>
-                                    • {b.book_title} {b.quantity > 1 ? `(×${b.quantity})` : ""}
+                                    • {b.book_id ? `[#${b.book_id}] ` : ""}{b.book_title}{" "}
+                                    {b.quantity > 1 ? `(×${b.quantity})` : ""}
                                   </div>
                                 ))}
                               </div>

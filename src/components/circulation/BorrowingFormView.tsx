@@ -145,9 +145,11 @@ export function BorrowingFormView() {
 
   const filteredBooks = useMemo(() => {
     if (!debouncedBookQ) return [];
+    const cleanIdQ = debouncedBookQ.replace(/^#/, "");
     return allBooks
       .filter(
         (b) =>
+          String(b.id) === cleanIdQ ||
           (b.title || "").toLowerCase().includes(debouncedBookQ) ||
           (b.author || "").toLowerCase().includes(debouncedBookQ) ||
           (b.isbn || "").toLowerCase().includes(debouncedBookQ)
@@ -758,7 +760,7 @@ export function BorrowingFormView() {
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>{b.title}</div>
                                 <div style={{ fontSize: "0.72rem", color: "var(--circ-tl)" }}>
-                                  {b.author}
+                                  Book ID #{b.id} · {b.author}
                                   {b.isbn ? ` · ISBN: ${b.isbn}` : ""}
                                 </div>
                               </div>
@@ -785,7 +787,7 @@ export function BorrowingFormView() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: "0.86rem" }}>{selectedBook.title}</div>
                       <div style={{ fontSize: "0.74rem", color: "var(--circ-tl)" }}>
-                        by {selectedBook.author}
+                        Book ID #{selectedBook.id} · by {selectedBook.author}
                         {selectedBook.isbn ? ` · ISBN: ${selectedBook.isbn}` : ""}
                       </div>
                       <div style={{ fontSize: "0.72rem", marginTop: 3, color: qtyExceedsStock ? "var(--circ-danger)" : "var(--circ-accent2)", fontWeight: 600 }}>

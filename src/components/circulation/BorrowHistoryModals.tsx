@@ -23,6 +23,8 @@ import {
 
 function useDialogTrap(open: boolean, onClose: () => void, busy: boolean) {
   const ref = useRef<HTMLDivElement>(null);
+  const stateRef = useRef({ onClose, busy });
+  stateRef.current = { onClose, busy };
 
   useEffect(() => {
     if (!open) return;
@@ -30,9 +32,9 @@ function useDialogTrap(open: boolean, onClose: () => void, busy: boolean) {
     ref.current?.focus();
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) {
+      if (e.key === "Escape" && !stateRef.current.busy) {
         e.preventDefault();
-        onClose();
+        stateRef.current.onClose();
         return;
       }
       if (e.key === "Tab" && ref.current) {
@@ -57,7 +59,7 @@ function useDialogTrap(open: boolean, onClose: () => void, busy: boolean) {
       document.removeEventListener("keydown", onKey);
       prev?.focus();
     };
-  }, [open, onClose, busy]);
+  }, [open]);
 
   return ref;
 }
@@ -167,7 +169,9 @@ export function CardDetailModal({
                 >
                   <div>
                     <div style={{ fontWeight: 700 }}>{b.book_title}</div>
-                    <div style={{ fontSize: "0.74rem", opacity: 0.75 }}>by {b.book_author}</div>
+                    <div style={{ fontSize: "0.74rem", opacity: 0.75 }}>
+                      {b.book_id ? `Book ID #${b.book_id} · ` : ""}by {b.book_author}
+                    </div>
                   </div>
                   <span style={{ fontWeight: 700, color: "#48c78e" }}>×{b.quantity ?? 1}</span>
                 </div>
@@ -200,9 +204,11 @@ export function ProcessReturnModal({
   const [returnDate, setReturnDate] = useState(() => getManilaTodayISO());
   const ref = useDialogTrap(Boolean(card), onClose, busy);
 
+  const cardId = card?.id ?? null;
+
   useEffect(() => {
-    if (card) setReturnDate(getManilaTodayISO());
-  }, [card]);
+    if (cardId !== null) setReturnDate(getManilaTodayISO());
+  }, [cardId]);
 
   if (!card) return null;
   const books = card.books ?? [];
@@ -340,6 +346,8 @@ export function EditCardModal({
   const [r2Date, setR2Date] = useState("");
   const ref = useDialogTrap(Boolean(card), onClose, busy);
 
+  const cardId = card?.id ?? null;
+
   useEffect(() => {
     if (!card) return;
     setDateReturn(card.date_return || "");
@@ -348,7 +356,7 @@ export function EditCardModal({
     setR1Date(card.renewal1_date || "");
     setR2Checked(Boolean(card.renewal2_checked));
     setR2Date(card.renewal2_date || "");
-  }, [card]);
+  }, [cardId]);
 
   if (!card) return null;
 

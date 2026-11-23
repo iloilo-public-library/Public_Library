@@ -64,15 +64,14 @@ export async function GET(request: Request) {
       supabase.from("event_exceptions").select("*"),
     ]);
 
-    if (eventsRes.error) {
-      return NextResponse.json({ ok: false, error: eventsRes.error.message }, { status: 500 });
-    }
-    if (remindersRes.error) {
+    if (eventsRes.error || remindersRes.error) {
       return NextResponse.json({
         ok: true,
         sent: 0,
         skipped: true,
-        reason: "event_reminders table not yet migrated.",
+        reason: eventsRes.error
+          ? "events recurrence/reminder columns not yet migrated."
+          : "event_reminders table not yet migrated.",
       });
     }
 
@@ -100,7 +99,9 @@ export async function GET(request: Request) {
 
       for (const offsetMin of offsets) {
         const triggerMs = startMs - offsetMin * 60_000;
-        if (nowMs < triggerMs || nowMs > startMs + 5 * 60_000) continue;
+        // Support both daily Vercel Hobby cron runs (24h lookahead) and frequent triggers
+        const dailyWindowMs = 24 * 60 * 60_000;
+        if (nowMs + dailyWindowMs < triggerMs || nowMs > startMs + 5 * 60_000) continue;
 
         const { error: logErr } = await supabase.from("event_reminder_log").insert({
           event_id: occ.master_id,
@@ -134,14 +135,17 @@ export async function GET(request: Request) {
         if (sendEmailsEnabled && audience !== "staff") {
           const { data: users } = await supabase
             .from("users")
-            .select("id, email")
+            .select("id, username, email_display")
             .eq("role", "user")
             .eq("is_active", true)
             .eq("is_approved", true)
             .limit(200);
 
           const emails = (users ?? [])
-            .map((u) => safeDecryptPii(String(u.email || "")).trim())
+            .map((u) => {
+              const raw = String(u.email_display || u.username || "");
+              return safeDecryptPii(raw).trim();
+            })
             .filter((e) => e.includes("@"));
 
           for (let i = 0; i < emails.length; i += EMAIL_BATCH_SIZE) {

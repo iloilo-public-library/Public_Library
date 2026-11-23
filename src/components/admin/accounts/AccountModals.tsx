@@ -41,6 +41,9 @@ function useFocusTrap(
   onClose: () => void,
   blocked: boolean
 ) {
+  const stateRef = useRef({ onClose, blocked });
+  stateRef.current = { onClose, blocked };
+
   useEffect(() => {
     if (!open) return;
     const el = containerRef.current;
@@ -52,7 +55,7 @@ function useFocusTrap(
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        if (!blocked) onClose();
+        if (!stateRef.current.blocked) stateRef.current.onClose();
         return;
       }
       if (e.key !== "Tab" || !el) return;
@@ -73,7 +76,7 @@ function useFocusTrap(
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open, containerRef, onClose, blocked]);
+  }, [open, containerRef]);
 }
 
 /* ── ADD ADMIN / LIBRARIAN MODAL ── */

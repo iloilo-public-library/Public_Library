@@ -55,16 +55,20 @@ export function RequestDetailModal({
     setIdImgState("loading");
   }, [row?.id, row?.valid_id_path, activeTab]);
 
-  // Escape key & focus trap
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const rowId = row?.id ?? null;
+
+  // Escape key & focus trap (runs only when modal opens or switches to a different request ID)
   useEffect(() => {
-    if (!row) return;
+    if (rowId === null) return;
     const prevFocused = document.activeElement as HTMLElement | null;
     dialogRef.current?.focus();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key === "Tab" && dialogRef.current) {
@@ -89,7 +93,7 @@ export function RequestDetailModal({
       document.removeEventListener("keydown", handleKeyDown);
       prevFocused?.focus();
     };
-  }, [row, onClose]);
+  }, [rowId]);
 
   if (!row) return null;
 

@@ -40,6 +40,8 @@ import { CategoryIcon } from "./CalendarGrid";
 
 function useModalTrap(isOpen: boolean, onClose: () => void, busy: boolean) {
   const ref = useRef<HTMLDivElement>(null);
+  const stateRef = useRef({ onClose, busy });
+  stateRef.current = { onClose, busy };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -47,9 +49,9 @@ function useModalTrap(isOpen: boolean, onClose: () => void, busy: boolean) {
     ref.current?.focus();
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) {
+      if (e.key === "Escape" && !stateRef.current.busy) {
         e.preventDefault();
-        onClose();
+        stateRef.current.onClose();
         return;
       }
       if (e.key === "Tab" && ref.current) {
@@ -74,7 +76,7 @@ function useModalTrap(isOpen: boolean, onClose: () => void, busy: boolean) {
       document.removeEventListener("keydown", onKeyDown);
       prev?.focus();
     };
-  }, [isOpen, onClose, busy]);
+  }, [isOpen]);
 
   return ref;
 }

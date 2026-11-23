@@ -1,21 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { safeDecryptData } from "@/lib/crypto/fernet";
 import { AdminMutationError } from "@/repositories/shared";
-
-function computeConditionSummary(
-  availableCopies: number,
-  damagedCopies: number,
-  lostCopies: number
-): string {
-  if (damagedCopies > 0 && lostCopies > 0) return "Damaged & Lost Copies";
-  if (damagedCopies > 0) return "Has Damaged Copies";
-  if (lostCopies > 0) return "Has Lost Copies";
-  if (availableCopies <= 0) return "Out of Stock";
-  return "All Good";
-}
+import {
+  buildGeneratedCopies,
+  computeConditionSummary,
+  syncBookCopiesInDb,
+} from "@/repositories/inventory";
 
 export async function queryBooks(supabase: SupabaseClient) {
-  const [booksRes, invRes] = await Promise.all([
+  const [booksRes, invRes, copiesRes] = await Promise.all([
     supabase
       .from("books")
       .select(
@@ -24,23 +17,66 @@ export async function queryBooks(supabase: SupabaseClient) {
       .order("id", { ascending: false }),
     supabase
       .from("book_inventory")
+      .select("*"),
+    supabase
+      .from("book_copies")
       .select(
-        "book_id, volumes, available_copies, damaged_copies, lost_copies, shelf_location, status"
-      ),
+        "id, book_id, copy_number, accession_number, condition, circulation_status, condition_notes, shelf_location"
+      )
+      .order("copy_number", { ascending: true }),
   ]);
   if (booksRes.error) throw booksRes.error;
   const invMap = new Map<number, Record<string, unknown>>();
   for (const inv of invRes.data ?? []) {
     invMap.set(inv.book_id as number, inv);
   }
+  const copiesByBook = new Map<number, Record<string, unknown>[]>();
+  if (!copiesRes.error && copiesRes.data) {
+    for (const cp of copiesRes.data) {
+      const bid = Number(cp.book_id);
+      const list = copiesByBook.get(bid) ?? [];
+      list.push(cp);
+      copiesByBook.set(bid, list);
+    }
+  }
+
   const rows = (booksRes.data ?? []).map((b) => {
-    const inv = invMap.get(b.id as number);
+    const bookId = Number(b.id);
+    const inv = invMap.get(bookId);
     const volumes = Number(inv?.volumes ?? 1);
     const availableCopies = Number(inv?.available_copies ?? 1);
     const damagedCopies = Number(inv?.damaged_copies ?? 0);
     const lostCopies = Number(inv?.lost_copies ?? 0);
+    const dbCopies = copiesByBook.get(bookId);
+
+    const dbDestroyedCount = (dbCopies ?? []).filter(
+      (cp) => String(cp.condition) === "Destroyed"
+    ).length;
+    const destroyedCopies = Math.max(
+      Number(inv?.destroyed_copies ?? 0),
+      dbDestroyedCount
+    );
+    const shelfLocation = String(inv?.shelf_location ?? "");
+    const callNumber = String(b.call_number ?? "").trim();
+    const catalogCode = callNumber || `ICPL-BK-${String(bookId).padStart(4, "0")}`;
+
+    const copies =
+      dbCopies && dbCopies.length > 0
+        ? dbCopies
+        : buildGeneratedCopies(
+            bookId,
+            volumes,
+            availableCopies,
+            damagedCopies,
+            lostCopies,
+            shelfLocation,
+            destroyedCopies,
+            callNumber || null
+          );
+
     return {
       ...b,
+      catalog_code: catalogCode,
       title: safeDecryptData(b.title),
       author: safeDecryptData(b.author),
       isbn: safeDecryptData(b.isbn),
@@ -51,10 +87,17 @@ export async function queryBooks(supabase: SupabaseClient) {
       total_copies: volumes,
       available_copies: availableCopies,
       damaged_copies: damagedCopies,
+      destroyed_copies: destroyedCopies,
       lost_copies: lostCopies,
-      condition_status: computeConditionSummary(availableCopies, damagedCopies, lostCopies),
-      shelf_location: String(inv?.shelf_location ?? ""),
+      condition_status: computeConditionSummary(
+        availableCopies,
+        damagedCopies,
+        lostCopies,
+        destroyedCopies
+      ),
+      shelf_location: shelfLocation,
       inventory_status: String(inv?.status ?? "Available"),
+      copies,
     };
   });
   return { rows };
@@ -80,13 +123,25 @@ export async function mutateBooks(
     throw new AdminMutationError("Title, Author, and ISBN are required.");
   }
 
+  const callNumber =
+    String(payload.call_number ?? payload.catalog_code ?? "").trim() || null;
+  const accessionPrefix = String(payload.accession_prefix ?? "").trim() || null;
   const category = String(payload.category ?? "").trim();
-  const genreClass = String(payload.class ?? "").trim();
+  const genreClass = String(payload.class ?? payload.genre ?? "").trim();
   const publisher = String(payload.publisher ?? "").trim();
-  const volumes = Math.max(0, Number(payload.volumes ?? 1) || 0);
-  const damaged = Math.max(0, Number(payload.damaged_copies ?? 0) || 0);
-  const lost = Math.max(0, Number(payload.lost_copies ?? 0) || 0);
-  const available = Math.max(0, volumes - damaged - lost);
+
+  let volumes = Math.max(
+    0,
+    Number(payload.copies_to_add ?? payload.volumes ?? 1) || 0
+  );
+  let damaged = Math.max(0, Number(payload.damaged_copies ?? 0) || 0);
+  let destroyed = Math.max(0, Number(payload.destroyed_copies ?? 0) || 0);
+  let lost = Math.max(0, Number(payload.lost_copies ?? 0) || 0);
+  let available =
+    payload.available_copies !== undefined
+      ? Math.max(0, Number(payload.available_copies) || 0)
+      : Math.max(0, volumes - damaged - destroyed - lost);
+
   const shelfLocation = String(payload.shelf_location ?? "").trim() || null;
   const invStatus = String(payload.inventory_status ?? "Available").trim() || "Available";
 
@@ -94,7 +149,7 @@ export async function mutateBooks(
     title,
     author,
     isbn,
-    call_number: String(payload.call_number ?? "").trim() || null,
+    call_number: callNumber,
     class: genreClass || null,
     category: category || null,
     publisher: publisher || null,
@@ -122,22 +177,92 @@ export async function mutateBooks(
     if (error || !inserted) {
       throw new AdminMutationError(error?.message || "Failed to add book.", 500);
     }
-    await supabase.from("book_inventory").insert({
-      book_id: inserted.id,
+
+    const newBookId = Number(inserted.id);
+    const conditionStatus = computeConditionSummary(available, damaged, lost, destroyed);
+    const baseInv = {
+      book_id: newBookId,
       volumes,
       available_copies: available,
       damaged_copies: damaged,
       lost_copies: lost,
       shelf_location: shelfLocation,
       status: invStatus,
+    };
+
+    const invInsert = await supabase.from("book_inventory").insert({
+      ...baseInv,
+      destroyed_copies: destroyed,
+      condition_status: conditionStatus,
     });
-    return { ok: true, id: inserted.id };
+    if (invInsert.error) {
+      await supabase.from("book_inventory").insert(baseInv);
+    }
+
+    // Seed deterministic physical book_copies rows
+    const prefix = (
+      accessionPrefix ||
+      callNumber ||
+      `ICPL-${String(newBookId).padStart(4, "0")}`
+    )
+      .toUpperCase()
+      .replace(/\s+/g, "-");
+
+    const generatedCopies = buildGeneratedCopies(
+      newBookId,
+      Math.max(1, Math.min(volumes, 500)),
+      available,
+      damaged,
+      lost,
+      shelfLocation || "Main Stack",
+      destroyed,
+      prefix
+    ).map((cp) => ({
+      book_id: newBookId,
+      copy_number: cp.copy_number,
+      accession_number: cp.accession_number,
+      condition: cp.condition,
+      circulation_status: cp.circulation_status,
+      condition_notes: cp.condition_notes,
+      shelf_location: shelfLocation,
+    }));
+
+    try {
+      await supabase
+        .from("book_copies")
+        .upsert(generatedCopies, { onConflict: "book_id,copy_number" });
+    } catch {
+      // Ignore if book_copies table not migrated yet
+    }
+
+    return { ok: true, id: newBookId };
   }
 
   if (action === "update") {
     if (!id) throw new AdminMutationError("Book ID is required.");
     const { error } = await supabase.from("books").update(bookData).eq("id", id);
     if (error) throw new AdminMutationError(error.message, 500);
+
+    if (Array.isArray(payload.copies) && payload.copies.length > 0) {
+      const synced = await syncBookCopiesInDb(supabase, id, payload.copies);
+      if (synced && payload.sync_counts_from_copies !== false) {
+        volumes = Math.max(volumes, synced.volumes);
+        available = synced.availableCopies;
+        damaged = synced.damagedCopies;
+        destroyed = synced.destroyedCopies;
+        lost = synced.lostCopies;
+      }
+    }
+
+    const conditionStatus = computeConditionSummary(available, damaged, lost, destroyed);
+    const baseInvUpdate = {
+      volumes,
+      available_copies: Math.min(volumes, available),
+      damaged_copies: damaged,
+      lost_copies: lost,
+      shelf_location: shelfLocation,
+      status: invStatus,
+    };
 
     const { data: existingInv } = await supabase
       .from("book_inventory")
@@ -146,27 +271,27 @@ export async function mutateBooks(
       .limit(1);
 
     if (existingInv && existingInv.length > 0) {
-      await supabase
+      const upd = await supabase
         .from("book_inventory")
         .update({
-          volumes,
-          available_copies: available,
-          damaged_copies: damaged,
-          lost_copies: lost,
-          shelf_location: shelfLocation,
-          status: invStatus,
+          ...baseInvUpdate,
+          destroyed_copies: destroyed,
+          condition_status: conditionStatus,
         })
         .eq("book_id", id);
+      if (upd.error) {
+        await supabase.from("book_inventory").update(baseInvUpdate).eq("book_id", id);
+      }
     } else {
-      await supabase.from("book_inventory").insert({
+      const ins = await supabase.from("book_inventory").insert({
         book_id: id,
-        volumes,
-        available_copies: available,
-        damaged_copies: damaged,
-        lost_copies: lost,
-        shelf_location: shelfLocation,
-        status: invStatus,
+        ...baseInvUpdate,
+        destroyed_copies: destroyed,
+        condition_status: conditionStatus,
       });
+      if (ins.error) {
+        await supabase.from("book_inventory").insert({ book_id: id, ...baseInvUpdate });
+      }
     }
     return { ok: true, id };
   }

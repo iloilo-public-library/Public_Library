@@ -186,6 +186,19 @@ export async function PUT(request: Request) {
         .eq("id", session.userId);
       if (error) throw error;
     } else if (input.action === "toggle_security") {
+      if (input.method === "pin" && input.enabled) {
+        const { data: uRow } = await supabase
+          .from("users")
+          .select("pin_code")
+          .eq("id", session.userId)
+          .maybeSingle();
+        if (!uRow?.pin_code) {
+          return NextResponse.json(
+            { ok: false, error: "Please set a 6-digit security PIN before enabling PIN verification." },
+            { status: 400 }
+          );
+        }
+      }
       const col = input.method === "otp" ? "otp_enabled" : "pin_enabled";
       const { error } = await supabase
         .from("users")

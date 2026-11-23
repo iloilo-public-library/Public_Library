@@ -118,7 +118,10 @@ export function AnnouncementModal({
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [dropdownOpen]);
 
-  // Focus trap & Escape handling
+  const stateRef = useRef({ dropdownOpen, submitting, onClose });
+  stateRef.current = { dropdownOpen, submitting, onClose };
+
+  // Focus trap & Escape handling (runs only when `open` transitions to true)
   useEffect(() => {
     if (!open) return;
     titleInputRef.current?.focus();
@@ -126,11 +129,11 @@ export function AnnouncementModal({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        if (dropdownOpen) {
+        if (stateRef.current.dropdownOpen) {
           setDropdownOpen(false);
           return;
         }
-        if (!submitting) onClose();
+        if (!stateRef.current.submitting) stateRef.current.onClose();
         return;
       }
       if (e.key !== "Tab" || !dialogRef.current) return;
@@ -151,7 +154,7 @@ export function AnnouncementModal({
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open, submitting, dropdownOpen, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

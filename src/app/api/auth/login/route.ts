@@ -47,17 +47,20 @@ export async function POST(request: Request) {
 
     const supabase = createSupabaseServerClient(true);
 
-    // Match either HMAC blind index (migrated accounts) or plain lowercase email (new accounts)
-    const lookupKeys = [email];
-    const hashedEmail = emailBlindIndex(email);
-    if (hashedEmail) lookupKeys.unshift(hashedEmail);
+    // Match either HMAC blind index (migrated accounts), plain lowercase username, or email_display
+    const lookupKeys = Array.from(
+      new Set([email, emailBlindIndex(email)].filter((k): k is string => Boolean(k)))
+    );
+    const safeEmail = email.replace(/"/g, "");
 
     const { data: users, error: queryError } = await supabase
       .from("users")
       .select(
-        "id, username, password, role, is_approved, is_active, is_locked, failed_attempts, lock_until"
+        "id, username, email_display, password, role, is_approved, is_active, is_locked, failed_attempts, lock_until"
       )
-      .in("username", lookupKeys)
+      .or(
+        `username.in.(${lookupKeys.map((k) => `"${k.replace(/"/g, "")}"`).join(",")}),email_display.eq."${safeEmail}"`
+      )
       .limit(1);
 
     if (queryError) {

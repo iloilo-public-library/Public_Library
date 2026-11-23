@@ -15,9 +15,10 @@ export async function getAdminResourceData(
   supabase: SupabaseClient,
   resource: AdminResource,
   sessionUserId: number | null,
-  queryOptions?: QueryEventsOptions
+  queryOptions?: QueryEventsOptions,
+  sessionRole?: string | null
 ) {
-  return queryAdminResource(supabase, resource, sessionUserId, queryOptions);
+  return queryAdminResource(supabase, resource, sessionUserId, queryOptions, sessionRole);
 }
 
 export async function executeAdminMutation(

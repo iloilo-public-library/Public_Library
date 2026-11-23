@@ -1,7 +1,17 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import useSWR from "swr";
-import { Bell, Check, CheckCheck, Pin, X } from "lucide-react";
+import {
+  Bell,
+  Check,
+  CheckCheck,
+  Pin,
+  RefreshCw,
+  Search,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import { MemberShell } from "@/components/layout/MemberShell";
 import { Button } from "@/components/ui/button";
 import { apiMutate, swrPrivateConfig } from "@/lib/api";
@@ -24,10 +34,31 @@ export default function UserNotificationsPage() {
     unreadCount?: number;
   }>("/api/user/notifications", swrPrivateConfig);
 
+  const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [onlyUnread, setOnlyUnread] = useState(false);
+
   const rows = data?.notifications ?? [];
   const unreadCount = data?.unreadCount ?? 0;
 
-  const handleAction = async (action: "read" | "dismiss" | "read_all", announcementId?: number) => {
+  const filteredRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return rows.filter((item) => {
+      if (onlyUnread && item.is_read) return false;
+      if (categoryFilter !== "all" && item.category !== categoryFilter) return false;
+      if (!q) return true;
+      return (
+        item.title.toLowerCase().includes(q) ||
+        item.body.toLowerCase().includes(q) ||
+        (item.author || "").toLowerCase().includes(q)
+      );
+    });
+  }, [rows, query, categoryFilter, onlyUnread]);
+
+  const handleAction = async (
+    action: "read" | "dismiss" | "read_all",
+    announcementId?: number
+  ) => {
     await apiMutate("/api/user/notifications", {
       method: "PUT",
       body: action === "read_all" ? { action } : { action, announcement_id: announcementId },
@@ -48,11 +79,101 @@ export default function UserNotificationsPage() {
           </p>
         </div>
 
-        {unreadCount > 0 && (
-          <Button variant="secondary" size="sm" onClick={() => handleAction("read_all")}>
-            <CheckCheck className="h-3.5 w-3.5" /> Mark All Read
+        <div className="flex items-center gap-2">
+          {(query.trim() !== "" || categoryFilter !== "all" || onlyUnread) && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                setCategoryFilter("all");
+                setOnlyUnread(false);
+              }}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-tl transition hover:border-white/20 hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" /> Reset
+            </button>
+          )}
+          {unreadCount > 0 && (
+            <Button variant="secondary" size="sm" onClick={() => handleAction("read_all")}>
+              <CheckCheck className="h-3.5 w-3.5" /> Mark All Read
+            </Button>
+          )}
+          <Button variant="secondary" size="sm" onClick={() => mutate()}>
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> Refresh
           </Button>
-        )}
+        </div>
+      </div>
+
+      {/* Unified Browse-Catalog Command Search & Category Filter Bar */}
+      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="group relative flex-1">
+          <div className="pointer-events-none absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-accent/20 via-accent2/10 to-accent/20 opacity-0 blur transition duration-300 group-focus-within:opacity-100" />
+          <div className="relative flex h-[48px] items-center rounded-2xl border border-white/12 bg-bg1/90 px-4 shadow-[0_8px_30px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-all duration-200 focus-within:border-accent/50 focus-within:bg-bg1">
+            <Search className="h-4.5 w-4.5 shrink-0 text-accent/80" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search notifications by title, announcement text, or author..."
+              className="w-full bg-transparent py-2 pl-3 pr-3 text-[0.9rem] text-white placeholder:text-white/38 focus:outline-none"
+            />
+            {query ? (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-white/8 text-white/60 hover:text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <kbd className="hidden shrink-0 items-center rounded-lg border border-white/10 bg-white/5 px-2 py-1 font-mono text-[0.68rem] text-white/45 sm:inline-flex">
+                ⌘K
+              </kbd>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {["all", "general", "urgent", "event", "reminder"].map((cat) => {
+            const active = categoryFilter === cat;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setCategoryFilter(cat)}
+                className={`inline-flex h-[48px] cursor-pointer items-center rounded-2xl border px-4 text-xs font-semibold capitalize transition-all ${
+                  active
+                    ? "border-accent/45 bg-accent/15 text-accent shadow-[0_0_20px_rgba(147,197,253,0.14)]"
+                    : "border-white/12 bg-bg1/85 text-white/80 hover:border-white/22 hover:bg-white/8 hover:text-white"
+                }`}
+              >
+                {cat === "all" ? "All Categories" : cat}
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={() => setOnlyUnread((v) => !v)}
+            aria-pressed={onlyUnread}
+            className={`inline-flex h-[48px] cursor-pointer items-center gap-2 rounded-2xl border px-4 text-xs font-semibold transition-all ${
+              onlyUnread
+                ? "border-accent2/45 bg-accent2/15 text-accent2"
+                : "border-white/12 bg-bg1/85 text-white/75 hover:border-white/22 hover:text-white"
+            }`}
+          >
+            Unread Only ({unreadCount})
+          </button>
+
+          <div className="ml-auto flex h-[48px] items-center gap-1.5 rounded-2xl border border-white/8 bg-white/[0.03] px-3.5 text-xs text-tl lg:ml-0">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-accent/70" />
+            <span className="whitespace-nowrap">
+              <strong className="font-semibold text-white">{filteredRows.length}</strong> /{" "}
+              {rows.length}
+            </span>
+          </div>
+        </div>
       </div>
 
       {isLoading ? (
@@ -61,14 +182,16 @@ export default function UserNotificationsPage() {
             <div key={i} className="h-24 animate-pulse rounded-2xl bg-white/5" />
           ))}
         </div>
-      ) : rows.length === 0 ? (
+      ) : filteredRows.length === 0 ? (
         <div className="rounded-2xl border border-white/10 bg-card-glass p-12 text-center">
           <Bell className="mx-auto mb-3 h-10 w-10 text-accent/55" />
-          <p className="text-sm font-semibold text-white">You&apos;re all caught up!</p>
+          <p className="text-sm font-semibold text-white">
+            {rows.length === 0 ? "You're all caught up!" : "No notifications match your filters."}
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {rows.map((item) => (
+          {filteredRows.map((item) => (
             <article
               key={item.id}
               className={`rounded-2xl border p-5 backdrop-blur-sm transition ${
@@ -84,7 +207,7 @@ export default function UserNotificationsPage() {
                   <h2 className="text-sm font-bold text-white">{item.title}</h2>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="rounded-full border border-accent/25 bg-accent/10 px-2.5 py-0.5 font-mono text-[0.68rem] uppercase text-accent">
+                  <span className="whitespace-nowrap rounded-full border border-accent/25 bg-accent/10 px-2.5 py-0.5 font-mono text-[0.68rem] uppercase text-accent">
                     {item.category}
                   </span>
                   {!item.is_read && (

@@ -89,6 +89,16 @@
 - Built live Member APIs (`/api/user/*`), Auth MFA and CAPTCHA APIs (`/api/auth/verify-*`, `resend-otp`), and Staff Utility APIs (`/api/staff/appearance`, `/api/admin/users`). (`1a7fb3f`)
 - Completed the final helper parity audit and marked 100% of `MIGRATION.md` as done in Next.js. (`1a7fb3f`)
 
+#### November 23, 2026
+- Unified member navigation, added missing admin sidebar links, removed developer jargon across UI routes, authored `docs/PROJECT_OVERVIEW.md`, and merged `origin/tony@dev` into `Neil`. (`dfafb8f`, `a572c77`)
+- Seeded and normalized the `anthonyojera47@gmail.com` admin account (`008_seed_admin_account.sql`) and updated `/api/auth/login`, `/api/auth/reset-password`, and `/api/auth/reset-pin` to match both `username` and `email_display`. (`uncommitted`)
+- Displayed `Book ID` (`book_id` / `#<id>`) across the Admin and Librarian Inventory tables, Book Management tables, Borrowing Form book picker, and Borrow History views to distinguish books with identical titles. (`uncommitted`)
+- Added `src/types/inventory.ts` (`CopyCondition`, `CirculationStatus`, `BookCopyRecord`, `BookWithInventoryRow`, `AddBookWithCopiesInput`) and `src/components/admin/AddBookModal.tsx` with a cohesive two-section layout, ISBN metadata lookup, copy stepper, and live accession barcode chip preview (`C001…C00N`) wired into `AdminActionModals.tsx`. (`uncommitted`)
+- Upgraded `lookupByIsbn` in `/api/admin/data` to strip ISBN hyphens, match exact `industryIdentifiers`, merge Google Books and Open Library subjects, filter out internal Open Library tags (`series:...`, `Accessible book`, etc.), and auto-fill both `category` and `class`/`genre`. (`uncommitted`)
+- Added `Destroyed` copy condition support (`009_destroyed_condition_and_catalog_code.sql`, `books.ts`, `inventory.ts`, `AdminResourceView.tsx`, `AdminActionModals.tsx`), fixed multi-word table pill wrapping (`whitespace-nowrap`), redesigned all `AdminActionModals`, eliminated focus-stealing `useEffect` loops across modal components, and hardened API route authentication, RBAC, email lookups, and PostgREST embeds. (`uncommitted`)
+- Unified the search, filter, sort, and edit command bars across all Admin, Librarian, and Member pages (`AdminResourceView.tsx`, `AccountManagementView.tsx`, `/admin/account-requests`, `BorrowHistoryView.tsx`, `/admin/announcements`, `/admin/error-logs`, `/user/borrowed`, `/user/borrow-history`, `/user/notifications`) to match the `48px` Browse Catalog design language. (`uncommitted`)
+- Updated the `/api/cron/event-reminders` schedule in `vercel.json` from `*/15 * * * *` to `0 0 * * *` (daily at 08:00 AM Manila time) with a 24-hour reminder dispatch window to comply with Vercel Hobby plan daily cron limits. (`uncommitted`)
+
 ### Git Commit History
 
 | Date | Time | Commit | Message |
@@ -97,6 +107,8 @@
 | 2026-11-21 | 19:39:02 +0800 | `cb4b99f` | `Merge remote-tracking branch 'origin/tony@dev' into Neil` |
 | 2026-11-21 | 20:08:10 +0800 | `05baf45` | `Merge branch 'tony@dev' into Neil` |
 | 2026-11-21 | 23:44:40 +0800 | `1a7fb3f` | `feat: complete remaining member, auth MFA/CAPTCHA, and staff utility APIs (100% MIGRATION.md)` |
+| 2026-11-23 | 11:39 | `dfafb8f` | `ui: unify member navigation, add missing admin sidebar links, remove developer jargon, and add PROJECT_OVERVIEW.md` |
+| 2026-11-23 | 11:43 | `a572c77` | `Merge branch 'tony@dev' of https://github.com/iloilo-public-library/Public_Library into Neil` |
 
 
 

@@ -385,51 +385,78 @@ export default function AdminAccountRequestsPage() {
           </div>
         </div>
 
-        {/* Status Filter Strip + Search */}
-        <div className="filter-strip">
-          {(
-            [
-              { key: "all", label: "All", count: tabCounts.all },
-              { key: "pending", label: "Pending", count: tabCounts.pending },
-              { key: "approved", label: "Approved", count: tabCounts.approved },
-              { key: "rejected", label: "Rejected", count: tabCounts.rejected },
-            ] as const
-          ).map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              className={`filter-tab ${statusFilter === tab.key ? "active" : ""}`}
-              aria-pressed={statusFilter === tab.key}
-              onClick={() => setStatusFilter(tab.key)}
-            >
-              {tab.label}
-              <span className="tab-cnt">{tab.count}</span>
-            </button>
-          ))}
+        {/* Unified Browse-Catalog Command Search & Status Filter Strip */}
+        <div className="mb-5 space-y-2.5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="group relative flex-1">
+              <div className="pointer-events-none absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-accent/20 via-accent2/10 to-accent/20 opacity-0 blur transition duration-300 group-focus-within:opacity-100" />
+              <div className="relative flex h-[48px] items-center rounded-2xl border border-white/12 bg-bg1/90 px-4 shadow-[0_8px_30px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-all duration-200 focus-within:border-accent/50 focus-within:bg-bg1">
+                <Search className="h-4.5 w-4.5 shrink-0 text-accent/80" aria-hidden="true" />
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Search applicant name, email address, or request reason..."
+                  aria-label="Search requests by name, email, or reason"
+                  className="w-full bg-transparent py-2 pl-3 pr-3 text-[0.9rem] text-white placeholder:text-white/38 focus:outline-none"
+                />
+                {searchInput ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchInput("");
+                      setDebouncedSearch("");
+                    }}
+                    aria-label="Clear search"
+                    className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-white/8 text-white/60 transition hover:bg-white/15 hover:text-white"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                ) : (
+                  <kbd className="hidden shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 font-mono text-[0.68rem] font-medium text-white/45 sm:inline-flex">
+                    <span>⌘K</span>
+                  </kbd>
+                )}
+              </div>
+            </div>
 
-          <div className="search-wrap">
-            <Search className="search-ico h-4 w-4" aria-hidden="true" />
-            <input
-              type="text"
-              className="search-input"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search name, email…"
-              aria-label="Search requests by name, email, or reason"
-            />
-            {searchInput && (
-              <button
-                type="button"
-                className="search-clear"
-                onClick={() => {
-                  setSearchInput("");
-                  setDebouncedSearch("");
-                }}
-                aria-label="Clear search"
-              >
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {(
+                [
+                  { key: "all", label: "All", count: tabCounts.all },
+                  { key: "pending", label: "Pending", count: tabCounts.pending },
+                  { key: "approved", label: "Approved", count: tabCounts.approved },
+                  { key: "rejected", label: "Rejected", count: tabCounts.rejected },
+                ] as const
+              ).map((tab) => {
+                const active = statusFilter === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setStatusFilter(tab.key)}
+                    className={`inline-flex h-[48px] cursor-pointer items-center gap-2 rounded-2xl border px-4 text-xs font-semibold transition-all ${
+                      active
+                        ? "border-accent/45 bg-accent/15 text-accent shadow-[0_0_20px_rgba(147,197,253,0.14)]"
+                        : "border-white/12 bg-bg1/85 text-white/80 hover:border-white/22 hover:bg-white/8 hover:text-white"
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span className="rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-[0.66rem] text-white/75">
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
+
+              <div className="ml-auto flex h-[48px] items-center gap-1.5 rounded-2xl border border-white/8 bg-white/[0.03] px-3.5 text-xs text-tl lg:ml-0">
+                <span className="whitespace-nowrap">
+                  <strong className="font-semibold text-white">{visibleRows.length}</strong> /{" "}
+                  {sectionRows.length}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
