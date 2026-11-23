@@ -289,7 +289,7 @@ export function AdminResourceView({
               {createLabel}
             </Button>
           )}
-          <LibraryTooltip label="Refresh from Supabase">
+          <LibraryTooltip label="Refresh records">
             <Button variant="secondary" size="sm" onClick={() => mutate()}>
               <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
               Refresh
@@ -427,7 +427,7 @@ export function AdminResourceView({
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-danger/25 bg-danger/10 p-5 text-sm text-danger">
           <div className="flex items-center gap-2.5">
             <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{error.message || "Unable to load records from Supabase."}</span>
+            <span>{error.message || "Unable to load library records."}</span>
           </div>
           <Button variant="accent" size="sm" asChild>
             <Link href="/login">Sign In</Link>
@@ -444,7 +444,7 @@ export function AdminResourceView({
           <Database className="mx-auto mb-3 h-9 w-9 text-accent/45" />
           <h3 className="text-sm font-bold text-white">No records found</h3>
           <p className="mt-1 text-xs text-tl/70">
-            This Supabase table currently has no matching entries.
+            No matching records were found for your current filter.
           </p>
         </div>
       ) : (

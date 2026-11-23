@@ -42,14 +42,14 @@ export default function AdminHomePage() {
     <StaffShell title="Admin Home">
       <div className="mb-8 rounded-[22px] border border-accent/20 bg-card-glass p-6 backdrop-blur-sm md:p-8">
         <div className="mb-2 font-mono text-[0.72rem] tracking-[0.14em] text-accent2 uppercase">
-          ADMIN // CONTROL CENTER
+          Official Administration Portal
         </div>
         <h1 className="text-[clamp(1.6rem,3vw,2.2rem)] font-bold tracking-[-0.03em] text-white">
           Welcome to <span className="text-accent">Admin Home</span>
         </h1>
         <p className="mt-2 max-w-[620px] text-[0.88rem] leading-relaxed text-tl/85">
           Manage the Iloilo City Public Library catalog, member registrations, circulation records,
-          and cybersecurity controls directly on Supabase.
+          and system security controls.
         </p>
 
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">

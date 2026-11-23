@@ -113,7 +113,7 @@ export function FeaturesSection({ mode, onOpenMemberModal }: FeaturesSectionProp
         <Reveal direction="up" className="mb-12 flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="mb-1.5 font-mono text-[0.72rem] tracking-[0.14em] text-white/40 uppercase">
-              LIB // 02 [PLATFORM]
+              Section 02 · Services &amp; Portal
             </div>
             <div className="mb-1 font-mono text-[0.76rem] font-semibold tracking-[0.2em] text-accent2 uppercase">
               {isPublic ? "WHAT WE OFFER" : "MEMBER ACCESS"}
@@ -136,7 +136,7 @@ export function FeaturesSection({ mode, onOpenMemberModal }: FeaturesSectionProp
                 {/* Top Meta Row: Number + Status Pill */}
                 <div className="mb-5 flex items-center justify-between gap-2">
                   <span className="font-mono text-[0.72rem] font-bold tracking-[0.12em] text-white/35">
-                    // {num}
+                    {num}
                   </span>
                   {locked ? (
                     <LibraryTooltip label="Sign in with a valid library card to access">

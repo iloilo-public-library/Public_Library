@@ -49,7 +49,7 @@ export default function NotFoundPage() {
         </div>
 
         <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-3.5 py-1 font-mono text-[0.7rem] font-bold tracking-[0.14em] text-accent uppercase">
-          ERR // 404 · PAGE NOT FOUND
+          Error 404 · Page Not Found
         </div>
 
         <h1 className="mb-3 text-[clamp(2rem,5vw,3rem)] font-bold leading-none tracking-[-0.03em] text-white">
@@ -57,8 +57,7 @@ export default function NotFoundPage() {
         </h1>
 
         <p className="mx-auto mb-6 max-w-[400px] text-[0.88rem] leading-[1.7] text-tl/80">
-          The page or section you&apos;re looking for doesn&apos;t exist or may have been moved
-          during our Next.js &amp; Supabase upgrade.
+          The page or library resource you requested could not be found or may have been relocated.
         </p>
 
         {logRef && (

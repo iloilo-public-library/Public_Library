@@ -159,7 +159,7 @@ function ScanQrContent() {
             <ShieldCheck className="h-8 w-8" />
           </div>
           <div className="mb-2 font-mono text-[0.7rem] font-bold tracking-[0.14em] text-accent2 uppercase">
-            AUTH // APPROVE QR LOGIN
+            Mobile Session Approval
           </div>
           <h1 className="mb-2 text-2xl font-bold text-white">Approve Desktop Sign-In</h1>
           <p className="mb-6 text-xs leading-relaxed text-tl/80">
@@ -215,7 +215,7 @@ function ScanQrContent() {
           <QrCode className="h-8 w-8" />
         </div>
         <div className="mb-2 font-mono text-[0.7rem] font-bold tracking-[0.14em] text-accent2 uppercase">
-          AUTH // QR QUICK LOGIN
+          Quick QR Sign-In
         </div>
         <h1 className="mb-2 text-2xl font-bold text-white">QR Code Login</h1>
         <p className="mb-6 text-xs leading-relaxed text-tl/80">

@@ -459,8 +459,8 @@ export default function PublicBrowsePage() {
         {error ? (
           <div className="rounded-2xl border border-danger/25 bg-danger/10 p-8 text-center">
             <p className="text-sm font-semibold text-danger">
-              Unable to reach the Flask catalog API (`/api/public/books`). Make sure the Python
-              backend is running on port 5000.
+              Unable to load the public book catalog at this time. Please click Refresh or try again
+              shortly.
             </p>
           </div>
         ) : isLoading ? (

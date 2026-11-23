@@ -200,7 +200,7 @@ export default function LibrarianSettingsPage() {
               </div>
               <div>
                 <h2 className="text-sm font-bold text-white">Signed-In Account</h2>
-                <p className="text-xs text-tl/70">Authenticated via Supabase + HttpOnly session</p>
+                <p className="text-xs text-tl/70">Active authenticated staff session</p>
               </div>
             </div>
             <ThemeToggle />

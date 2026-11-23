@@ -60,7 +60,7 @@ export function ServicesSection() {
         <Reveal direction="up" className="mb-14 flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="mb-1.5 font-mono text-[0.72rem] tracking-[0.14em] text-white/40 uppercase">
-              LIB // 04 [SERVICES]
+              Section 04 · Facilities &amp; Programs
             </div>
             <div className="mb-1 font-mono text-[0.76rem] font-semibold tracking-[0.2em] text-accent2 uppercase">
               COMMUNITY RESOURCES

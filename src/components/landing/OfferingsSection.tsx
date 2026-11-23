@@ -184,7 +184,7 @@ export function OfferingsSection({ catalogHref = "/browse" }: OfferingsSectionPr
         <div className="mb-10 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="mb-1.5 font-mono text-[0.72rem] tracking-[0.14em] text-white/40 uppercase">
-              LIB // 01 [COLLECTIONS]
+              Section 01 · Collections &amp; Spaces
             </div>
             <div className="mb-1 font-mono text-[0.76rem] font-semibold tracking-[0.2em] text-accent2 uppercase">
               WHAT&apos;S INSIDE

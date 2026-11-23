@@ -228,7 +228,7 @@ export default function UserSettingsPage() {
               </div>
               <div>
                 <h2 className="text-sm font-bold text-white">Account &amp; Security</h2>
-                <p className="text-xs text-tl/70">Authenticated via Supabase session</p>
+                <p className="text-xs text-tl/70">Active authenticated member session</p>
               </div>
             </div>
             <ThemeToggle />

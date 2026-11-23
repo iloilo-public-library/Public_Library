@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  AlertTriangle,
   BookMarked,
   BookOpen,
   CalendarDays,
@@ -75,15 +76,23 @@ const ADMIN_MANAGEMENT_GROUPS: AdminNavGroup[] = [
   },
 ];
 
-const ADMIN_MANAGEMENT_BOOK: AdminNavLink = {
-  href: "/admin/books",
-  label: "Book Management",
-  icon: BookOpen,
-};
+const ADMIN_MANAGEMENT_BOOK: AdminNavLink[] = [
+  {
+    href: "/admin/books",
+    label: "Book Management",
+    icon: BookOpen,
+  },
+  {
+    href: "/admin/inventory",
+    label: "Inventory & Conditions",
+    icon: Package,
+  },
+];
 
 const ADMIN_MANAGEMENT_LOWER: AdminNavLink[] = [
   { href: "/admin/calendar", label: "Event Calendar", icon: CalendarDays },
   { href: "/admin/account-requests", label: "Account Requests", icon: UserCheck },
+  { href: "/admin/error-logs", label: "Error & Security Logs", icon: AlertTriangle },
 ];
 
 const ADMIN_SEARCH_INDEX: { label: string; href: string; parent: string | null }[] = [
@@ -96,8 +105,10 @@ const ADMIN_SEARCH_INDEX: { label: string; href: string; parent: string | null }
   { label: "Borrowing Form", href: "/admin/library-cards", parent: "Borrow Management" },
   { label: "Borrow History", href: "/admin/records-returns", parent: "Borrow Management" },
   { label: "Book Management", href: "/admin/books", parent: "Management" },
+  { label: "Inventory & Conditions", href: "/admin/inventory", parent: "Management" },
   { label: "Event Calendar", href: "/admin/calendar", parent: "Management" },
   { label: "Account Requests", href: "/admin/account-requests", parent: "Management" },
+  { label: "Error & Security Logs", href: "/admin/error-logs", parent: "Management" },
   { label: "System Settings", href: "/system-settings", parent: null },
   { label: "Account settings", href: "/admin-settings", parent: "Admin" },
 ];
@@ -426,7 +437,7 @@ export function StaffSidebar({
                   );
                 })}
 
-                {renderAdminLink(ADMIN_MANAGEMENT_BOOK, isCompact, isMobile)}
+                {ADMIN_MANAGEMENT_BOOK.map((item) => renderAdminLink(item, isCompact, isMobile))}
 
                 <div className="my-2 h-px bg-accent/10" />
 

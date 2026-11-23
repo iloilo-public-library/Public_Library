@@ -6,7 +6,7 @@ export default function LibrarianBooksPage() {
       role="librarian"
       title="Book"
       accentWord="Management"
-      subtitle="Cataloged titles, call numbers, ISBN lookup, stock counts, and borrowing policies."
+      subtitle="Cataloged titles, call numbers, ISBN lookup, available & damaged copy counts, and borrowing policies."
       resource="books"
       columns={[
         { key: "id", label: "ID", mono: true },
@@ -14,9 +14,9 @@ export default function LibrarianBooksPage() {
         { key: "title", label: "Title" },
         { key: "author", label: "Author" },
         { key: "category", label: "Category" },
-        { key: "isbn", label: "ISBN", mono: true },
-        { key: "volumes", label: "Volumes", mono: true },
-        { key: "available_copies", label: "Available", mono: true },
+        { key: "available_copies", label: "Available Copies", mono: true },
+        { key: "damaged_copies", label: "Damaged Copies", mono: true },
+        { key: "condition_status", label: "Condition" },
         { key: "is_borrowable", label: "Borrowable" },
       ]}
     />

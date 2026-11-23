@@ -90,7 +90,7 @@ export default function LoginPage() {
         router.refresh();
       }
     } catch {
-      setError("Network error while connecting to Supabase authentication.");
+      setError("Network error while connecting to the library authentication service.");
     } finally {
       setLoading(false);
     }

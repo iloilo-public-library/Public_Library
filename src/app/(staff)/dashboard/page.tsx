@@ -153,7 +153,7 @@ export default function AdminDashboardPage() {
 
           {error && (
             <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-warn/30 bg-warn/10 p-4 text-xs text-warn">
-              <span>Unable to load live metrics from Supabase (`/api/dashboard/stats`).</span>
+              <span>Unable to load live library statistics. Please sign in or refresh.</span>
               <Button variant="accent" size="sm" asChild>
                 <Link href="/login">Sign In</Link>
               </Button>
@@ -324,7 +324,7 @@ export default function AdminDashboardPage() {
                 <h2 className="text-sm font-bold text-white">
                   Catalog Additions (Last 7 Days)
                 </h2>
-                <span className="font-mono text-xs text-tl/60">Supabase live count</span>
+                <span className="font-mono text-xs text-tl/60">Live 7-day count</span>
               </div>
               <div className="grid h-28 grid-cols-7 items-end gap-2 pt-3">
                 {(stats?.books_per_day ?? []).map((day) => {

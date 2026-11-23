@@ -57,7 +57,7 @@ export default function GlobalErrorPage({
         </div>
 
         <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-danger/30 bg-danger/10 px-3.5 py-1 font-mono text-[0.7rem] font-bold tracking-[0.14em] text-danger uppercase">
-          ERR // 500 · RUNTIME ERROR
+          System Error · 500
         </div>
 
         <h1 className="mb-3 text-[1.75rem] font-bold tracking-[-0.02em] text-white">
