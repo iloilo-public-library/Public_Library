@@ -6,7 +6,7 @@ import Link from "next/link";
 import { BookOpen } from "lucide-react";
 import { LegalModal, type LegalModalType } from "@/components/landing/LegalModal";
 import { useTheme } from "@/components/theme-provider";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { BookLoader } from "@/components/ui/book-loader";
 import { LibraryTooltip } from "@/components/ui/tooltip";
 import { AuthCard, type AuthMode } from "./AuthCard";
 import { Lamp } from "./Lamp";
@@ -146,8 +146,6 @@ export function LibraryLoginPage({ onLogin }: LibraryLoginPageProps) {
         </Link>
 
         <nav aria-label="Primary navigation" className="ilpl-header-actions">
-          <ThemeToggle className="h-10 w-10 md:h-9 md:w-9" />
-
           <LibraryTooltip label="Browse Catalog">
             <Link
               href="/browse"
@@ -291,6 +289,7 @@ export function LibraryLoginPage({ onLogin }: LibraryLoginPageProps) {
       )}
 
       <LegalModal type={legalModal} onClose={() => setLegalModal(null)} />
+      {isSubmitting && <BookLoader fullscreen label="Signing in" />}
     </div>
   );
 }

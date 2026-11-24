@@ -24,7 +24,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('icpl-theme-mode');if(t==='light'||t==='dark'||t==='default'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('icpl-theme-mode');if(t==='light'||t==='dark'||t==='default'||t==='cobalt'||t==='riso'||t==='clay'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`,
           }}
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />

@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { StaffShell } from "@/components/layout/StaffShell";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { apiMutate, swrPrivateConfig } from "@/lib/api";
 
 interface StaffProfileResponse {
@@ -203,7 +202,6 @@ export default function LibrarianSettingsPage() {
                 <p className="text-xs text-tl/70">Active authenticated staff session</p>
               </div>
             </div>
-            <ThemeToggle />
           </div>
 
           <dl className="space-y-2.5 text-xs">

@@ -60,7 +60,10 @@ export default function UserBorrowHistoryPage() {
     <MemberShell>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[1.75rem] font-bold tracking-[-0.03em] text-white">
+          <div className="mb-1.5 font-mono text-[0.68rem] font-bold tracking-[0.16em] text-gold uppercase">
+            Member Portal &middot; Borrowing Archive
+          </div>
+          <h1 className="font-serif text-[clamp(1.85rem,3vw,2.5rem)] font-bold leading-tight tracking-[-0.02em] text-white">
             Borrowing <span className="text-accent">History</span>
           </h1>
           <p className="mt-1 text-sm text-tl/80">
@@ -143,7 +146,7 @@ export default function UserBorrowHistoryPage() {
           ))}
         </div>
       ) : filteredReturns.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-card-glass p-12 text-center">
+        <div className="rounded-[22px] border border-white/10 bg-white/[0.035] p-12 text-center backdrop-blur-md">
           <History className="mx-auto mb-3 h-10 w-10 text-accent/55" />
           <h2 className="text-base font-bold text-white">
             {returns.length === 0 ? "No Past Return Records Yet" : "No Matching Returns"}
@@ -155,7 +158,7 @@ export default function UserBorrowHistoryPage() {
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-card-glass backdrop-blur-sm">
+        <div className="overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.035] backdrop-blur-md">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-xs">
               <thead>

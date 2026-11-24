@@ -104,7 +104,10 @@ export default function UserBorrowedPage() {
     <MemberShell>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[1.75rem] font-bold tracking-[-0.03em] text-white">
+          <div className="mb-1.5 font-mono text-[0.68rem] font-bold tracking-[0.16em] text-gold uppercase">
+            Member Portal &middot; Active Loans
+          </div>
+          <h1 className="font-serif text-[clamp(1.85rem,3vw,2.5rem)] font-bold leading-tight tracking-[-0.02em] text-white">
             My <span className="text-accent">Borrowed Books</span>
           </h1>
           <p className="mt-1 text-sm text-tl/80">
@@ -233,7 +236,7 @@ export default function UserBorrowedPage() {
           ))}
         </div>
       ) : filteredBooks.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-card-glass p-12 text-center">
+        <div className="rounded-[22px] border border-white/10 bg-white/[0.035] p-12 text-center backdrop-blur-md">
           <BookmarkCheck className="mx-auto mb-3 h-10 w-10 text-accent/55" />
           <h2 className="text-base font-bold text-white">
             {books.length === 0 ? "No Active Borrowed Books" : "No Matching Loans Found"}
@@ -254,7 +257,7 @@ export default function UserBorrowedPage() {
           {filteredBooks.map((item) => (
             <article
               key={`${item.card_id}-${item.id}`}
-              className="flex flex-col justify-between rounded-2xl border border-white/10 bg-card-glass p-5 backdrop-blur-sm"
+              className="flex flex-col justify-between rounded-[22px] border border-white/10 bg-white/[0.035] p-5 backdrop-blur-md transition duration-200 hover:border-white/20"
             >
               <div>
                 <div className="mb-2 flex items-center justify-between gap-2">

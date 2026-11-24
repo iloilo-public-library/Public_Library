@@ -76,34 +76,130 @@ html[data-theme="dark"] {
 
 html[data-theme="light"] {
   color-scheme: light;
-  --accent: #2563a6;
-  --accent-rgb: 37, 99, 166;
-  --accent2: #169c65;
-  --accent2-rgb: 22, 156, 101;
-  --bg1: #eef4fa;
-  --bg2: #e3edf7;
-  --bg3: #d6e4f2;
-  --surface-deep: #e6eff8;
-  --card: rgba(255, 255, 255, 0.82);
-  --card-b: rgba(255, 255, 255, 0.96);
-  --tl: #334e68;
+  --accent: #0f5c64;
+  --accent-rgb: 15, 92, 100;
+  --accent2: #147a6e;
+  --accent2-rgb: 20, 122, 110;
+  --bg1: #edf2f3;
+  --bg2: #e4ecef;
+  --bg3: #dbe6e9;
+  --surface-deep: #dfe8eb;
+  --card: rgba(244, 248, 249, 0.8);
+  --card-b: rgba(248, 251, 252, 0.94);
+  --tl: #2b545b;
   --danger: #dc2626;
   --danger-rgb: 220, 38, 38;
-  --warn: #d97706;
-  --warn-rgb: 217, 119, 6;
-  --gold: #ca8a04;
-  --fg: #0f1f2e;
-  --fg-rgb: 15, 31, 46;
+  --warn: #e07a52;
+  --warn-rgb: 224, 122, 82;
+  --gold: #c8643c;
+  --fg: #0c2b30;
+  --fg-rgb: 12, 43, 48;
   --on-accent: #ffffff;
-  --topbar-bg: #ffffff;
-  --topbar-bg-rgb: 255, 255, 255;
-  --sb-bg: #f8fbfe;
-  --sb-bg-deep: #edf3f9;
-  --tip-bg: #0f1f2e;
-  --modal-bg: #ffffff;
-  --scroll-track: #dce7f3;
-  --scroll-thumb: rgba(37, 99, 166, 0.35);
-  --scroll-thumb-hover: rgba(37, 99, 166, 0.65);
+  --topbar-bg: #eef3f4;
+  --topbar-bg-rgb: 238, 243, 244;
+  --sb-bg: #eef3f4;
+  --sb-bg-deep: #e3ebed;
+  --tip-bg: #0c2b30;
+  --modal-bg: #f0f5f6;
+  --scroll-track: #d7e3e6;
+  --scroll-thumb: rgba(15, 92, 100, 0.35);
+  --scroll-thumb-hover: rgba(15, 92, 100, 0.65);
+}
+
+html[data-theme="cobalt"] {
+  color-scheme: light;
+  --accent: #6d5999;
+  --accent-rgb: 109, 89, 153;
+  --accent2: #7e6b8f;
+  --accent2-rgb: 126, 107, 143;
+  --bg1: #efebf5;
+  --bg2: #e7e1f0;
+  --bg3: #ded6ea;
+  --surface-deep: #e3dced;
+  --card: rgba(246, 243, 250, 0.82);
+  --card-b: rgba(251, 249, 253, 0.95);
+  --tl: #5e4f63;
+  --danger: #dc2626;
+  --danger-rgb: 220, 38, 38;
+  --warn: #a07386;
+  --warn-rgb: 160, 115, 134;
+  --gold: #8c6b7e;
+  --fg: #342936;
+  --fg-rgb: 52, 41, 54;
+  --on-accent: #ffffff;
+  --topbar-bg: #f1edf7;
+  --topbar-bg-rgb: 241, 237, 247;
+  --sb-bg: #f1edf7;
+  --sb-bg-deep: #e7e1f0;
+  --tip-bg: #342936;
+  --modal-bg: #f3eff9;
+  --scroll-track: #dcd4e8;
+  --scroll-thumb: rgba(109, 89, 153, 0.38);
+  --scroll-thumb-hover: rgba(109, 89, 153, 0.68);
+}
+
+html[data-theme="riso"] {
+  color-scheme: light;
+  --accent: #1d646c;
+  --accent-rgb: 29, 100, 108;
+  --accent2: #167a6f;
+  --accent2-rgb: 22, 122, 111;
+  --bg1: #f8e3ce;
+  --bg2: #f5d8bc;
+  --bg3: #efcca9;
+  --surface-deep: #f2d4b8;
+  --card: rgba(252, 240, 228, 0.82);
+  --card-b: rgba(254, 246, 238, 0.95);
+  --tl: #2d5d63;
+  --danger: #d92654;
+  --danger-rgb: 217, 38, 84;
+  --warn: #ea4f88;
+  --warn-rgb: 234, 79, 136;
+  --gold: #ea4f88;
+  --fg: #123c41;
+  --fg-rgb: 18, 60, 65;
+  --on-accent: #ffffff;
+  --topbar-bg: #f8e4d0;
+  --topbar-bg-rgb: 248, 228, 208;
+  --sb-bg: #f8e4d0;
+  --sb-bg-deep: #f2d5ba;
+  --tip-bg: #123c41;
+  --modal-bg: #fae8d6;
+  --scroll-track: #ebd0b5;
+  --scroll-thumb: rgba(29, 100, 108, 0.38);
+  --scroll-thumb-hover: rgba(29, 100, 108, 0.68);
+}
+
+html[data-theme="clay"] {
+  color-scheme: light;
+  --accent: #1d7a6d;
+  --accent-rgb: 29, 122, 109;
+  --accent2: #269081;
+  --accent2-rgb: 38, 144, 129;
+  --bg1: #ddd0c4;
+  --bg2: #d0bcac;
+  --bg3: #c3ac9a;
+  --surface-deep: #cab5a4;
+  --card: rgba(235, 224, 214, 0.8);
+  --card-b: rgba(242, 234, 226, 0.94);
+  --tl: #663826;
+  --danger: #b91c1c;
+  --danger-rgb: 185, 28, 28;
+  --warn: #9e4722;
+  --warn-rgb: 158, 71, 34;
+  --gold: #8c3f1e;
+  --fg: #461c0c;
+  --fg-rgb: 70, 28, 12;
+  --on-accent: #ffffff;
+  --topbar-bg: #dfd3c8;
+  --topbar-bg-rgb: 223, 211, 200;
+  --sb-bg: #dfd3c8;
+  --sb-bg-deep: #d3c0b0;
+  --tip-bg: #461c0c;
+  --modal-bg: #e4d9cf;
+  --scroll-track: #c4ae9c;
+  --scroll-thumb: rgba(29, 122, 109, 0.38);
+  --scroll-thumb-hover: rgba(29, 122, 109, 0.68);
 }
 
 @theme inline {
@@ -153,66 +249,74 @@ html[data-theme="light"] {
   }
 }
 
-/* Light mode text/surface readability overrides so all dark-first components stay crisp in light mode */
-html[data-theme="light"] .text-white {
-  color: #0f1f2e;
+/* Light mode text/surface readability overrides so all dark-first components stay crisp in light themes */
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .text-white {
+  color: var(--fg);
 }
-html[data-theme="light"] .text-white\/85,
-html[data-theme="light"] .text-white\/80,
-html[data-theme="light"] .text-white\/75 {
-  color: rgba(15, 31, 46, 0.85);
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .text-white\/85,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .text-white\/80,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .text-white\/75 {
+  color: rgba(var(--fg-rgb), 0.85);
 }
-html[data-theme="light"] .text-white\/70,
-html[data-theme="light"] .text-white\/65,
-html[data-theme="light"] .text-white\/60,
-html[data-theme="light"] .text-white\/58,
-html[data-theme="light"] .text-white\/55 {
-  color: rgba(15, 31, 46, 0.68);
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .text-white\/70,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .text-white\/65,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .text-white\/60,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .text-white\/58,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .text-white\/55 {
+  color: rgba(var(--fg-rgb), 0.68);
 }
-html[data-theme="light"] .text-white\/50,
-html[data-theme="light"] .text-white\/45,
-html[data-theme="light"] .text-white\/40,
-html[data-theme="light"] .text-white\/38,
-html[data-theme="light"] .text-white\/35,
-html[data-theme="light"] .text-white\/30 {
-  color: rgba(15, 31, 46, 0.52);
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .text-white\/50,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .text-white\/45,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .text-white\/40,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .text-white\/38,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .text-white\/35,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .text-white\/30 {
+  color: rgba(var(--fg-rgb), 0.52);
 }
-html[data-theme="light"] .border-white\/8,
-html[data-theme="light"] .border-white\/10,
-html[data-theme="light"] .border-white\/12,
-html[data-theme="light"] .border-white\/15,
-html[data-theme="light"] .border-white\/18,
-html[data-theme="light"] .border-white\/20,
-html[data-theme="light"] .border-white\/25 {
-  border-color: rgba(15, 31, 46, 0.14);
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .border-white\/8,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .border-white\/10,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .border-white\/12,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .border-white\/15,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .border-white\/18,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .border-white\/20,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .border-white\/25 {
+  border-color: rgba(var(--fg-rgb), 0.14);
 }
-html[data-theme="light"] .bg-white\/4,
-html[data-theme="light"] .bg-white\/5,
-html[data-theme="light"] .bg-white\/6,
-html[data-theme="light"] .bg-white\/8 {
-  background-color: rgba(15, 31, 46, 0.05);
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .bg-white\/4,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .bg-white\/5,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .bg-white\/6,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .bg-white\/8 {
+  background-color: rgba(var(--fg-rgb), 0.05);
 }
-html[data-theme="light"] .bg-\[\#121e2b\],
-html[data-theme="light"] .bg-\[\#121e2b\]\/85 {
-  background-color: rgba(230, 239, 248, 0.92);
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .bg-\[\#121e2b\],
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .bg-\[\#121e2b\]\/85 {
+  background-color: var(--surface-deep);
 }
-html[data-theme="light"] .bg-\[\#2f3f4d\] {
-  background-color: #ffffff;
-  border-bottom: 1px solid rgba(15, 31, 46, 0.1);
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .bg-\[\#2f3f4d\] {
+  background-color: var(--topbar-bg);
+  border-bottom: 1px solid rgba(var(--fg-rgb), 0.1);
 }
-/* Keep hero text crisp white over the 3D library canvas even in light mode */
-html[data-theme="light"] .hero-preserve-dark .text-white,
-html[data-theme="light"] .hero-preserve-dark .text-tl {
+/* Keep hero text crisp white over the 3D library canvas even in light modes */
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .hero-preserve-dark .text-white,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .hero-preserve-dark .text-tl {
   color: #ffffff;
 }
-html[data-theme="light"] .hero-preserve-dark .text-accent {
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .hero-preserve-dark .text-tl\/85,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .hero-preserve-dark .text-tl\/80,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .hero-preserve-dark .text-tl\/75,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .hero-preserve-dark .text-white\/85,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .hero-preserve-dark .text-white\/80,
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .hero-preserve-dark .text-white\/70 {
+  color: rgba(255, 255, 255, 0.88);
+}
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .hero-preserve-dark .text-accent {
   color: #9fc1e1;
 }
-html[data-theme="light"] .hero-preserve-dark .bg-accent {
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .hero-preserve-dark .bg-accent {
   background-color: #9fc1e1;
   color: #0d1a24;
 }
-html[data-theme="light"] .hero-preserve-dark .border-white\/25 {
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .hero-preserve-dark .border-white\/25 {
   border-color: rgba(255, 255, 255, 0.35);
 }
 
@@ -648,16 +752,16 @@ html[data-theme="light"] .hero-preserve-dark .border-white\/25 {
   background: radial-gradient(ellipse at center, transparent 45%, rgb(0 0 0 / 0.35) 100%);
 }
 
-html[data-theme="light"] .icpl-loader-aurora {
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .icpl-loader-aurora {
   mix-blend-mode: multiply;
   opacity: 0.22;
 }
 
-html[data-theme="light"] .icpl-loader-vignette {
-  background: radial-gradient(ellipse at center, transparent 55%, rgb(37 99 166 / 0.12) 100%);
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .icpl-loader-vignette {
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(var(--accent-rgb), 0.12) 100%);
 }
 
-html[data-theme="light"] .icpl-loader-screen .text-white {
+:is(html[data-theme="light"], html[data-theme="cobalt"], html[data-theme="riso"], html[data-theme="clay"]) .icpl-loader-screen .text-white {
   color: var(--fg);
 }
 

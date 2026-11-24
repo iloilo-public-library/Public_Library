@@ -1,7 +1,7 @@
-export type StaffTheme = "default" | "dark" | "light";
+export type StaffTheme = "default" | "dark" | "light" | "cobalt" | "riso" | "clay";
 export type StaffLanguage = "english" | "filipino" | "hiligaynon";
 
-export const STAFF_THEMES: readonly StaffTheme[] = ["default", "dark", "light"];
+export const STAFF_THEMES: readonly StaffTheme[] = ["default", "dark", "light", "cobalt", "riso", "clay"];
 export const STAFF_LANGUAGES: readonly StaffLanguage[] = [
   "english",
   "filipino",
@@ -12,19 +12,24 @@ export const THEME_LABELS: Record<StaffTheme, string> = {
   default: "Default",
   dark: "Dark",
   light: "Light",
+  cobalt: "Mauve Lavender",
+  riso: "Riso Cream",
+  clay: "Raw Clay",
 };
 
 const LEGACY_THEME_MAP: Record<string, StaffTheme> = {
   ocean: "default",
   forest: "default",
   amber: "default",
-  cobalt: "dark",
+  cobalt: "cobalt",
+  riso: "riso",
+  clay: "clay",
   midnight: "dark",
   slate: "dark",
 };
 
 export function normalizeStaffTheme(raw: unknown): StaffTheme {
-  if (raw === "default" || raw === "dark" || raw === "light") return raw;
+  if (raw === "default" || raw === "dark" || raw === "light" || raw === "cobalt" || raw === "riso" || raw === "clay") return raw;
   if (typeof raw === "string" && raw in LEGACY_THEME_MAP) {
     return LEGACY_THEME_MAP[raw];
   }
@@ -173,6 +178,83 @@ const PHRASES: readonly [string, string, string][] = [
     "Hindi pa nai-save — i-click ang I-save ang Pagbabago.",
     "Wala pa na-save — i-click ang I-save ang Pagbag-o.",
   ],
+
+  // Member Portal Navigation & Pages
+  ["Browse Books", "Mag-browse ng Libro", "Magpangita sang Libro"],
+  ["Borrowed", "Hiniram", "Ginhulam"],
+  ["History", "Kasaysayan", "Kasaysayan"],
+  ["Events", "Mga Kaganapan", "Mga Hitabo"],
+  ["About Us", "Tungkol sa Amin", "Parte sa Amon"],
+  ["Account & Settings", "Account at mga Setting", "Account kag mga Setting"],
+  ["Account Overview", "Pangkalahatang-tanaw ng Account", "Pangkabilugan sang Account"],
+  ["Account summary & sessions", "Buod ng account at mga sesyon", "Sumaryo sang account kag sesyon"],
+  ["Name, contact & address", "Pangalan, kontak at tirahan", "Ngalan, kontak kag adres"],
+  ["Password, OTP, PIN & privacy", "Password, OTP, PIN at privacy", "Password, OTP, PIN kag privacy"],
+  ["Language & alert settings", "Mga setting ng wika at alerto", "Mga setting sang pulong kag alerto"],
+  ["Portal Theme", "Tema ng Portal", "Tema sang Portal"],
+  ["Display Language", "Wika ng Pagpapakita", "Pulong sang Pagpakita"],
+  ["Save Preferences", "I-save ang Kagustuhan", "I-save ang Ginapili"],
+  ["Edit Personal Details", "I-edit ang Personal na Detalye", "I-edit ang Personal nga Detalye"],
+  ["Manage Security", "Pamahalaan ang Seguridad", "Dumalahan ang Seguridad"],
+  ["Recent Login Activity", "Kamakailang Aktibidad sa Pag-login", "Bag-o nga Aktibidad sa Pag-login"],
+  ["Due Date Reminders", "Mga Paalala sa Takdang Araw", "Mga Pahanumdom sa Adlaw sang Pagbalik"],
+  ["Upcoming Event Alerts", "Mga Alerto sa Paparating na Kaganapan", "Mga Alerto sa Palaabuton nga Hitabo"],
+  ["Official Library Bulletins", "Opisyal na Abiso ng Aklatan", "Opisyal nga Pahibalo sang Library"],
+  ["Compact Table Density", "Masikip na Ayos ng Talahanayan", "Dasok nga Talahanayan"],
+  ["Two-Factor & PIN Protection", "Dalawang-Antas at Proteksyon ng PIN", "Duha ka Antas kag Proteksyon sang PIN"],
+  ["Change Password", "Baguhin ang Password", "Ilisan ang Password"],
+  ["Update Password", "I-update ang Password", "I-update ang Password"],
+  ["Privacy & Account Controls", "Privacy at Mga Kontrol sa Account", "Privacy kag mga Kontrol sang Account"],
+  ["Notifications Feed", "Feed ng mga Abiso", "Feed sang mga Pahibalo"],
+  ["Upcoming Events", "Mga Paparating na Kaganapan", "Mga Palaabuton nga Hitabo"],
+  ["My Borrowed Books", "Aking mga Hiniram na Libro", "Akon mga Ginhulam nga Libro"],
+  ["Borrowing History", "Kasaysayan ng Paghiram", "Kasaysayan sang Pagpanghulam"],
+
+  // Landing Page & Member Home
+  ["Library Offerings", "Mga Alok ng Aklatan", "Mga Halad sang Library"],
+  ["Features", "Mga Tampok", "Mga Feature"],
+  ["Vision & Mission", "Bisyon at Misyon", "Panan-aw kag Misyon"],
+  ["Services & Resources", "Mga Serbisyo at Mapagkukunan", "Mga Serbisyo kag Kagamitan"],
+  ["Login", "Mag-login", "Mag-login"],
+  ["Explore Books", "Maghanap ng Libro", "Magpangita sang Libro"],
+  ["Welcome Back to the", "Maligayang Pagbabalik sa", "Malipayon nga Pagbalik sa"],
+  ["Heart of Knowledge", "Puso ng Kaalaman", "Tagipusuon sang Kaalaman"],
+  ["Iloilo City Public Library", "Pampublikong Aklatan ng Lungsod ng Iloilo", "Pampubliko nga Library sang Siyudad sang Iloilo"],
+  ["Discover the", "Tuklasin ang", "Tukiba ang"],
+  ["Heritage", "Pamana", "Panublion"],
+  ["Museum", "Museo", "Museo"],
+  ["FREE STUDY SPACE & WIFI", "LIBRENG LUGAR NG PAG-AARAL AT WIFI", "LIBRE NGA LUGAR SA PAGTUON KAG WIFI"],
+  ["ILOILO PROVINCE ARCHIVES", "MGA ARKIBO NG LALAWIGAN NG ILOILO", "MGA ARKIBO SANG PROBINSYA SANG ILOILO"],
+  ["FILIPINIANA COLLECTION", "KOLEKSYONG FILIPINIANA", "KOLEKSYON NGA FILIPINIANA"],
+  ["RIZALIANA COLLECTION", "KOLEKSYONG RIZALIANA", "KOLEKSYON NGA RIZALIANA"],
+  ["CHILDREN'S CORNER", "SULOK NG MGA BATA", "KWARTO SANG MGA BATA"],
+  ["THESIS & DISSERTATIONS", "MGA TESIS AT DISERTASYON", "MGA TESIS KAG DISERTASYON"],
+  ["GENERAL COLLECTION", "PANGKALAHATANG KOLEKSYON", "PANGKABILUGAN NGA KOLEKSYON"],
+  ["MAGAZINES & NEWSPAPERS", "MGA MAGASIN AT PAHAYAGAN", "MGA MAGASIN KAG PAMANTALAAN"],
+  ["Browse Collection", "Mag-browse ng Koleksyon", "Magpangita sa Koleksyon"],
+  ["Book Catalog & Search", "Katalogo at Paghahanap ng Libro", "Katalogo kag Pagpangita sang Libro"],
+  ["Book Borrowing", "Paghiram ng Libro", "Pagpanghulam sang Libro"],
+  ["Borrowed Books", "Mga Hiniram na Libro", "Mga Ginhulam nga Libro"],
+  ["Local History Archive", "Arkibo ng Lokal na Kasaysayan", "Arkibo sang Lokal nga Kasaysayan"],
+  ["Events & Programs", "Mga Kaganapan at Programa", "Mga Hitabo kag Programa"],
+  ["What We Offer", "Ano ang Aming Iniaalok", "Ano ang Amon Ginahalad"],
+  ["Library Features", "Mga Tampok ng Aklatan", "Mga Feature sang Library"],
+  ["Our Vision", "Aming Bisyon", "Amon Panan-aw"],
+  ["Our Mission", "Aming Misyon", "Amon Misyon"],
+  ["Guided by Purpose", "Ginagabayan ng Layunin", "Ginagiyahan sang Katuyuan"],
+  ["Free study and work space with WiFi", "Libreng lugar para sa pag-aaral at trabaho na may WiFi", "Libre nga lugar para sa pagtuon kag obra nga may WiFi"],
+  ["Book Collections", "Mga Koleksyon ng Libro", "Mga Koleksyon sang Libro"],
+  ["Literacy Outreach", "Pagpapalaganap ng Karunungan", "Pagpalapnag sang Edukasyon"],
+  ["Records Inventory & Disposal", "Imbentaryo at Pagsasaayos ng Rekord", "Imbentaryo kag Pagdumala sang Rekord"],
+  ["Digitization and preservation", "Pag-digitize at pangangalaga", "Pag-digitize kag pagtipig"],
+  ["Historical & Cultural Safekeeping", "Pangangalaga sa Kasaysayan at Kultura", "Pagtipig sang Kasaysayan kag Kultura"],
+  ["Public Library Services", "Mga Serbisyo ng Pampublikong Aklatan", "Mga Serbisyo sang Pampubliko nga Library"],
+  ["Records & Archives", "Mga Rekord at Arkibo", "Mga Rekord kag Arkibo"],
+  ["Quick Links", "Mabilisang Link", "Dasig nga mga Link"],
+  ["Contact Us", "Makipag-ugnayan sa Amin", "Kontaka Kami"],
+  ["Opening Hours", "Oras ng Pagbubukas", "Oras sang Pagbukas"],
+  ["Terms of Service", "Mga Tuntunin ng Serbisyo", "Mga Kasugtanan sa Serbisyo"],
+  ["Privacy Policy", "Patakaran sa Privacy", "Polisiya sa Privacy"],
 ];
 
 const PHRASE_MAP = new Map<string, { filipino: string; hiligaynon: string }>();

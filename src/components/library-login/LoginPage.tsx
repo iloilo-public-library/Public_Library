@@ -126,18 +126,8 @@ export function LoginPage({
         return;
       }
 
-      // Real success -> draw checkmark (~600ms) -> run existing redirect
-      setSubmitState("success");
       onAnnounce("Signed in");
-      const reduced =
-        typeof window !== "undefined" &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      redirectTimerRef.current = window.setTimeout(
-        () => {
-          result.onCompleteRedirect?.();
-        },
-        reduced ? 50 : 600
-      );
+      result.onCompleteRedirect?.();
     } catch {
       const msg = "Network error while connecting to authentication.";
       setError(msg);
@@ -218,7 +208,7 @@ export function LoginPage({
 
         <div className="pt-1">
           <MorphSubmitButton
-            state={submitState}
+            state={submitState === "error" ? "error" : "idle"}
             locked={isBusy || !isActive}
             idleLabel="Sign In"
             shakeKey={shakeKey}

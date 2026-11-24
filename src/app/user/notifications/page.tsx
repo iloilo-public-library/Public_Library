@@ -3,9 +3,12 @@
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 import {
+  AlertTriangle,
   Bell,
+  CalendarDays,
   Check,
   CheckCheck,
+  Megaphone,
   Pin,
   RefreshCw,
   Search,
@@ -15,6 +18,19 @@ import {
 import { MemberShell } from "@/components/layout/MemberShell";
 import { Button } from "@/components/ui/button";
 import { apiMutate, swrPrivateConfig } from "@/lib/api";
+
+function formatRelativeTime(iso: string): string {
+  const ts = new Date(iso).getTime();
+  if (!Number.isFinite(ts)) return "";
+  const diffMin = Math.max(0, Math.floor((Date.now() - ts) / 60000));
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 30) return `${diffDay}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
 
 interface NotificationRow {
   id: number;
@@ -70,7 +86,10 @@ export default function UserNotificationsPage() {
     <MemberShell>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[1.75rem] font-bold tracking-[-0.03em] text-white">
+          <div className="mb-1.5 font-mono text-[0.68rem] font-bold tracking-[0.16em] text-gold uppercase">
+            Member Inbox &middot; Iloilo City Public Library
+          </div>
+          <h1 className="font-serif text-[clamp(1.85rem,3vw,2.5rem)] font-bold leading-tight tracking-[-0.02em] text-white">
             Notifications &amp; <span className="text-accent">Announcements</span>
           </h1>
           <p className="mt-1 text-sm text-tl/80">
@@ -183,7 +202,7 @@ export default function UserNotificationsPage() {
           ))}
         </div>
       ) : filteredRows.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-card-glass p-12 text-center">
+        <div className="rounded-[22px] border border-white/10 bg-white/[0.035] p-12 text-center backdrop-blur-md">
           <Bell className="mx-auto mb-3 h-10 w-10 text-accent/55" />
           <p className="text-sm font-semibold text-white">
             {rows.length === 0 ? "You're all caught up!" : "No notifications match your filters."}
@@ -191,51 +210,88 @@ export default function UserNotificationsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredRows.map((item) => (
-            <article
-              key={item.id}
-              className={`rounded-2xl border p-5 backdrop-blur-sm transition ${
-                item.is_read
-                  ? "border-white/8 bg-card-glass/70 opacity-85"
-                  : "border-accent/30 bg-card-glass shadow-[0_6px_24px_rgba(0,0,0,0.2)]"
-              }`}
-            >
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  {!item.is_read && <span className="h-2 w-2 rounded-full bg-accent" />}
-                  {item.pinned && <Pin className="h-3.5 w-3.5 text-gold" />}
-                  <h2 className="text-sm font-bold text-white">{item.title}</h2>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="whitespace-nowrap rounded-full border border-accent/25 bg-accent/10 px-2.5 py-0.5 font-mono text-[0.68rem] uppercase text-accent">
-                    {item.category}
-                  </span>
-                  {!item.is_read && (
+          {filteredRows.map((item) => {
+            const cat = (item.category || "general").toLowerCase();
+            const isUrgent = cat === "urgent";
+            const isEvent = cat === "event";
+            const iconColor = isUrgent
+              ? "text-danger"
+              : isEvent
+                ? "text-gold"
+                : "text-warn";
+            const catTextColor = isUrgent
+              ? "text-danger"
+              : isEvent
+                ? "text-gold"
+                : "text-accent";
+            return (
+              <article
+                key={item.id}
+                className={`rounded-2xl border bg-white/[0.03] p-4 backdrop-blur-md transition hover:border-white/20 ${
+                  item.is_read
+                    ? "border-white/8 opacity-85"
+                    : "border-accent/30 shadow-[0_6px_24px_rgba(0,0,0,0.22)]"
+                }`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] ${iconColor}`}>
+                      {isUrgent ? (
+                        <AlertTriangle className="h-4 w-4" />
+                      ) : isEvent ? (
+                        <CalendarDays className="h-4 w-4" />
+                      ) : (
+                        <Megaphone className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        {!item.is_read && <span className="h-2 w-2 rounded-full bg-accent" />}
+                        {item.pinned && <Pin className="h-3.5 w-3.5 text-gold" />}
+                        <h2 className="text-[0.92rem] font-bold text-white">{item.title}</h2>
+                      </div>
+                      <div className={`mt-0.5 text-[0.72rem] font-semibold tracking-[0.03em] ${catTextColor}`}>
+                        <span className="uppercase">{item.category}</span>
+                        <span className="font-normal text-tl/65">
+                          {" "}by <strong className="text-white/90">{item.author || "Library Staff"}</strong>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[0.7rem] text-white/45">
+                      {formatRelativeTime(item.created_at)}
+                    </span>
+                    {!item.is_read && (
+                      <button
+                        type="button"
+                        onClick={() => handleAction("read", item.id)}
+                        title="Mark as read"
+                        className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-white/10 bg-white/5 text-tl/75 transition hover:border-accent2/40 hover:text-accent2"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => handleAction("read", item.id)}
-                      title="Mark as read"
-                      className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-white/10 bg-white/5 text-tl/75 transition hover:border-accent2/40 hover:text-accent2"
+                      onClick={() => handleAction("dismiss", item.id)}
+                      title="Dismiss notice"
+                      className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-white/10 bg-white/5 text-tl/75 transition hover:border-danger/40 hover:text-danger"
                     >
-                      <Check className="h-3.5 w-3.5" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleAction("dismiss", item.id)}
-                    title="Dismiss notice"
-                    className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-white/10 bg-white/5 text-tl/75 transition hover:border-danger/40 hover:text-danger"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+                  </div>
                 </div>
-              </div>
-              <p className="whitespace-pre-line text-xs leading-relaxed text-tl/85">{item.body}</p>
-              <div className="mt-3 font-mono text-[0.7rem] text-white/45">
-                {item.author} · {new Date(item.created_at).toLocaleDateString()}
-              </div>
-            </article>
-          ))}
+
+                {item.body && (
+                  <div className="mt-3 rounded-xl border border-white/8 bg-black/25 px-3.5 py-2.5 whitespace-pre-line text-xs leading-relaxed text-tl/85">
+                    {item.body}
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </div>
       )}
     </MemberShell>

@@ -7,7 +7,7 @@ export function VisionMissionSection() {
   return (
     <section
       id="Vission_and_Mission"
-      className="border-y border-white/8 bg-[#121e2b]/70 px-5 py-16 [content-visibility:auto] md:px-10 md:py-24"
+      className="border-y border-white/8 bg-surface-deep/75 px-5 py-16 [content-visibility:auto] md:px-10 md:py-24"
     >
       <div className="mx-auto max-w-[1200px]">
         {/* Editorial Header */}

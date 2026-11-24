@@ -1,9 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell, CalendarDays, LogOut, Menu, Settings } from "lucide-react";
 import { LibraryTooltip } from "@/components/ui/tooltip";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils";
 
 interface StaffTopbarProps {
@@ -26,15 +26,36 @@ export function StaffTopbar({
   const bellLabel = isLibrarian ? "Notifications" : "Account Requests";
   const settingsHref = isLibrarian ? "/librarian/settings" : "/system-settings";
   const settingsLabel = isLibrarian ? "Librarian Settings" : "System Settings";
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const updateScroll = () => setIsScrolled(window.scrollY > 24);
+    updateScroll();
+    window.addEventListener("scroll", updateScroll, { passive: true });
+    return () => window.removeEventListener("scroll", updateScroll);
+  }, []);
 
   return (
     <header
       className={cn(
-        "fixed right-0 top-0 z-[1050] flex h-[56px] items-center justify-between border-b border-accent/9 bg-topbar/96 px-3.5 backdrop-blur-md transition-[left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] lg:px-6",
+        "fixed right-0 top-0 z-[1050] flex h-[56px] items-center justify-between px-3.5 transition-[left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] lg:px-6",
         "left-0",
         collapsed ? "lg:left-[64px]" : "lg:left-[240px]"
       )}
     >
+      {/* Base subtle glass tint */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-20 border-b border-white/8 bg-topbar/45 backdrop-blur-md"
+      />
+      {/* GPU-composited scroll-blur glass layer */}
+      <div
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none absolute inset-0 -z-10 border-b border-white/15 bg-topbar/75 shadow-[0_8px_28px_rgba(0,0,0,0.3)] backdrop-blur-xl backdrop-saturate-150 transition-opacity duration-300 ease-out will-change-[opacity]",
+          isScrolled ? "opacity-100" : "opacity-0"
+        )}
+      />
       <div className="flex items-center gap-2.5">
         <button
           type="button"
@@ -60,7 +81,6 @@ export function StaffTopbar({
       </div>
 
       <div className="flex items-center gap-2">
-        <ThemeToggle />
 
         <LibraryTooltip label={bellLabel}>
           <Link

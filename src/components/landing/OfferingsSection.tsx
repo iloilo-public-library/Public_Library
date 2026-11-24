@@ -175,7 +175,7 @@ export function OfferingsSection({ catalogHref = "/browse" }: OfferingsSectionPr
     <section
       ref={sectionRef}
       id="offerings"
-      className="border-y border-white/8 bg-[#121e2b]/85 px-5 py-16 [content-visibility:auto] md:px-10 md:py-24"
+      className="border-y border-white/8 bg-surface-deep/75 px-5 py-16 [content-visibility:auto] md:px-10 md:py-24"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
