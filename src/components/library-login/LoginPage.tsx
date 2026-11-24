@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Lock, LogIn, Mail, QrCode } from "lucide-react";
-import type { LegalModalType } from "@/components/landing/LegalModal";
+import { Lock, LogIn, Mail, QrCode } from "lucide-react";
 import {
   FloatingField,
   MorphSubmitButton,
@@ -34,7 +33,6 @@ export interface LoginPageProps {
   onBusyChange: (busy: boolean) => void;
   onAnnounce: (text: string) => void;
   onLogin: (credentials: LoginCredentials) => Promise<LoginResult>;
-  onOpenLegal: (type: LegalModalType) => void;
   externalSuccess: string | null;
   onClearExternalSuccess: () => void;
 }
@@ -49,7 +47,6 @@ export function LoginPage({
   onBusyChange,
   onAnnounce,
   onLogin,
-  onOpenLegal,
   externalSuccess,
   onClearExternalSuccess,
 }: LoginPageProps) {
@@ -181,41 +178,43 @@ export function LoginPage({
           icon={<Mail className="h-5 w-5" />}
         />
 
-        <FloatingField
-          ref={passwordRef}
-          id="ilpl-login-password"
-          label="Password"
-          type={showPassword ? "text" : "password"}
-          name="password"
-          autoComplete="current-password"
-          required
-          disabled={!isActive}
-          value={password}
-          error={passwordError}
-          shakeKey={shakeKey}
-          onChange={(e) => {
-            onPasswordChange(e.target.value);
-            if (passwordError) setPasswordError(null);
-            if (error) setError(null);
-          }}
-          icon={<Lock className="h-5 w-5" />}
-          labelAction={
+        <div>
+          <FloatingField
+            ref={passwordRef}
+            id="ilpl-login-password"
+            label="Password"
+            type={showPassword ? "text" : "password"}
+            name="password"
+            autoComplete="current-password"
+            required
+            disabled={!isActive}
+            value={password}
+            error={passwordError}
+            shakeKey={shakeKey}
+            onChange={(e) => {
+              onPasswordChange(e.target.value);
+              if (passwordError) setPasswordError(null);
+              if (error) setError(null);
+            }}
+            icon={<Lock className="h-5 w-5" />}
+            rightSlot={
+              <PasswordEyeToggle
+                shown={showPassword}
+                disabled={!isActive}
+                onToggle={() => setShowPassword((prev) => !prev)}
+              />
+            }
+          />
+          <div className="mt-1.5 flex justify-end">
             <Link
               href="/reset-password"
               tabIndex={isActive ? 0 : -1}
-              className="text-[0.9375rem] font-semibold text-[#f5cf7a] underline-offset-2 transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f5cf7a] rounded"
+              className="rounded text-[0.875rem] font-semibold text-[#f5cf7a] underline-offset-2 transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f5cf7a]"
             >
               Forgot password?
             </Link>
-          }
-          rightSlot={
-            <PasswordEyeToggle
-              shown={showPassword}
-              disabled={!isActive}
-              onToggle={() => setShowPassword((prev) => !prev)}
-            />
-          }
-        />
+          </div>
+        </div>
 
         <div className="pt-1">
           <MorphSubmitButton
@@ -228,32 +227,16 @@ export function LoginPage({
         </div>
       </form>
 
-      {/* Bottom links (Login-only QR Login & Back to Home / Terms) */}
-      <div className="ilpl-card-footer">
-        <Link href="/" tabIndex={isActive ? 0 : -1} className="ilpl-footer-link">
-          <ArrowLeft className="h-4 w-4" />
-          Back to Home
+      {/* Bottom link (QR Login) */}
+      <div className="ilpl-card-footer !justify-center">
+        <Link
+          href="/scan-qr"
+          tabIndex={isActive ? 0 : -1}
+          className="ilpl-footer-link ilpl-footer-link-accent"
+        >
+          <QrCode className="h-4 w-4" />
+          QR Login
         </Link>
-
-        <div className="flex flex-wrap items-center gap-4">
-          <button
-            type="button"
-            tabIndex={isActive ? 0 : -1}
-            disabled={isBusy || !isActive}
-            onClick={() => onOpenLegal("terms")}
-            className="ilpl-footer-link cursor-pointer"
-          >
-            Terms
-          </button>
-          <Link
-            href="/scan-qr"
-            tabIndex={isActive ? 0 : -1}
-            className="ilpl-footer-link ilpl-footer-link-accent"
-          >
-            <QrCode className="h-4 w-4" />
-            QR Login
-          </Link>
-        </div>
       </div>
     </div>
   );

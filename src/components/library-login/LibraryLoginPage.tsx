@@ -248,7 +248,6 @@ export function LibraryLoginPage({ onLogin }: LibraryLoginPageProps) {
                   onBusyChange={setIsSubmitting}
                   onAnnounce={setAnnouncement}
                   onLogin={onLogin}
-                  onOpenLegal={setLegalModal}
                   externalSuccess={externalSuccess}
                   onClearExternalSuccess={() => setExternalSuccess(null)}
                 />

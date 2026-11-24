@@ -1,6 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { LibraryTooltip } from "@/components/ui/tooltip";
 
 export type AuthMode = "login" | "signup";
 
@@ -60,7 +63,18 @@ export function AuthCard({
         <div className="ilpl-card-inner">
           {/* Rolling Headline + Fading Subtitle (sits cleanly at top of card) */}
           <div className="ilpl-card-header">
-            <p className="ilpl-card-eyebrow">Official Portal Access</p>
+            <div className="flex items-center gap-2.5">
+              <LibraryTooltip label="Back to Home">
+                <Link
+                  href="/"
+                  aria-label="Back to Home"
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-[#c2d4e7] transition hover:border-[#f5cf7a]/45 hover:bg-[#f5cf7a]/15 hover:text-[#f5cf7a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f5cf7a]"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Link>
+              </LibraryTooltip>
+              <p className="ilpl-card-eyebrow">Official Portal Access</p>
+            </div>
             <h2 className="ilpl-headline-roll">
               <span className="ilpl-headline-track">
                 <span className="ilpl-headline-line" aria-hidden={mode === "signup"}>
