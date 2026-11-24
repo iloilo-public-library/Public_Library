@@ -103,6 +103,13 @@
 #### November 24, 2026
 - Removed the Terms link from the login card footer, moved the "Forgot password?" link below the password input box, and relocated Back to Home to a top-left icon button in `AuthCard`. (`db485f2`)
 - Overhauled `PublicTopbar` to a streamlined, icon-free glassmorphic header with scroll-triggered backdrop blur, smooth active-pill transitions, scroll-spy click locking, and no theme toggle or locked preview icons. (`db485f2`)
+- Fixed `PublicTopbar` section hash routing from `/no_user_about` back to `/#<section>` and eliminated scroll transition stutters using a fixed header height with GPU-composited `opacity` fade on the blurred glass layer. (`12816ff`)
+- Replaced the login button's circular loading spinner with the fullscreen `BookLoader` screen on sign-in submission in `LibraryLoginPage` and `LoginPage`. (`12816ff`)
+- Removed `ThemeToggle` across every page and component (`MemberShell`, `StaffTopbar`, `LibraryLoginPage`, `/librarian/settings`, `/user/settings`) and upgraded `MemberShell` and `StaffTopbar` to use GPU-composited scroll-reactive glassmorphic headers with smooth active-pill transitions. (`12816ff`)
+- Enhanced `AboutUsContent` with editorial serif typography, warm gold and sky accent glassmorphism, ambient hero dot-grid and radial glows, a 4-item key-facts strip, quick-jump section pills, 2-column scannable guidelines and branches grids, and updated policy cards. (`12816ff`)
+- Overhauled the Member Portal (`MemberShell` slide-over Notifications Feed drawer, interactive Month/List Event Calendar in `/user/event`, restyled activity-feed cards in `/user/notifications`, and unified editorial serif + frosted glassmorphism styling on `/user/borrowed`, `/user/borrow-history`, and `/user/settings`). (`12816ff`)
+- Restructured `/user/settings` with a sticky left sidebar (`Overview`, `Personal Details`, `Password & Security`, `Preferences`) while keeping all existing profile, password, OTP/PIN, privacy controls, and session history intact. (`12816ff`)
+- Added 4 daylight themes (`light` Ice White/Deep Teal/Peach, `cobalt` Mauve Lavender, `riso` Riso Cream, `clay` Raw Clay) in `globals.css`, `staff-i18n.ts`, `layout.tsx`, and `/user/settings` Preferences, wired live Filipino/Hiligaynon translations across landing and member pages, replaced `public/images/logo.png` with a transparent emblem PNG, and unified theme-matched header and section contrast across all 6 themes. (`12816ff`)
 
 ### Git Commit History
 
@@ -117,6 +124,7 @@
 | 2026-11-23 | 14:15 | `b86e840` | `feat: redesign modals, add destroyed copy tracking, unify catalog search/filters, and harden api routes` |
 | 2026-11-23 | 15:08 | `27e76f2` | `feat(ui): add animated page-turning book loader and ambient library backdrop` |
 | 2026-11-24 | 08:40 | `db485f2` | `ui: refine login card layout and overhaul public topbar with glassmorphism and scroll blur` |
+| 2026-11-24 | 14:30 | `12816ff` | `feat(ui): overhaul member portal, about us, 6 themes, i18n translations, and transparent logo` |
 
 
 
