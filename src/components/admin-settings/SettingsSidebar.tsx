@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import {
   ArrowLeft,
+  BookOpen,
   CheckCircle2,
   LayoutGrid,
   LogOut,
@@ -23,6 +24,8 @@ interface SettingsSidebarProps {
   mobileOpen: boolean;
   onCloseMobile: () => void;
   onNavigateAway: (href: string) => void;
+  role?: "admin" | "librarian";
+  homeHref?: string;
 }
 
 const GENERAL_ITEMS: { id: SectionId; label: string; icon: typeof LayoutGrid }[] = [
@@ -41,7 +44,10 @@ export function SettingsSidebar({
   mobileOpen,
   onCloseMobile,
   onNavigateAway,
+  role = "admin",
+  homeHref = "/admin/home",
 }: SettingsSidebarProps) {
+  const isLibrarian = role === "librarian";
   const drawerRef = useRef<HTMLElement | null>(null);
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
 
@@ -103,10 +109,10 @@ export function SettingsSidebar({
         style={{ borderBottom: "1px solid var(--as-border)" }}
       >
         <a
-          href="/admin/home"
+          href={homeHref}
           onClick={(e) => {
             e.preventDefault();
-            onNavigateAway("/admin/home");
+            onNavigateAway(homeHref);
           }}
           className="inline-flex min-h-[44px] items-center gap-2.5 text-[0.82rem] font-semibold transition hover:opacity-90"
           style={{ color: "var(--as-text-muted)" }}
@@ -173,14 +179,26 @@ export function SettingsSidebar({
           </div>
           <span
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-[3px] text-[0.68rem] font-bold uppercase tracking-[0.08em]"
-            style={{
-              backgroundColor: "var(--as-gold-bg)",
-              border: "1px solid var(--as-gold-border)",
-              color: "var(--as-gold-text)",
-            }}
+            style={
+              isLibrarian
+                ? {
+                    backgroundColor: "rgba(var(--accent2-rgb), 0.15)",
+                    border: "1px solid rgba(var(--accent2-rgb), 0.45)",
+                    color: "var(--accent2)",
+                  }
+                : {
+                    backgroundColor: "var(--as-gold-bg)",
+                    border: "1px solid var(--as-gold-border)",
+                    color: "var(--as-gold-text)",
+                  }
+            }
           >
-            <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />
-            Administrator
+            {isLibrarian ? (
+              <BookOpen className="h-3 w-3 shrink-0" aria-hidden="true" />
+            ) : (
+              <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />
+            )}
+            {isLibrarian ? "Librarian" : "Administrator"}
           </span>
         </div>
 

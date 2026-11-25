@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 import { getServerSession, SESSION_COOKIE_NAME } from "@/lib/auth/session";
+import { enforceRateLimit, getClientIp } from "@/lib/auth/rate-limit";
 import {
   cleanupExpiredQrTokens,
   confirmQrToken,
@@ -10,24 +11,24 @@ import {
 } from "@/lib/auth/qr";
 import { recordAuditEvent } from "@/lib/audit/audit-logger";
 import { recordErrorLog } from "@/lib/audit/error-logger";
+import { toErrorResponse } from "@/lib/errors";
 import { qrCheckQuerySchema, qrPostSchema } from "@/validators/auth";
 
 export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const queryObj = Object.fromEntries(searchParams.entries());
+  const parsed = qrCheckQuerySchema.safeParse({
+    ...queryObj,
+    token: searchParams.get("token") || "",
+  });
+  if (!parsed.success) {
+    return toErrorResponse(parsed.error);
+  }
+
   if (!getSupabaseSecretKey()) {
     return NextResponse.json(
       { ok: false, error: "SUPABASE_SECRET_KEY is not configured." },
       { status: 503 }
-    );
-  }
-
-  const { searchParams } = new URL(request.url);
-  const parsed = qrCheckQuerySchema.safeParse({
-    token: searchParams.get("token") || "",
-  });
-  if (!parsed.success) {
-    return NextResponse.json(
-      { ok: false, error: parsed.error.issues[0]?.message || "Invalid QR token." },
-      { status: 400 }
     );
   }
 
@@ -88,22 +89,14 @@ export async function GET(request: Request) {
         method: "GET",
         status_code: 500,
         message,
-        details: err instanceof Error ? err.stack || "" : "",
       },
       supabase
     );
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return toErrorResponse(err);
   }
 }
 
 export async function POST(request: Request) {
-  if (!getSupabaseSecretKey()) {
-    return NextResponse.json(
-      { ok: false, error: "SUPABASE_SECRET_KEY is not configured." },
-      { status: 503 }
-    );
-  }
-
   let rawBody: unknown;
   try {
     rawBody = await request.json();
@@ -113,33 +106,11 @@ export async function POST(request: Request) {
 
   const parsed = qrPostSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return NextResponse.json(
-      { ok: false, error: parsed.error.issues[0]?.message || "Invalid QR request." },
-      { status: 400 }
-    );
+    return toErrorResponse(parsed.error);
   }
 
-  const supabase = createSupabaseServerClient(true);
-
-  try {
-    if (parsed.data.action === "generate") {
-      const created = await createQrLoginToken(supabase);
-      const origin = new URL(request.url).origin;
-      const scanUrl = `${origin}/scan-qr?token=${encodeURIComponent(created.token)}`;
-      const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=${encodeURIComponent(
-        scanUrl
-      )}`;
-
-      return NextResponse.json({
-        ok: true,
-        token: created.token,
-        expires_in: created.expiresIn,
-        scan_url: scanUrl,
-        qr_image_url: qrImageUrl,
-      });
-    }
-
-    // Confirm action requires an authenticated mobile/active session
+  // Confirm action requires an authenticated mobile/active session check BEFORE DB check
+  if (parsed.data.action === "confirm") {
     const session = await getServerSession();
     if (!session) {
       return NextResponse.json(
@@ -148,42 +119,89 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await confirmQrToken(supabase, parsed.data.token, session.userId);
-    if (!result.ok) {
-      return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
+    if (!getSupabaseSecretKey()) {
+      return NextResponse.json(
+        { ok: false, error: "SUPABASE_SECRET_KEY is not configured." },
+        { status: 503 }
+      );
     }
 
-    await recordAuditEvent(
+    const supabase = createSupabaseServerClient(true);
+    try {
+      await enforceRateLimit(
+        {
+          scope: "auth:qr:confirm",
+          identifier: `${getClientIp(request)}:${session.userId}`,
+          maxAttempts: 12,
+          windowSeconds: 300,
+          blockSeconds: 300,
+        },
+        supabase
+      );
+
+      const result = await confirmQrToken(supabase, parsed.data.token, session.userId);
+      if (!result.ok) {
+        return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
+      }
+
+      await recordAuditEvent(
+        {
+          action: "confirm_qr_login",
+          resource: "qr_login_tokens",
+          actorId: session.userId,
+          targetId: session.userId,
+          actorRole: session.role,
+          route: "/api/auth/qr",
+          method: "POST",
+        },
+        supabase
+      );
+
+      return NextResponse.json({
+        ok: true,
+        message: "Desktop login approved! You may close this screen.",
+      });
+    } catch (err) {
+      return toErrorResponse(err);
+    }
+  }
+
+  if (!getSupabaseSecretKey()) {
+    return NextResponse.json(
+      { ok: false, error: "SUPABASE_SECRET_KEY is not configured." },
+      { status: 503 }
+    );
+  }
+
+  const supabase = createSupabaseServerClient(true);
+
+  try {
+    await enforceRateLimit(
       {
-        action: "confirm_qr_login",
-        resource: "qr_login_tokens",
-        targetId: session.userId,
-        actorEmail: session.email,
-        actorRole: session.role,
-        route: "/api/auth/qr",
-        method: "POST",
+        scope: "auth:qr:generate",
+        identifier: getClientIp(request),
+        maxAttempts: 20,
+        windowSeconds: 300,
+        blockSeconds: 300,
       },
       supabase
     );
+
+    const created = await createQrLoginToken(supabase);
+    const origin = new URL(request.url).origin;
+    const scanUrl = `${origin}/scan-qr?token=${encodeURIComponent(created.token)}`;
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=${encodeURIComponent(
+      scanUrl
+    )}`;
 
     return NextResponse.json({
       ok: true,
-      message: "Desktop login approved! You may close this screen.",
+      token: created.token,
+      expires_in: created.expiresIn,
+      scan_url: scanUrl,
+      qr_image_url: qrImageUrl,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "QR authentication error.";
-    await recordErrorLog(
-      {
-        level: "error",
-        source: "Auth",
-        route: "/api/auth/qr",
-        method: "POST",
-        status_code: 500,
-        message,
-        details: err instanceof Error ? err.stack || "" : "",
-      },
-      supabase
-    );
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return toErrorResponse(err);
   }
 }

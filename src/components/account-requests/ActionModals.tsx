@@ -87,14 +87,22 @@ const CONSEQUENCES: Record<
 
 interface ApproveModalProps {
   row: AccountRequestRow | null;
+  role?: "admin" | "librarian";
   busy: boolean;
   onClose: () => void;
   onConfirm: (row: AccountRequestRow, adminNote: string) => Promise<void>;
 }
 
-export function ApproveModal({ row, busy, onClose, onConfirm }: ApproveModalProps) {
+export function ApproveModal({
+  row,
+  role = "admin",
+  busy,
+  onClose,
+  onConfirm,
+}: ApproveModalProps) {
   const [note, setNote] = useState("");
   const dialogRef = useDialogAccessibility(Boolean(row), onClose, busy);
+  const isLibrarian = role === "librarian";
 
   useEffect(() => {
     if (row) setNote("");
@@ -102,7 +110,14 @@ export function ApproveModal({ row, busy, onClose, onConfirm }: ApproveModalProp
 
   if (!row) return null;
   const displayName = getDisplayName(row);
-  const items = CONSEQUENCES[row.request_type] ?? [];
+  const items =
+    isLibrarian && row.request_type === "renew"
+      ? [
+          { icon: RefreshCw, color: "var(--req-renew)", text: "Library card renewal dates will be applied" },
+          { icon: CheckCircle2, color: "var(--req-accent2)", text: "Member will be notified of the approval" },
+          { icon: CalendarCheck, color: "var(--req-accent)", text: "Card validity and renewal slots updated" },
+        ]
+      : (CONSEQUENCES[row.request_type] ?? []);
 
   return (
     <div
@@ -121,9 +136,13 @@ export function ApproveModal({ row, busy, onClose, onConfirm }: ApproveModalProp
         tabIndex={-1}
       >
         <div className="req-modal-header">
-          <h2 id="req-approve-title" className="req-modal-title">
+          <h2
+            id="req-approve-title"
+            className="req-modal-title"
+            style={isLibrarian ? { color: "var(--req-accent2)" } : undefined}
+          >
             <CheckCircle2 className="h-4 w-4" style={{ color: "var(--req-accent2)" }} aria-hidden="true" />
-            Approve Request
+            {isLibrarian ? "Approve Renewal" : "Approve Request"}
           </h2>
           <button
             type="button"
@@ -138,7 +157,7 @@ export function ApproveModal({ row, busy, onClose, onConfirm }: ApproveModalProp
 
         <div className="req-modal-body">
           <p style={{ fontSize: "0.84rem", color: "var(--req-tl)", margin: "0 0 12px", lineHeight: 1.5 }}>
-            Confirm approving this request for{" "}
+            Confirm approving this {isLibrarian ? "renewal " : ""}request for{" "}
             <strong style={{ color: "var(--req-text)" }}>{displayName}</strong> ({row.username}):
           </p>
 
@@ -159,7 +178,7 @@ export function ApproveModal({ row, busy, onClose, onConfirm }: ApproveModalProp
           </div>
 
           <label htmlFor="approveNoteInput" className="req-fg-lbl">
-            Admin Note{" "}
+            {isLibrarian ? "Note" : "Admin Note"}{" "}
             <span style={{ fontWeight: 400, opacity: 0.65, textTransform: "none" }}>
               (optional)
             </span>
@@ -170,7 +189,11 @@ export function ApproveModal({ row, busy, onClose, onConfirm }: ApproveModalProp
             rows={3}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Add an optional note for the user…"
+            placeholder={
+              isLibrarian
+                ? "Leave a note for the member…"
+                : "Add an optional note for the user…"
+            }
             disabled={busy}
           />
         </div>
@@ -203,14 +226,22 @@ export function ApproveModal({ row, busy, onClose, onConfirm }: ApproveModalProp
 
 interface RejectModalProps {
   row: AccountRequestRow | null;
+  role?: "admin" | "librarian";
   busy: boolean;
   onClose: () => void;
   onConfirm: (row: AccountRequestRow, adminNote: string) => Promise<void>;
 }
 
-export function RejectModal({ row, busy, onClose, onConfirm }: RejectModalProps) {
+export function RejectModal({
+  row,
+  role = "admin",
+  busy,
+  onClose,
+  onConfirm,
+}: RejectModalProps) {
   const [note, setNote] = useState("");
   const dialogRef = useDialogAccessibility(Boolean(row), onClose, busy);
+  const isLibrarian = role === "librarian";
 
   useEffect(() => {
     if (row) setNote("");
@@ -236,9 +267,13 @@ export function RejectModal({ row, busy, onClose, onConfirm }: RejectModalProps)
         tabIndex={-1}
       >
         <div className="req-modal-header">
-          <h2 id="req-reject-title" className="req-modal-title">
+          <h2
+            id="req-reject-title"
+            className="req-modal-title"
+            style={isLibrarian ? { color: "var(--req-danger)" } : undefined}
+          >
             <XCircle className="h-4 w-4" style={{ color: "var(--req-danger)" }} aria-hidden="true" />
-            Reject Request
+            {isLibrarian ? "Reject Renewal" : "Reject Request"}
           </h2>
           <button
             type="button"
@@ -255,7 +290,7 @@ export function RejectModal({ row, busy, onClose, onConfirm }: RejectModalProps)
           <p style={{ fontSize: "0.84rem", color: "var(--req-tl)", margin: "0 0 14px", lineHeight: 1.55 }}>
             {row.request_type === "renew" ? (
               <>
-                The card renewal request for{" "}
+                The member&apos;s card renewal request for{" "}
                 <strong style={{ color: "var(--req-text)" }}>{displayName}</strong> will be
                 rejected. Their library card{" "}
                 <strong style={{ color: "var(--req-text)" }}>will not be renewed</strong>.
@@ -288,7 +323,11 @@ export function RejectModal({ row, busy, onClose, onConfirm }: RejectModalProps)
             rows={3}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Explain why this request was rejected (optional)…"
+            placeholder={
+              isLibrarian
+                ? "e.g. Outstanding items, insufficient reason provided…"
+                : "Explain why this request was rejected (optional)…"
+            }
             disabled={busy}
           />
         </div>
@@ -321,13 +360,21 @@ export function RejectModal({ row, busy, onClose, onConfirm }: RejectModalProps)
 
 interface DeleteRecordModalProps {
   row: AccountRequestRow | null;
+  role?: "admin" | "librarian";
   busy: boolean;
   onClose: () => void;
   onConfirm: (row: AccountRequestRow) => Promise<void>;
 }
 
-export function DeleteRecordModal({ row, busy, onClose, onConfirm }: DeleteRecordModalProps) {
+export function DeleteRecordModal({
+  row,
+  role = "admin",
+  busy,
+  onClose,
+  onConfirm,
+}: DeleteRecordModalProps) {
   const dialogRef = useDialogAccessibility(Boolean(row), onClose, busy);
+  const isLibrarian = role === "librarian";
 
   if (!row) return null;
   const displayName = getDisplayName(row);
@@ -351,7 +398,7 @@ export function DeleteRecordModal({ row, busy, onClose, onConfirm }: DeleteRecor
         <div className="req-modal-header">
           <h2 id="req-delete-title" className="req-modal-title">
             <Trash2 className="h-4 w-4" style={{ color: "var(--req-danger)" }} aria-hidden="true" />
-            Delete Request Record
+            {isLibrarian ? "Delete Renewal Record" : "Delete Request Record"}
           </h2>
           <button
             type="button"
@@ -366,9 +413,19 @@ export function DeleteRecordModal({ row, busy, onClose, onConfirm }: DeleteRecor
 
         <div className="req-modal-body">
           <p style={{ fontSize: "0.85rem", color: "var(--req-tl)", margin: 0, lineHeight: 1.55 }}>
-            Delete this processed request record for{" "}
-            <strong style={{ color: "var(--req-text)" }}>{displayName}</strong> permanently? This
-            cannot be undone.
+            {isLibrarian ? (
+              <>
+                Delete this renewal record for{" "}
+                <strong style={{ color: "var(--req-text)" }}>{displayName}</strong> permanently?
+                This cannot be undone.
+              </>
+            ) : (
+              <>
+                Delete this processed request record for{" "}
+                <strong style={{ color: "var(--req-text)" }}>{displayName}</strong> permanently?
+                This cannot be undone.
+              </>
+            )}
           </p>
         </div>
 

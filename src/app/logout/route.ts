@@ -1,24 +1,15 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 import { getServerSession, SESSION_COOKIE_NAME } from "@/lib/auth/session";
+import { logoutUserSession } from "@/services/auth.service";
 
 export async function GET(request: Request) {
   const session = await getServerSession();
 
-  if (session) {
+  if (session && getSupabaseSecretKey()) {
     try {
       const supabase = createSupabaseServerClient(true);
-      const nowIso = new Date().toISOString();
-      await Promise.all([
-        supabase
-          .from("users")
-          .update({ status: "offline", last_seen: nowIso })
-          .eq("id", session.userId),
-        supabase
-          .from("login_sessions")
-          .update({ logout_at: nowIso, last_active_at: nowIso })
-          .eq("session_token", session.sessionToken),
-      ]);
+      await logoutUserSession(supabase, session);
     } catch {
       // Ignore DB update errors on logout so cookie always clears cleanly
     }

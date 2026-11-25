@@ -27,6 +27,10 @@ interface AnnouncementCardProps {
   onTogglePin: (ann: AnnouncementRow) => void;
   onEdit: (ann: AnnouncementRow, triggerEl: HTMLButtonElement | null) => void;
   onDelete: (ann: AnnouncementRow, triggerEl: HTMLButtonElement | null) => void;
+  role?: "admin" | "librarian";
+  canPin?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 const CATEGORY_ICON: Record<AnnouncementCategory, typeof Megaphone> = {
@@ -43,6 +47,10 @@ export function AnnouncementCard({
   onTogglePin,
   onEdit,
   onDelete,
+  role = "admin",
+  canPin = true,
+  canEdit = true,
+  canDelete = true,
 }: AnnouncementCardProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -143,70 +151,76 @@ export function AnnouncementCard({
           style={{ color: "var(--ann-text-muted)" }}
         >
           <UserCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span>{announcement.author || "Admin"}</span>
+          <span>{announcement.author || (role === "librarian" ? "Librarian" : "Admin")}</span>
           <span aria-hidden="true">·</span>
           <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>{formatAnnouncementDate(announcement.created_at)}</span>
         </div>
 
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            disabled={pinning}
-            title={announcement.pinned ? "Unpin" : "Pin"}
-            aria-label={
-              announcement.pinned
-                ? `Unpin "${announcement.title}"`
-                : `Pin "${announcement.title}"`
-            }
-            onClick={() => onTogglePin(announcement)}
-            className="flex h-11 w-11 items-center justify-center rounded-[9px] transition cursor-pointer disabled:opacity-50"
-            style={
-              announcement.pinned
-                ? {
-                    backgroundColor: "rgba(var(--warn-rgb), 0.15)",
-                    border: "1px solid rgba(var(--warn-rgb), 0.35)",
-                    color: "var(--warn)",
-                  }
-                : {
-                    backgroundColor: "var(--ann-pill-bg)",
-                    border: "1px solid var(--ann-pill-border)",
-                    color: "var(--ann-text-muted)",
-                  }
-            }
-          >
-            <Pin className="h-4 w-4" aria-hidden="true" />
-          </button>
+          {canPin && (
+            <button
+              type="button"
+              disabled={pinning}
+              title={announcement.pinned ? "Unpin" : "Pin"}
+              aria-label={
+                announcement.pinned
+                  ? `Unpin "${announcement.title}"`
+                  : `Pin "${announcement.title}"`
+              }
+              onClick={() => onTogglePin(announcement)}
+              className="flex h-11 w-11 items-center justify-center rounded-[9px] transition cursor-pointer disabled:opacity-50"
+              style={
+                announcement.pinned
+                  ? {
+                      backgroundColor: "rgba(var(--warn-rgb), 0.15)",
+                      border: "1px solid rgba(var(--warn-rgb), 0.35)",
+                      color: "var(--warn)",
+                    }
+                  : {
+                      backgroundColor: "var(--ann-pill-bg)",
+                      border: "1px solid var(--ann-pill-border)",
+                      color: "var(--ann-text-muted)",
+                    }
+              }
+            >
+              <Pin className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
 
-          <button
-            type="button"
-            title="Edit"
-            aria-label={`Edit "${announcement.title}"`}
-            onClick={(e) => onEdit(announcement, e.currentTarget)}
-            className="flex h-11 w-11 items-center justify-center rounded-[9px] transition cursor-pointer hover:border-accent"
-            style={{
-              backgroundColor: "var(--ann-pill-bg)",
-              border: "1px solid var(--ann-pill-border)",
-              color: "var(--ann-text-muted)",
-            }}
-          >
-            <Pencil className="h-4 w-4" aria-hidden="true" />
-          </button>
+          {canEdit && (
+            <button
+              type="button"
+              title="Edit"
+              aria-label={`Edit "${announcement.title}"`}
+              onClick={(e) => onEdit(announcement, e.currentTarget)}
+              className="flex h-11 w-11 items-center justify-center rounded-[9px] transition cursor-pointer hover:border-accent"
+              style={{
+                backgroundColor: "var(--ann-pill-bg)",
+                border: "1px solid var(--ann-pill-border)",
+                color: "var(--ann-text-muted)",
+              }}
+            >
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
 
-          <button
-            type="button"
-            title="Delete"
-            aria-label={`Delete "${announcement.title}"`}
-            onClick={(e) => onDelete(announcement, e.currentTarget)}
-            className="flex h-11 w-11 items-center justify-center rounded-[9px] transition cursor-pointer hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
-            style={{
-              backgroundColor: "var(--ann-pill-bg)",
-              border: "1px solid var(--ann-pill-border)",
-              color: "var(--ann-text-muted)",
-            }}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-          </button>
+          {canDelete && (
+            <button
+              type="button"
+              title="Delete"
+              aria-label={`Delete "${announcement.title}"`}
+              onClick={(e) => onDelete(announcement, e.currentTarget)}
+              className="flex h-11 w-11 items-center justify-center rounded-[9px] transition cursor-pointer hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
+              style={{
+                backgroundColor: "var(--ann-pill-bg)",
+                border: "1px solid var(--ann-pill-border)",
+                color: "var(--ann-text-muted)",
+              }}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
         </div>
       </div>
     </article>

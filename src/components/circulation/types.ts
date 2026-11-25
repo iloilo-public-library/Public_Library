@@ -54,6 +54,17 @@ export interface PickerMember {
   email?: string;
   is_active?: boolean;
   is_approved?: boolean;
+  library_card_number?: string | null;
+}
+
+export interface CatalogBookCopy {
+  id?: number;
+  book_id?: number;
+  copy_number?: number;
+  accession_number?: string;
+  condition?: string;
+  circulation_status?: string;
+  shelf_location?: string;
 }
 
 export interface CatalogBook {
@@ -66,6 +77,10 @@ export interface CatalogBook {
   available_copies: number;
   total_copies?: number;
   status?: string;
+  catalog_code?: string;
+  call_number?: string;
+  is_borrowable?: boolean;
+  copies?: CatalogBookCopy[];
 }
 
 export interface CirculationToast {

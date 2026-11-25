@@ -27,6 +27,8 @@ interface AnnouncementModalProps {
   onChange: (next: AnnouncementFormValues) => void;
   onClose: () => void;
   onSubmit: (e: FormEvent) => Promise<void>;
+  role?: "admin" | "librarian";
+  canSendToMember?: boolean;
 }
 
 export function AnnouncementModal({
@@ -38,6 +40,7 @@ export function AnnouncementModal({
   onChange,
   onClose,
   onSubmit,
+  canSendToMember = true,
 }: AnnouncementModalProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
@@ -47,6 +50,7 @@ export function AnnouncementModal({
   const [memberResults, setMemberResults] = useState<MemberPickerOption[]>([]);
   const [searchingMembers, setSearchingMembers] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [activeMemberIdx, setActiveMemberIdx] = useState<number>(-1);
 
   // Reset picker state when modal opens/closes
   useEffect(() => {
@@ -55,6 +59,7 @@ export function AnnouncementModal({
       setMemberResults([]);
       setDropdownOpen(false);
       setSearchingMembers(false);
+      setActiveMemberIdx(-1);
     }
   }, [open]);
 
@@ -83,6 +88,7 @@ export function AnnouncementModal({
         };
         if (!controller.signal.aborted) {
           setMemberResults(Array.isArray(data.users) ? data.users : []);
+          setActiveMemberIdx(-1);
           setDropdownOpen(true);
         }
       } catch {
@@ -409,6 +415,7 @@ export function AnnouncementModal({
             </div>
 
             {/* Send To (Live Member Picker on Create; Read-only on Edit) */}
+            {canSendToMember && (
             <div ref={pickerWrapRef}>
               <label
                 htmlFor="ann-send-to-input"
@@ -468,11 +475,50 @@ export function AnnouncementModal({
                     <input
                       id="ann-send-to-input"
                       type="text"
+                      role="combobox"
+                      aria-expanded={dropdownOpen}
+                      aria-controls="ann-member-listbox"
+                      aria-autocomplete="list"
+                      aria-activedescendant={
+                        dropdownOpen &&
+                        activeMemberIdx >= 0 &&
+                        memberResults[activeMemberIdx]
+                          ? `ann-member-opt-${memberResults[activeMemberIdx].id}`
+                          : undefined
+                      }
                       value={memberQuery}
                       onChange={(e) => setMemberQuery(e.target.value)}
                       onFocus={() => {
                         if (memberQuery.trim() && memberResults.length > 0) {
                           setDropdownOpen(true);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (!dropdownOpen) return;
+                        if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          if (memberResults.length > 0) {
+                            setActiveMemberIdx((prev) =>
+                              prev < memberResults.length - 1 ? prev + 1 : 0
+                            );
+                          }
+                        } else if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          if (memberResults.length > 0) {
+                            setActiveMemberIdx((prev) =>
+                              prev > 0 ? prev - 1 : memberResults.length - 1
+                            );
+                          }
+                        } else if (e.key === "Enter") {
+                          if (activeMemberIdx >= 0 && memberResults[activeMemberIdx]) {
+                            e.preventDefault();
+                            handleSelectMember(memberResults[activeMemberIdx]);
+                          }
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDropdownOpen(false);
+                          setActiveMemberIdx(-1);
                         }
                       }}
                       placeholder="Search user by name… (leave empty to send to all)"
@@ -490,6 +536,7 @@ export function AnnouncementModal({
 
                     {dropdownOpen && (
                       <div
+                        id="ann-member-listbox"
                         role="listbox"
                         aria-label="Matching members"
                         className="absolute left-0 right-0 top-[calc(100%+4px)] z-40 max-h-[200px] overflow-y-auto rounded-[10px] shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
@@ -506,39 +553,48 @@ export function AnnouncementModal({
                             No users found
                           </div>
                         ) : (
-                          memberResults.map((member) => (
-                            <button
-                              key={member.id}
-                              type="button"
-                              role="option"
-                              aria-selected={values.target_user_id === member.id}
-                              onClick={() => handleSelectMember(member)}
-                              className="flex min-h-[44px] w-full items-center gap-2.5 px-3.5 py-2 text-left text-[0.84rem] transition cursor-pointer hover:bg-accent/10"
-                              style={{
-                                borderBottom: "1px solid var(--ann-border)",
-                                color: "var(--ann-text-primary)",
-                              }}
-                            >
-                              <UserCircle2
-                                className="h-4 w-4 shrink-0"
-                                style={{ color: "var(--accent)" }}
-                                aria-hidden="true"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <div className="truncate font-semibold">
-                                  {member.fullname}
-                                </div>
-                                {member.library_card_number && (
-                                  <div
-                                    className="font-mono text-[0.72rem]"
-                                    style={{ color: "var(--ann-text-muted)" }}
-                                  >
-                                    {member.library_card_number}
+                          memberResults.map((member, idx) => {
+                            const isHighlighted = idx === activeMemberIdx;
+                            return (
+                              <button
+                                key={member.id}
+                                id={`ann-member-opt-${member.id}`}
+                                type="button"
+                                role="option"
+                                aria-selected={
+                                  isHighlighted || values.target_user_id === member.id
+                                }
+                                onMouseEnter={() => setActiveMemberIdx(idx)}
+                                onClick={() => handleSelectMember(member)}
+                                className={`flex min-h-[44px] w-full items-center gap-2.5 px-3.5 py-2 text-left text-[0.84rem] transition cursor-pointer hover:bg-accent/10 ${
+                                  isHighlighted ? "bg-accent/15" : ""
+                                }`}
+                                style={{
+                                  borderBottom: "1px solid var(--ann-border)",
+                                  color: "var(--ann-text-primary)",
+                                }}
+                              >
+                                <UserCircle2
+                                  className="h-4 w-4 shrink-0"
+                                  style={{ color: "var(--accent)" }}
+                                  aria-hidden="true"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate font-semibold">
+                                    {member.fullname}
                                   </div>
-                                )}
-                              </div>
-                            </button>
-                          ))
+                                  {member.library_card_number && (
+                                    <div
+                                      className="font-mono text-[0.72rem]"
+                                      style={{ color: "var(--ann-text-muted)" }}
+                                    >
+                                      {member.library_card_number}
+                                    </div>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })
                         )}
                       </div>
                     )}
@@ -568,7 +624,7 @@ export function AnnouncementModal({
                         onClick={handleClearMember}
                         title="Remove — send to all"
                         aria-label="Remove recipient — send to all"
-                        className="flex h-8 w-8 items-center justify-center rounded-md transition cursor-pointer hover:text-danger"
+                        className="flex h-11 w-11 items-center justify-center rounded-md transition cursor-pointer hover:text-danger"
                         style={{ color: "var(--ann-text-muted)" }}
                       >
                         <X className="h-4 w-4" aria-hidden="true" />
@@ -588,6 +644,7 @@ export function AnnouncementModal({
                 </>
               )}
             </div>
+            )}
 
             {/* Live Preview */}
             <div>

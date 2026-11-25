@@ -282,14 +282,15 @@ export default function AdminDashboardPage() {
         type="button"
         onClick={() => setMobileOpen(true)}
         aria-label="Open menu"
-        className="fixed left-3 top-3 z-[1050] flex h-10 w-10 items-center justify-center rounded-[10px] border border-white/12 bg-topbar/90 text-white/85 shadow-lg backdrop-blur-md transition hover:bg-white/15 hover:text-white lg:hidden cursor-pointer"
+        aria-expanded={mobileOpen}
+        className="fixed left-3 top-3 z-[1050] flex h-11 w-11 items-center justify-center rounded-[10px] border border-white/12 bg-topbar/90 text-white/85 shadow-lg backdrop-blur-md transition hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:hidden cursor-pointer"
       >
-        <Menu className="h-5 w-5" />
+        <Menu className="h-5 w-5" aria-hidden="true" />
       </button>
 
       <main
         className={cn(
-          "px-4 pb-16 pt-14 transition-[padding-left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] lg:px-8 lg:pt-8",
+          "px-4 pb-16 pt-16 transition-[padding-left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] lg:px-8 lg:pt-8",
           collapsed ? "lg:pl-[88px]" : "lg:pl-[264px]"
         )}
       >

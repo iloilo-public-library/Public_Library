@@ -76,10 +76,22 @@ html[data-theme="dark"] .admin-account-requests-page {
   margin-bottom: 8px;
 }
 
+.admin-account-requests-page .page-badge.librarian {
+  background: rgba(167, 139, 250, 0.12);
+  border-color: rgba(167, 139, 250, 0.28);
+  color: var(--req-renew);
+}
+
 html[data-theme="light"] .admin-account-requests-page .page-badge {
   color: #b91c1c;
   background: rgba(185, 28, 28, 0.08);
   border-color: rgba(185, 28, 28, 0.22);
+}
+
+html[data-theme="light"] .admin-account-requests-page .page-badge.librarian {
+  color: #6d28d9;
+  background: rgba(109, 40, 217, 0.08);
+  border-color: rgba(109, 40, 217, 0.24);
 }
 
 .admin-account-requests-page .page-title {
@@ -102,6 +114,10 @@ html[data-theme="light"] .admin-account-requests-page .page-badge {
   grid-template-columns: repeat(6, 1fr);
   gap: 12px;
   margin-bottom: 24px;
+}
+
+.admin-account-requests-page .stats-row.stats-row-4 {
+  grid-template-columns: repeat(4, 1fr);
 }
 
 .admin-account-requests-page .stat-card {
@@ -1242,6 +1258,9 @@ html[data-theme="light"] .req-toast {
 @media (max-width: 1080px) {
   .admin-account-requests-page .stats-row {
     grid-template-columns: repeat(3, 1fr);
+  }
+  .admin-account-requests-page .stats-row.stats-row-4 {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 

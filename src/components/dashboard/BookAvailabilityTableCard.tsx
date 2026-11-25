@@ -9,6 +9,7 @@ interface BookAvailabilityTableCardProps {
   isLoading: boolean;
   hasError: boolean;
   onRetry: () => void;
+  viewAllHref?: string;
 }
 
 export function BookAvailabilityTableCard({
@@ -16,6 +17,7 @@ export function BookAvailabilityTableCard({
   isLoading,
   hasError,
   onRetry,
+  viewAllHref = "/admin/books",
 }: BookAvailabilityTableCardProps) {
   const topTen = [...rows]
     .sort((a, b) => (b.volumes || 0) - (a.volumes || 0))
@@ -52,7 +54,7 @@ export function BookAvailabilityTableCard({
             Top 10 by stock
           </span>
           <Link
-            href="/admin/books"
+            href={viewAllHref}
             className="inline-flex min-h-[36px] items-center rounded-full px-3 py-1 text-[0.72rem] font-semibold transition hover:underline"
             style={{ color: "var(--accent)" }}
           >
@@ -109,13 +111,13 @@ export function BookAvailabilityTableCard({
                   borderBottom: "1px solid var(--dash-border)",
                 }}
               >
-                <th className="px-2 pb-2">#</th>
-                <th className="px-2 pb-2">Title</th>
-                <th className="px-2 pb-2">Author</th>
-                <th className="px-2 pb-2">Category</th>
-                <th className="px-2 pb-2 text-center">Total</th>
-                <th className="px-2 pb-2 text-center">Available</th>
-                <th className="px-2 pb-2 text-right">Status</th>
+                <th scope="col" className="px-2 pb-2">#</th>
+                <th scope="col" className="px-2 pb-2">Title</th>
+                <th scope="col" className="px-2 pb-2">Author</th>
+                <th scope="col" className="px-2 pb-2">Category</th>
+                <th scope="col" className="px-2 pb-2 text-center">Total</th>
+                <th scope="col" className="px-2 pb-2 text-center">Available</th>
+                <th scope="col" className="px-2 pb-2 text-right">Status</th>
               </tr>
             </thead>
             <tbody>

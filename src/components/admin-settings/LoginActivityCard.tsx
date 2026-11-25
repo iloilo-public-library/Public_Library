@@ -11,6 +11,7 @@ import {
 
 interface LoginActivityCardProps {
   sessions: LoginSession[];
+  variant?: "full" | "recent";
 }
 
 const RANGE_OPTIONS: { value: ActivityRange; label: string }[] = [
@@ -30,7 +31,10 @@ const LEVEL_CLASS: Record<0 | 1 | 2 | 3 | 4, string> = {
   4: "as-l4",
 };
 
-export function LoginActivityCard({ sessions }: LoginActivityCardProps) {
+export function LoginActivityCard({
+  sessions,
+  variant = "full",
+}: LoginActivityCardProps) {
   const [range, setRange] = useState<ActivityRange>("6m");
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [hoveredTip, setHoveredTip] = useState<string | null>(null);
@@ -72,6 +76,109 @@ export function LoginActivityCard({ sessions }: LoginActivityCardProps) {
     }
     return out;
   }, [view.columns]);
+
+  if (variant === "recent") {
+    return (
+      <div
+        className="mb-[18px] overflow-hidden rounded-[16px]"
+        style={{
+          backgroundColor: "var(--as-card-bg)",
+          border: "1px solid var(--as-border)",
+        }}
+      >
+        <div
+          className="flex flex-wrap items-center justify-between gap-2 px-5 pb-3 pt-3.5"
+          style={{ borderBottom: "1px solid var(--as-border)" }}
+        >
+          <span
+            className="flex items-center gap-2 text-[0.78rem] font-bold uppercase tracking-[0.07em]"
+            style={{ color: "var(--accent)" }}
+          >
+            <Clock className="h-4 w-4" aria-hidden="true" />
+            Login Activity
+          </span>
+          <span
+            className="inline-flex items-center rounded-lg px-3 py-1 text-[0.75rem] font-semibold"
+            style={{
+              color: "var(--accent)",
+              backgroundColor: "rgba(var(--accent-rgb), 0.1)",
+              border: "1px solid rgba(var(--accent-rgb), 0.2)",
+            }}
+          >
+            Recent sessions
+          </span>
+        </div>
+
+        {visibleSessions.length === 0 ? (
+          <div
+            className="px-5 py-3.5 text-[0.83rem]"
+            style={{ color: "var(--as-text-muted)" }}
+          >
+            No login sessions recorded yet.
+          </div>
+        ) : (
+          <div>
+            {visibleSessions.map((s, idx) => (
+              <div
+                key={s.id}
+                className="flex items-start gap-[13px] px-5 py-[13px]"
+                style={{
+                  borderBottom:
+                    idx === visibleSessions.length - 1 && remainingCount === 0
+                      ? "none"
+                      : "1px solid var(--as-border-subtle)",
+                }}
+              >
+                <span
+                  className={`mt-1 h-[10px] w-[10px] shrink-0 rounded-[3px] ${
+                    s.duration === "Active now" ? "" : "as-l0"
+                  }`}
+                  style={
+                    s.duration === "Active now"
+                      ? { backgroundColor: "var(--accent2)" }
+                      : undefined
+                  }
+                  aria-hidden="true"
+                />
+                <div
+                  className="flex min-w-0 flex-1 items-center gap-1.5 text-[0.83rem] leading-[1.5]"
+                  style={{ color: "var(--as-text-secondary)" }}
+                >
+                  <LogIn className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
+                  <span className="truncate">{s.label}</span>
+                </div>
+                <div
+                  className="as-tabular shrink-0 whitespace-nowrap font-mono text-[0.76rem]"
+                  style={{ color: "var(--as-text-secondary)" }}
+                >
+                  {s.duration}
+                </div>
+              </div>
+            ))}
+
+            {remainingCount > 0 && (
+              <div className="px-5 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowAllSessions((v) => !v)}
+                  className="inline-flex min-h-[44px] items-center rounded-lg px-3.5 py-2 text-[0.76rem] font-semibold transition cursor-pointer"
+                  style={{
+                    color: "var(--accent)",
+                    backgroundColor: "rgba(var(--accent-rgb), 0.1)",
+                    border: "1px solid rgba(var(--accent-rgb), 0.2)",
+                  }}
+                >
+                  {showAllSessions
+                    ? "Show less"
+                    : `Show more (${remainingCount} more)`}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div

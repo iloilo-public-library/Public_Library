@@ -69,6 +69,8 @@ interface CalendarGridProps {
   onAddEventOnDate: (dateStr: string, defaultStartTime?: string) => void;
   onSelectEvent: (ev: CalendarEventRow) => void;
   onDropReschedule: (ev: CalendarEventRow, targetDate: string, targetStartTime?: string) => void;
+  canCreate?: boolean;
+  canReschedule?: boolean;
 }
 
 export function CalendarGrid({
@@ -83,6 +85,8 @@ export function CalendarGrid({
   onAddEventOnDate,
   onSelectEvent,
   onDropReschedule,
+  canCreate = true,
+  canReschedule = true,
 }: CalendarGridProps) {
   const [overflowDate, setOverflowDate] = useState<string | null>(null);
   const [draggedEvent, setDraggedEvent] = useState<CalendarEventRow | null>(null);
@@ -146,8 +150,10 @@ export function CalendarGrid({
       onChangeAnchor(addMonths(anchorDate, 1));
       return;
     } else if (e.key === "Enter") {
-      e.preventDefault();
-      onAddEventOnDate(dateStr);
+      if (canCreate) {
+        e.preventDefault();
+        onAddEventOnDate(dateStr);
+      }
       return;
     }
 
@@ -223,14 +229,16 @@ export function CalendarGrid({
           <div key={ds}>
             <div className="cal-list-day-head">
               <span>{formatLongDate(ds)}</span>
-              <button
-                type="button"
-                className="cal-btn"
-                style={{ minHeight: 32, minWidth: 32, padding: "0 10px", fontSize: "0.68rem" }}
-                onClick={() => onAddEventOnDate(ds)}
-              >
-                <Plus className="h-3 w-3" aria-hidden="true" /> Add
-              </button>
+              {canCreate && (
+                <button
+                  type="button"
+                  className="cal-btn"
+                  style={{ minHeight: 32, minWidth: 32, padding: "0 10px", fontSize: "0.68rem" }}
+                  onClick={() => onAddEventOnDate(ds)}
+                >
+                  <Plus className="h-3 w-3" aria-hidden="true" /> Add
+                </button>
+              )}
             </div>
             {list.map((ev) => {
               const cat = getCategoryMeta(ev.category, categories);
@@ -325,13 +333,17 @@ export function CalendarGrid({
                 key={d.dateStr}
                 className="cal-time-slot"
                 style={dragOverKey === slotKey ? { background: "rgba(72, 199, 142, 0.14)" } : undefined}
-                onClick={() => onAddEventOnDate(d.dateStr)}
+                onClick={() => {
+                  if (canCreate) onAddEventOnDate(d.dateStr);
+                }}
                 onDragOver={(e) => {
+                  if (!canReschedule) return;
                   e.preventDefault();
                   setDragOverKey(slotKey);
                 }}
                 onDragLeave={() => setDragOverKey(null)}
                 onDrop={(e) => {
+                  if (!canReschedule) return;
                   e.preventDefault();
                   setDragOverKey(null);
                   if (draggedEvent) {
@@ -346,8 +358,10 @@ export function CalendarGrid({
                     <button
                       key={eventInstanceKey(ev)}
                       type="button"
-                      draggable
-                      onDragStart={() => setDraggedEvent(ev)}
+                      draggable={canReschedule}
+                      onDragStart={() => {
+                        if (canReschedule) setDraggedEvent(ev);
+                      }}
                       onDragEnd={() => {
                         setDraggedEvent(null);
                         setDragOverKey(null);
@@ -387,13 +401,17 @@ export function CalendarGrid({
                     key={d.dateStr}
                     className="cal-time-slot"
                     style={dragOverKey === slotKey ? { background: "rgba(72, 199, 142, 0.14)" } : undefined}
-                    onClick={() => onAddEventOnDate(d.dateStr, hh)}
+                    onClick={() => {
+                      if (canCreate) onAddEventOnDate(d.dateStr, hh);
+                    }}
                     onDragOver={(e) => {
+                      if (!canReschedule) return;
                       e.preventDefault();
                       setDragOverKey(slotKey);
                     }}
                     onDragLeave={() => setDragOverKey(null)}
                     onDrop={(e) => {
+                      if (!canReschedule) return;
                       e.preventDefault();
                       setDragOverKey(null);
                       if (draggedEvent) {
@@ -408,8 +426,10 @@ export function CalendarGrid({
                         <button
                           key={eventInstanceKey(ev)}
                           type="button"
-                          draggable
-                          onDragStart={() => setDraggedEvent(ev)}
+                          draggable={canReschedule}
+                          onDragStart={() => {
+                            if (canReschedule) setDraggedEvent(ev);
+                          }}
                           onDragEnd={() => {
                             setDraggedEvent(null);
                             setDragOverKey(null);
@@ -458,13 +478,15 @@ export function CalendarGrid({
           >
             Today
           </button>
-          <button
-            type="button"
-            className="cal-btn cal-btn-add"
-            onClick={() => onAddEventOnDate(anchorDate)}
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" /> Add Event
-          </button>
+          {canCreate && (
+            <button
+              type="button"
+              className="cal-btn cal-btn-add"
+              onClick={() => onAddEventOnDate(anchorDate)}
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" /> Add Event
+            </button>
+          )}
         </div>
 
         <h2 className="cal-range-title" aria-live="polite">
@@ -558,13 +580,17 @@ export function CalendarGrid({
                           className={`cal-day-cell ${cell.inCurrentMonth ? "" : "outside"} ${cell.isToday ? "today" : ""}`}
                           style={isDragOver ? { background: "rgba(72, 199, 142, 0.16)" } : undefined}
                           onKeyDown={(e) => handleCellKeyDown(e, cell.dateStr)}
-                          onClick={() => onAddEventOnDate(cell.dateStr)}
+                          onClick={() => {
+                            if (canCreate) onAddEventOnDate(cell.dateStr);
+                          }}
                           onDragOver={(e) => {
+                            if (!canReschedule) return;
                             e.preventDefault();
                             setDragOverKey(cell.dateStr);
                           }}
                           onDragLeave={() => setDragOverKey(null)}
                           onDrop={(e) => {
+                            if (!canReschedule) return;
                             e.preventDefault();
                             setDragOverKey(null);
                             if (draggedEvent && draggedEvent.event_date !== cell.dateStr) {
@@ -584,8 +610,9 @@ export function CalendarGrid({
                               <button
                                 key={eventInstanceKey(ev)}
                                 type="button"
-                                draggable
+                                draggable={canReschedule}
                                 onDragStart={(e) => {
+                                  if (!canReschedule) return;
                                   e.stopPropagation();
                                   setDraggedEvent(ev);
                                 }}
@@ -626,17 +653,19 @@ export function CalendarGrid({
                             </button>
                           )}
 
-                          <button
-                            type="button"
-                            className="cal-day-add-btn"
-                            aria-label={`Add event on ${formatAccessibleDay(cell.dateStr)}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onAddEventOnDate(cell.dateStr);
-                            }}
-                          >
-                            <Plus className="h-3 w-3" aria-hidden="true" /> Add
-                          </button>
+                          {canCreate && (
+                            <button
+                              type="button"
+                              className="cal-day-add-btn"
+                              aria-label={`Add event on ${formatAccessibleDay(cell.dateStr)}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onAddEventOnDate(cell.dateStr);
+                              }}
+                            >
+                              <Plus className="h-3 w-3" aria-hidden="true" /> Add
+                            </button>
+                          )}
                         </div>
                       );
                     })}

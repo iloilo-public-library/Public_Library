@@ -1,17 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth/session";
+import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
+import { getActiveSessionStatus } from "@/services/auth.service";
 
 export async function GET() {
   const session = await getServerSession();
-  if (!session) {
-    return NextResponse.json({ authenticated: false, user: null });
-  }
-  return NextResponse.json({
-    authenticated: true,
-    user: {
-      id: session.userId,
-      role: session.role,
-      email: session.email,
-    },
-  });
+  const supabase = getSupabaseSecretKey() ? createSupabaseServerClient(true) : null;
+  const status = await getActiveSessionStatus(session, supabase);
+  return NextResponse.json(status);
 }

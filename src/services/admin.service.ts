@@ -48,11 +48,20 @@ export async function executeAdminMutation(
         ? `target_user_id=${result.target_user_id}`
         : undefined;
 
+  const targetId =
+    params.id ??
+    (typeof result.id === "number"
+      ? result.id
+      : typeof result.target_user_id === "number"
+        ? result.target_user_id
+        : null);
+
   await recordAuditEvent(
     {
       action: params.action,
       resource: params.resource,
-      targetId: params.id ?? (typeof result.id === "number" ? result.id : null),
+      actorId: session.userId,
+      targetId,
       actorEmail: session.email,
       actorRole: session.role,
       route: `/api/admin/data?resource=${params.resource}`,

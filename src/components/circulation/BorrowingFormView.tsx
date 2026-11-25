@@ -44,9 +44,28 @@ interface ReceiptData {
   quantity: number;
 }
 
-export function BorrowingFormView() {
+export interface BorrowingFormViewProps {
+  role?: "admin" | "librarian";
+  canBorrow?: boolean;
+}
+
+function getAvailableCopyCount(b: CatalogBook): number {
+  if (Array.isArray(b.copies) && b.copies.length > 0) {
+    const fromCopies = b.copies.filter(
+      (cp) => String(cp.circulation_status ?? "Available") === "Available"
+    ).length;
+    return Math.min(Number(b.available_copies ?? fromCopies), fromCopies || Number(b.available_copies ?? 0));
+  }
+  return Number(b.available_copies ?? 0);
+}
+
+export function BorrowingFormView({
+  role = "admin",
+  canBorrow = true,
+}: BorrowingFormViewProps = {}) {
   const todayISO = useMemo(() => getManilaTodayISO(), []);
   const todayLong = useMemo(() => getManilaLongDate(), []);
+  const isLibrarian = role === "librarian";
 
   const [tab, setTab] = useState<"member" | "borrower">("member");
 
@@ -85,6 +104,43 @@ export function BorrowingFormView() {
 
   const memberComboRef = useRef<HTMLDivElement>(null);
   const bookComboRef = useRef<HTMLDivElement>(null);
+  const confirmModalRef = useRef<HTMLDivElement>(null);
+
+  // Focus trap and Esc close for confirmation modal
+  useEffect(() => {
+    if (!confirmOpen) return;
+    const prev = document.activeElement as HTMLElement | null;
+    confirmModalRef.current?.focus();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !submitting) {
+        e.preventDefault();
+        setConfirmOpen(false);
+        return;
+      }
+      if (e.key === "Tab" && confirmModalRef.current) {
+        const focusable = confirmModalRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      prev?.focus();
+    };
+  }, [confirmOpen, submitting]);
 
   // Debounce member & book searches (300ms)
   useEffect(() => {
@@ -152,7 +208,11 @@ export function BorrowingFormView() {
           String(b.id) === cleanIdQ ||
           (b.title || "").toLowerCase().includes(debouncedBookQ) ||
           (b.author || "").toLowerCase().includes(debouncedBookQ) ||
-          (b.isbn || "").toLowerCase().includes(debouncedBookQ)
+          (b.isbn || "").toLowerCase().includes(debouncedBookQ) ||
+          (b.catalog_code || "").toLowerCase().includes(debouncedBookQ) ||
+          (b.copies ?? []).some((cp) =>
+            (cp.accession_number || "").toLowerCase().includes(debouncedBookQ)
+          )
       )
       .slice(0, 20);
   }, [allBooks, debouncedBookQ]);
@@ -328,7 +388,7 @@ export function BorrowingFormView() {
   };
 
   return (
-    <StaffShell title="Borrowing Form" role="admin">
+    <StaffShell title="Borrowing Form" role={role}>
       <div className="admin-circulation-page">
         {/* Header */}
         <header className="circ-phdr">
@@ -542,7 +602,10 @@ export function BorrowingFormView() {
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontWeight: 600, fontSize: "0.86rem" }}>{m.fullname}</div>
                                 <div style={{ fontSize: "0.72rem", color: "var(--circ-tl)" }}>
-                                  Member ID #{m.id} · {m.is_active === false ? "Inactive" : "Active"}
+                                  {m.library_card_number
+                                    ? `Card ${m.library_card_number}`
+                                    : `Member ID #${m.id}`}{" "}
+                                  · {m.is_active === false ? "Inactive" : "Active"}
                                 </div>
                               </div>
                             </button>
@@ -617,27 +680,31 @@ export function BorrowingFormView() {
                   </div>
                 </div>
 
-                <div className="circ-fg">
-                  <label htmlFor="cf-phone">Phone Number</label>
-                  <input
-                    id="cf-phone"
-                    type="text"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. 0912-345-6789"
-                  />
-                </div>
+                {!(isLibrarian && tab === "member") && (
+                  <>
+                    <div className="circ-fg">
+                      <label htmlFor="cf-phone">Phone Number</label>
+                      <input
+                        id="cf-phone"
+                        type="text"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="e.g. 0912-345-6789"
+                      />
+                    </div>
 
-                <div className="circ-fg" style={{ marginBottom: 0 }}>
-                  <label htmlFor="cf-addr">Address</label>
-                  <input
-                    id="cf-addr"
-                    type="text"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="Home or office address"
-                  />
-                </div>
+                    <div className="circ-fg" style={{ marginBottom: 0 }}>
+                      <label htmlFor="cf-addr">Address</label>
+                      <input
+                        id="cf-addr"
+                        type="text"
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        placeholder="Home or office address"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Legacy 1x1 Photo Box — disabled, no backend column in create */}
@@ -696,17 +763,24 @@ export function BorrowingFormView() {
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
-                          const exactIsbn = allBooks.find(
+                          const rawQ = bookQuery.trim().toLowerCase();
+                          const exactScan = allBooks.find(
                             (b) =>
-                              (b.isbn || "").toLowerCase() === bookQuery.trim().toLowerCase() &&
-                              (b.available_copies ?? 0) > 0
+                              getAvailableCopyCount(b) > 0 &&
+                              ((b.isbn || "").toLowerCase() === rawQ ||
+                                (b.catalog_code || "").toLowerCase() === rawQ ||
+                                (b.copies ?? []).some(
+                                  (cp) =>
+                                    (cp.accession_number || "").toLowerCase() === rawQ &&
+                                    String(cp.circulation_status ?? "Available") === "Available"
+                                ))
                           );
-                          if (exactIsbn) {
-                            handleSelectBook(exactIsbn);
+                          if (exactScan) {
+                            handleSelectBook(exactScan);
                             return;
                           }
                           const picked = filteredBooks[bookHighlight];
-                          if (picked && (picked.available_copies ?? 0) > 0) {
+                          if (picked && getAvailableCopyCount(picked) > 0) {
                             handleSelectBook(picked);
                           }
                         } else if (e.key === "ArrowDown" && bookDropOpen) {
@@ -745,8 +819,13 @@ export function BorrowingFormView() {
                         </div>
                       ) : (
                         filteredBooks.map((b, idx) => {
-                          const avail = Number(b.available_copies ?? 0);
+                          const avail = getAvailableCopyCount(b);
                           const outOfStock = avail <= 0;
+                          const sampleAccessions = (b.copies ?? [])
+                            .filter((cp) => String(cp.circulation_status ?? "Available") === "Available" && cp.accession_number)
+                            .slice(0, 2)
+                            .map((cp) => cp.accession_number)
+                            .join(", ");
                           return (
                             <button
                               key={b.id}
@@ -762,6 +841,7 @@ export function BorrowingFormView() {
                                 <div style={{ fontSize: "0.72rem", color: "var(--circ-tl)" }}>
                                   Book ID #{b.id} · {b.author}
                                   {b.isbn ? ` · ISBN: ${b.isbn}` : ""}
+                                  {sampleAccessions ? ` · Copy: ${sampleAccessions}` : ""}
                                 </div>
                               </div>
                               <span
@@ -942,7 +1022,7 @@ export function BorrowingFormView() {
             <button
               type="submit"
               className={`circ-btn ${tab === "member" ? "primary" : "green"}`}
-              disabled={submitting || qtyExceedsStock || isDueDateInPast}
+              disabled={!canBorrow || submitting || qtyExceedsStock || isDueDateInPast}
             >
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
               {tab === "member" ? "Register Member" : "Register Borrower"}
@@ -960,7 +1040,14 @@ export function BorrowingFormView() {
             if (e.target === e.currentTarget && !submitting) setConfirmOpen(false);
           }}
         >
-          <div className="circ-modal-box sm" role="dialog" aria-modal="true" aria-labelledby="bf-confirm-title">
+          <div
+            ref={confirmModalRef}
+            className="circ-modal-box sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bf-confirm-title"
+            tabIndex={-1}
+          >
             <div className="circ-modal-hdr">
               <h2 id="bf-confirm-title" style={{ margin: 0, fontSize: "1rem", fontWeight: 700 }}>
                 Confirm {tab === "member" ? "Member" : "Borrower"} Registration

@@ -116,6 +116,7 @@ interface EventFormModalProps {
   busy: boolean;
   onClose: () => void;
   onSubmit: (payload: EventFormPayload) => Promise<void>;
+  canUploadCover?: boolean;
 }
 
 export function EventFormModal({
@@ -127,6 +128,7 @@ export function EventFormModal({
   busy,
   onClose,
   onSubmit,
+  canUploadCover = true,
 }: EventFormModalProps) {
   const [title, setTitle] = useState("");
   const [eventDate, setEventDate] = useState(initialDate);
@@ -558,6 +560,7 @@ export function EventFormModal({
                   />
                 </div>
 
+                {canUploadCover && (
                 <div className="cal-fg">
                   <label>Cover Image (optional · max 2 MB)</label>
                   <input
@@ -643,6 +646,7 @@ export function EventFormModal({
                     </div>
                   )}
                 </div>
+                )}
 
                 <div className="cal-subpanel">
                   <div className="cal-fg" style={{ marginBottom: 10 }}>
@@ -818,6 +822,8 @@ interface EventDetailModalProps {
   onClose: () => void;
   onEdit: (ev: CalendarEventRow) => void;
   onDelete: (ev: CalendarEventRow) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export function EventDetailModal({
@@ -826,6 +832,8 @@ export function EventDetailModal({
   onClose,
   onEdit,
   onDelete,
+  canEdit = true,
+  canDelete = true,
 }: EventDetailModalProps) {
   const [imgFailed, setImgFailed] = useState(false);
   const dialogRef = useModalTrap(Boolean(event), onClose, false);
@@ -1047,28 +1055,34 @@ export function EventDetailModal({
         </div>
 
         <div className="cal-modal-footer between">
-          <button
-            type="button"
-            className="cal-mbtn cal-mbtn-danger"
-            onClick={() => {
-              onClose();
-              onDelete(event);
-            }}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete
-          </button>
-
-          <div style={{ display: "flex", gap: 8 }}>
+          {canDelete ? (
             <button
               type="button"
-              className="cal-mbtn cal-mbtn-edit"
+              className="cal-mbtn cal-mbtn-danger"
               onClick={() => {
                 onClose();
-                onEdit(event);
+                onDelete(event);
               }}
             >
-              <Pencil className="h-4 w-4" aria-hidden="true" /> Edit Event
+              <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete
             </button>
+          ) : (
+            <span />
+          )}
+
+          <div style={{ display: "flex", gap: 8 }}>
+            {canEdit && (
+              <button
+                type="button"
+                className="cal-mbtn cal-mbtn-edit"
+                onClick={() => {
+                  onClose();
+                  onEdit(event);
+                }}
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" /> Edit Event
+              </button>
+            )}
             <button type="button" className="cal-mbtn cal-mbtn-cancel" onClick={onClose}>
               Close
             </button>

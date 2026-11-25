@@ -1,285 +1,396 @@
 "use client";
 
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
-import { motion } from "framer-motion";
 import {
-  AlertTriangle,
-  ArrowUpRight,
-  BookCheck,
+  Archive,
+  BarChart3,
   BookOpen,
-  CreditCard,
-  Layers,
-  Package,
+  CheckCircle2,
+  Gauge,
+  HelpCircle,
   RefreshCw,
-  RotateCcw,
-  UserCheck,
   Users,
+  Wrench,
 } from "lucide-react";
 import { StaffShell } from "@/components/layout/StaffShell";
-import { Button } from "@/components/ui/button";
-import { LibraryTooltip } from "@/components/ui/tooltip";
 import { swrPrivateConfig } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import type { DashboardStats } from "@/types/library";
+import { BooksAddedChartCard } from "@/components/dashboard/BooksAddedChartCard";
+import { TopCategoriesCard } from "@/components/dashboard/TopCategoriesCard";
+import { CollectionConditionCard } from "@/components/dashboard/CollectionConditionCard";
+import { AlertsPanelCard } from "@/components/dashboard/AlertsPanelCard";
+import { BookAvailabilityTableCard } from "@/components/dashboard/BookAvailabilityTableCard";
+import {
+  useCountUp,
+  type DashboardAlertItem,
+  type InventoryApiResponse,
+} from "@/components/dashboard/types";
+import "@/components/dashboard/dashboard.css";
 
-export default function LibrarianDashboardPage() {
-  const { data: stats, error, isLoading, mutate } = useSWR<DashboardStats>(
-    "/api/dashboard/stats",
-    swrPrivateConfig
-  );
+interface KpiCardProps {
+  label: string;
+  value: number | null | undefined;
+  icon: typeof BookOpen;
+  iconBg: string;
+  iconColor: string;
+  valueColor?: string;
+  isLoading: boolean;
+  delayMs: number;
+}
 
-  const kpis = [
-    {
-      label: "Catalog Titles",
-      value: stats?.total_books ?? "—",
-      icon: BookOpen,
-      tone: "text-[#5b9bd5] bg-[#5b9bd5]/15 border-[#5b9bd5]/25",
-    },
-    {
-      label: "Available Copies",
-      value: stats?.available_books ?? "—",
-      icon: BookCheck,
-      tone: "text-[#3ecf8e] bg-[#3ecf8e]/15 border-[#3ecf8e]/25",
-    },
-    {
-      label: "Borrowed Copies",
-      value: stats?.borrowed_books ?? "—",
-      icon: CreditCard,
-      tone: "text-[#f5a623] bg-[#f5a623]/15 border-[#f5a623]/25",
-    },
-    {
-      label: "Overdue Cards",
-      value: stats?.overdue_books ?? "—",
-      icon: AlertTriangle,
-      tone: "text-[#e05454] bg-[#e05454]/15 border-[#e05454]/25",
-    },
-    {
-      label: "Registered Members",
-      value: stats?.total_users ?? "—",
-      icon: Users,
-      tone: "text-[#9b78e8] bg-[#9b78e8]/15 border-[#9b78e8]/25",
-    },
-    {
-      label: "Pending Requests",
-      value: stats?.pending_requests ?? "—",
-      icon: UserCheck,
-      tone: "text-[#2dd4bf] bg-[#2dd4bf]/15 border-[#2dd4bf]/25",
-    },
-  ];
-
-  const totalVol = Math.max(1, stats?.total_volumes ?? 0);
-  const inventoryBreakdown = [
-    {
-      label: "Available",
-      value: stats?.available_books ?? 0,
-      color: "bg-accent2",
-      text: "text-accent2",
-    },
-    {
-      label: "Borrowed",
-      value: stats?.borrowed_books ?? 0,
-      color: "bg-accent",
-      text: "text-accent",
-    },
-    {
-      label: "Damaged",
-      value: stats?.damaged_books ?? 0,
-      color: "bg-warn",
-      text: "text-warn",
-    },
-    {
-      label: "Lost",
-      value: stats?.lost_books ?? 0,
-      color: "bg-danger",
-      text: "text-danger",
-    },
-  ];
-
-  const maxDayCount = Math.max(
-    1,
-    ...(stats?.books_per_day?.map((d) => d.count) ?? [1])
-  );
+function LibrarianKpiCard({
+  label,
+  value,
+  icon: Icon,
+  iconBg,
+  iconColor,
+  valueColor,
+  isLoading,
+  delayMs,
+}: KpiCardProps) {
+  const animated = useCountUp(value);
 
   return (
-    <StaffShell title="Librarian Dashboard" role="librarian">
-      {/* Header */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[1.65rem] font-bold tracking-[-0.03em] text-white">
-            Librarian <span className="text-accent">Dashboard</span>
-          </h1>
-          <p className="mt-1 text-[0.84rem] text-tl">
-            Real-time overview of catalog inventory, borrowing activity, and member circulation.
-          </p>
-        </div>
-
-        <LibraryTooltip label="Revalidate dashboard metrics">
-          <Button variant="secondary" size="sm" onClick={() => mutate()}>
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-            Refresh Stats
-          </Button>
-        </LibraryTooltip>
+    <div
+      className="dash-fade-up relative flex items-center gap-[11px] overflow-hidden rounded-[14px] px-[13px] py-[15px] transition hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(0,0,0,0.2)]"
+      style={{
+        animationDelay: `${delayMs}ms`,
+        backgroundColor: "var(--dash-card-bg)",
+        border: "1px solid var(--dash-border)",
+      }}
+    >
+      <div
+        className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px]"
+        style={{ backgroundColor: iconBg, color: iconColor }}
+      >
+        <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
       </div>
-
-      {error && (
-        <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-warn/30 bg-warn/10 p-4 text-xs text-warn">
-          <span>Unable to load live library statistics. Please sign in or refresh.</span>
-          <Button variant="accent" size="sm" asChild>
-            <Link href="/login">Sign In</Link>
-          </Button>
+      <div className="min-w-0">
+        <div
+          className="truncate text-[0.65rem] uppercase tracking-[0.05em]"
+          style={{ color: "var(--dash-text-muted)" }}
+        >
+          {label}
         </div>
-      )}
-
-      {/* Primary KPI Grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {kpis.map(({ label, value, icon: Icon, tone }, idx) => (
-          <motion.div
-            key={label}
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: idx * 0.04 }}
-            whileHover={{ y: -3 }}
-            className="rounded-2xl border border-white/8 bg-card-glass p-5 backdrop-blur-sm transition-colors hover:bg-card-glass-hover"
+        {isLoading ? (
+          <div
+            className="mt-1 h-5 w-12 animate-pulse rounded"
+            style={{ backgroundColor: "var(--dash-track-bg)" }}
+          />
+        ) : (
+          <div
+            className="dash-tabular text-[1.4rem] font-bold leading-[1.1]"
+            style={{ color: valueColor || "var(--dash-text-primary)" }}
           >
-            <div className="flex items-center justify-between">
-              <span className="text-[0.78rem] font-semibold uppercase tracking-[0.05em] text-tl/75">
-                {label}
-              </span>
-              <div
-                className={cn(
-                  "flex h-10 w-10 items-center justify-center rounded-xl border",
-                  tone
-                )}
-              >
-                <Icon className="h-5 w-5" />
-              </div>
-            </div>
-            <div className="mt-3 font-mono text-[1.9rem] font-bold tracking-tight text-white">
-              {typeof value === "number" ? value.toLocaleString() : value}
-            </div>
-          </motion.div>
-        ))}
+            {animated !== null ? animated.toLocaleString() : "—"}
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
 
-      {/* Analytics Row */}
-      <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {/* Inventory Breakdown */}
-        <div className="rounded-2xl border border-white/10 bg-card-glass p-5 backdrop-blur-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Layers className="h-4 w-4 text-accent" />
-              <h2 className="text-sm font-bold text-white">Inventory Condition Breakdown</h2>
-            </div>
-            <span className="font-mono text-xs text-accent">
-              Total Volumes: {(stats?.total_volumes ?? 0).toLocaleString()}
-            </span>
-          </div>
+const LIBRARIAN_DASH_SWR = {
+  ...swrPrivateConfig,
+  refreshInterval: 60000,
+};
 
-          <div className="mb-4 flex h-3 w-full overflow-hidden rounded-full bg-white/8">
-            {inventoryBreakdown.map((item) => {
-              const pct = Math.min(100, Math.round((item.value / totalVol) * 100));
-              return pct > 0 ? (
-                <div
-                  key={item.label}
-                  style={{ width: `${pct}%` }}
-                  className={cn("h-full transition-all", item.color)}
-                  title={`${item.label}: ${item.value}`}
-                />
-              ) : null;
-            })}
-          </div>
+export default function LibrarianDashboardPage() {
+  const [lastUpdated, setLastUpdated] = useState<string>("");
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {inventoryBreakdown.map((item) => (
-              <div
-                key={item.label}
-                className="rounded-xl border border-white/8 bg-bg1/55 px-3 py-2.5"
-              >
-                <div className="text-[0.7rem] font-semibold uppercase tracking-wider text-tl/65">
-                  {item.label}
-                </div>
-                <div className={cn("mt-1 font-mono text-lg font-bold", item.text)}>
-                  {item.value.toLocaleString()}
-                </div>
-              </div>
-            ))}
-          </div>
+  const {
+    data: stats,
+    error: statsError,
+    isLoading: statsLoading,
+    isValidating: statsValidating,
+    mutate: mutateStats,
+  } = useSWR<DashboardStats>("/api/dashboard/stats", LIBRARIAN_DASH_SWR);
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/8 pt-3 text-xs text-tl/75">
-            <span className="inline-flex items-center gap-1.5">
-              <CreditCard className="h-3.5 w-3.5 text-accent" />
-              Issued Library Cards:{" "}
-              <strong className="font-mono text-white">
-                {(stats?.active_cards ?? 0).toLocaleString()}
-              </strong>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <RotateCcw className="h-3.5 w-3.5 text-accent2" />
-              Completed Returns:{" "}
-              <strong className="font-mono text-white">
-                {(stats?.total_returns ?? 0).toLocaleString()}
-              </strong>
-            </span>
-          </div>
-        </div>
+  const {
+    data: invData,
+    error: invError,
+    isLoading: invLoading,
+    isValidating: invValidating,
+    mutate: mutateInv,
+  } = useSWR<InventoryApiResponse>(
+    "/api/admin/data?resource=inventory",
+    LIBRARIAN_DASH_SWR
+  );
 
-        {/* 7-Day Catalog Activity */}
-        <div className="rounded-2xl border border-white/10 bg-card-glass p-5 backdrop-blur-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-white">
-              Catalog Additions (Last 7 Days)
-            </h2>
-            <span className="font-mono text-xs text-tl/60">Live 7-day count</span>
-          </div>
-          <div className="grid h-36 grid-cols-7 items-end gap-2 pt-3">
-            {(stats?.books_per_day ?? []).map((day) => {
-              const pct = Math.max(8, Math.round((day.count / maxDayCount) * 100));
-              return (
-                <div
-                  key={day.label}
-                  className="flex h-full flex-col items-center justify-end gap-1.5"
-                >
-                  <span className="font-mono text-[0.68rem] text-accent">{day.count}</span>
-                  <div className="flex w-full flex-1 items-end">
-                    <div
-                      style={{ height: `${pct}%` }}
-                      className="w-full rounded-t-md bg-gradient-to-t from-accent/45 to-accent transition-all"
-                    />
-                  </div>
-                  <span className="truncate font-mono text-[0.62rem] text-tl/65">
-                    {day.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+  useEffect(() => {
+    if (stats || invData) {
+      setLastUpdated(
+        new Date().toLocaleTimeString("en-PH", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+      );
+    }
+  }, [stats, invData]);
 
-      {/* Quick Librarian Tools */}
-      <div className="mt-6 rounded-2xl border border-white/10 bg-card-glass p-5">
-        <h2 className="mb-3 text-sm font-bold text-white">Quick Librarian Tools</h2>
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { href: "/librarian/account-requests", label: "Review Renewal Requests", icon: UserCheck },
-            { href: "/librarian/books", label: "Manage Books & ISBNs", icon: BookOpen },
-            { href: "/librarian/inventory", label: "Update Physical Stock", icon: Package },
-            { href: "/librarian/library-cards", label: "Issue Cards & Returns", icon: CreditCard },
-          ].map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className="flex items-center justify-between rounded-xl border border-white/8 bg-bg1/55 px-3.5 py-2.5 text-xs font-semibold text-tl transition hover:border-accent/40 hover:text-white"
+  const handleRefreshAll = useCallback(() => {
+    void mutateStats();
+    void mutateInv();
+  }, [mutateStats, mutateInv]);
+
+  const inventoryRows = invData?.rows ?? [];
+
+  const invTotals = useMemo(() => {
+    if (inventoryRows.length > 0) {
+      return inventoryRows.reduce(
+        (acc, r) => ({
+          available: acc.available + (r.available_copies || 0),
+          damaged: acc.damaged + (r.damaged_copies || 0),
+          lost: acc.lost + (r.lost_copies || 0),
+          total: acc.total + (r.volumes || 0),
+        }),
+        { available: 0, damaged: 0, lost: 0, total: 0 }
+      );
+    }
+    return {
+      available: stats?.available_books ?? 0,
+      damaged: stats?.damaged_books ?? 0,
+      lost: stats?.lost_books ?? 0,
+      total: stats?.total_volumes ?? 0,
+    };
+  }, [inventoryRows, stats]);
+
+  // Inventory-based alerts matching legacy librarians/dashboard.html verbatim
+  const alerts = useMemo<DashboardAlertItem[]>(() => {
+    const list: DashboardAlertItem[] = [];
+    if (inventoryRows.length === 0) return list;
+
+    const lowStock = inventoryRows.filter(
+      (b) => (b.available_copies || 0) === 0 && (b.volumes || 0) > 0
+    );
+    const damaged = inventoryRows.filter((b) => (b.damaged_copies || 0) > 0);
+    const lost = inventoryRows.filter((b) => (b.lost_copies || 0) > 0);
+
+    if (lowStock.length > 0) {
+      list.push({
+        id: "out-of-stock",
+        severity: "danger",
+        icon: "out-of-stock",
+        title: `${lowStock.length} book title${lowStock.length > 1 ? "s" : ""} out of stock`,
+        body: `No available copies: ${lowStock
+          .slice(0, 3)
+          .map((b) => b.book_title)
+          .join(", ")}${lowStock.length > 3 ? " and more…" : ""}`,
+        href: "/librarian/books",
+      });
+    }
+
+    if (damaged.length > 0) {
+      list.push({
+        id: "damaged-copies",
+        severity: "warn",
+        icon: "damaged",
+        title: `${damaged.length} title${damaged.length > 1 ? "s" : ""} have damaged copies`,
+        body: `${invTotals.damaged} damaged cop${
+          invTotals.damaged > 1 ? "ies" : "y"
+        } need attention or replacement.`,
+        href: "/librarian/inventory",
+      });
+    }
+
+    if (lost.length > 0) {
+      list.push({
+        id: "lost-copies",
+        severity: "warn",
+        icon: "lost",
+        title: `${invTotals.lost} cop${invTotals.lost > 1 ? "ies" : "y"} marked as lost`,
+        body: `Across ${lost.length} title${
+          lost.length > 1 ? "s" : ""
+        }. Consider reporting to management.`,
+        href: "/librarian/inventory",
+      });
+    }
+
+    return list;
+  }, [inventoryRows, invTotals]);
+
+  const isRefreshing = statsValidating || invValidating;
+
+  return (
+    <StaffShell title="Dashboard" role="librarian">
+      <div className="admin-dashboard-page overflow-x-clip">
+        {/* Header */}
+        <div className="mb-[22px] flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1
+              className="flex items-center gap-2 text-[1.65rem] font-bold tracking-[-0.03em]"
+              style={{ color: "var(--dash-text-primary)" }}
             >
-              <span className="inline-flex items-center gap-2">
-                <Icon className="h-4 w-4 text-accent" />
-                {label}
+              <Gauge
+                className="h-6 w-6 shrink-0"
+                style={{ color: "var(--accent)" }}
+                aria-hidden="true"
+              />
+              <span>
+                Librarian <span style={{ color: "var(--accent)" }}>Dashboard</span>
               </span>
-              <ArrowUpRight className="h-3.5 w-3.5 text-white/40" />
-            </Link>
-          ))}
+            </h1>
+            <p className="mt-1 text-[0.84rem]" style={{ color: "var(--tl)" }}>
+              Real-time overview of library resources and collection
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full px-3 py-1 text-[0.75rem] font-bold"
+              style={{
+                backgroundColor: "rgba(62, 207, 142, 0.1)",
+                border: "1px solid rgba(62, 207, 142, 0.22)",
+                color: "var(--c-green)",
+              }}
+            >
+              <span
+                className="h-[7px] w-[7px] rounded-full animate-pulse"
+                style={{ backgroundColor: "var(--c-green)" }}
+                aria-hidden="true"
+              />
+              Auto-refresh every 60s
+            </div>
+
+            <button
+              type="button"
+              onClick={handleRefreshAll}
+              disabled={isRefreshing}
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full px-4 py-1.5 text-[0.82rem] font-semibold transition cursor-pointer disabled:opacity-60"
+              style={{
+                backgroundColor: "rgba(var(--accent-rgb), 0.1)",
+                border: "1px solid rgba(var(--accent-rgb), 0.25)",
+                color: "var(--accent)",
+              }}
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+                aria-hidden="true"
+              />
+              Refresh
+            </button>
+          </div>
         </div>
+
+        {/* 5 STAT CARDS */}
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <LibrarianKpiCard
+            label="Total Books"
+            value={stats ? stats.total_books : null}
+            icon={BookOpen}
+            iconBg="rgba(91, 155, 213, 0.18)"
+            iconColor="var(--c-blue)"
+            isLoading={statsLoading}
+            delayMs={40}
+          />
+          <LibrarianKpiCard
+            label="Available"
+            value={!invLoading || stats ? invTotals.available : null}
+            icon={CheckCircle2}
+            iconBg="rgba(45, 212, 191, 0.18)"
+            iconColor="var(--c-teal)"
+            valueColor="var(--c-teal)"
+            isLoading={invLoading && statsLoading}
+            delayMs={80}
+          />
+          <LibrarianKpiCard
+            label="Damaged"
+            value={!invLoading || stats ? invTotals.damaged : null}
+            icon={Wrench}
+            iconBg="rgba(245, 166, 35, 0.18)"
+            iconColor="var(--c-orange)"
+            valueColor="var(--c-orange)"
+            isLoading={invLoading && statsLoading}
+            delayMs={120}
+          />
+          <LibrarianKpiCard
+            label="Lost Copies"
+            value={!invLoading || stats ? invTotals.lost : null}
+            icon={HelpCircle}
+            iconBg="rgba(247, 201, 72, 0.18)"
+            iconColor="var(--c-gold)"
+            valueColor="var(--c-gold)"
+            isLoading={invLoading && statsLoading}
+            delayMs={160}
+          />
+          <LibrarianKpiCard
+            label="Registered Users"
+            value={stats ? stats.total_users : null}
+            icon={Users}
+            iconBg="rgba(62, 207, 142, 0.18)"
+            iconColor="var(--c-green)"
+            isLoading={statsLoading}
+            delayMs={200}
+          />
+        </div>
+
+        {/* COLLECTION ANALYTICS */}
+        <div className="dash-section-label">
+          <BarChart3 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>Collection Analytics</span>
+        </div>
+
+        <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <BooksAddedChartCard
+            booksPerDay={stats?.books_per_day}
+            isLoading={statsLoading}
+            hasError={Boolean(statsError)}
+            onRetry={() => void mutateStats()}
+            showMiniStats
+          />
+          <TopCategoriesCard
+            rows={inventoryRows}
+            isLoading={invLoading}
+            hasError={Boolean(invError)}
+            onRetry={() => void mutateInv()}
+          />
+        </div>
+
+        {/* INVENTORY OVERVIEW */}
+        <div className="dash-section-label">
+          <Archive className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>Inventory Overview</span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <CollectionConditionCard
+            totalCopies={invTotals.total}
+            available={invTotals.available}
+            damaged={invTotals.damaged}
+            lost={invTotals.lost}
+            isLoading={invLoading && statsLoading}
+            hasError={Boolean(invError && statsError)}
+            onRetry={handleRefreshAll}
+          />
+
+          <AlertsPanelCard
+            alerts={alerts}
+            isLoading={invLoading}
+            partialWarning={
+              invError ? "Inventory alerts unavailable (inventory request failed)." : null
+            }
+            emptyMessage="All inventory looks good!"
+          />
+
+          <BookAvailabilityTableCard
+            rows={inventoryRows}
+            isLoading={invLoading}
+            hasError={Boolean(invError)}
+            onRetry={() => void mutateInv()}
+            viewAllHref="/librarian/books"
+          />
+        </div>
+
+        {lastUpdated && (
+          <p
+            className="mt-5 text-right text-[0.7rem]"
+            style={{ color: "var(--dash-text-faint)" }}
+          >
+            Last updated: {lastUpdated}
+          </p>
+        )}
       </div>
     </StaffShell>
   );

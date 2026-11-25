@@ -27,6 +27,10 @@ import {
 
 interface RequestCardProps {
   row: AccountRequestRow;
+  role?: "admin" | "librarian";
+  canApprove?: boolean;
+  canReject?: boolean;
+  canDelete?: boolean;
   onViewDetail: (row: AccountRequestRow) => void;
   onApprove: (row: AccountRequestRow) => void;
   onReject: (row: AccountRequestRow) => void;
@@ -35,6 +39,10 @@ interface RequestCardProps {
 
 export function RequestCard({
   row,
+  role = "admin",
+  canApprove = true,
+  canReject = true,
+  canDelete = true,
   onViewDetail,
   onApprove,
   onReject,
@@ -111,10 +119,12 @@ export function RequestCard({
         </div>
 
         <div className="id-meta">
-          <div className="id-meta-row">
-            <TypeIcon className="id-meta-icon h-3.5 w-3.5" aria-hidden="true" />
-            <span className="id-meta-val">{typeLabel}</span>
-          </div>
+          {role !== "librarian" && (
+            <div className="id-meta-row">
+              <TypeIcon className="id-meta-icon h-3.5 w-3.5" aria-hidden="true" />
+              <span className="id-meta-val">{typeLabel}</span>
+            </div>
+          )}
           <div className="id-meta-row">
             <MessageSquareText className="id-meta-icon h-3.5 w-3.5" aria-hidden="true" />
             <span className="id-meta-val">{reasonSnip}</span>
@@ -147,24 +157,28 @@ export function RequestCard({
 
         {row.status === "pending" ? (
           <div className="id-actions">
-            <button
-              type="button"
-              className="btn-icon-act btn-approve-sm"
-              onClick={() => onApprove(row)}
-              aria-label={`Approve request for ${displayName}`}
-              title="Approve"
-            >
-              <Check className="h-4 w-4" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className="btn-icon-act btn-reject-sm"
-              onClick={() => onReject(row)}
-              aria-label={`Reject request for ${displayName}`}
-              title="Reject"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
+            {canApprove && (
+              <button
+                type="button"
+                className="btn-icon-act btn-approve-sm"
+                onClick={() => onApprove(row)}
+                aria-label={`Approve request for ${displayName}`}
+                title="Approve"
+              >
+                <Check className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
+            {canReject && (
+              <button
+                type="button"
+                className="btn-icon-act btn-reject-sm"
+                onClick={() => onReject(row)}
+                aria-label={`Reject request for ${displayName}`}
+                title="Reject"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
             <button
               type="button"
               className="btn-view-detail"
@@ -188,15 +202,17 @@ export function RequestCard({
             >
               <Eye className="h-3.5 w-3.5" aria-hidden="true" /> Details
             </button>
-            <button
-              type="button"
-              className="btn-icon-act btn-delete-record"
-              onClick={() => onDeleteRecord(row)}
-              aria-label={`Delete record for ${displayName}`}
-              title="Delete this record"
-            >
-              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
+            {canDelete && (
+              <button
+                type="button"
+                className="btn-icon-act btn-delete-record"
+                onClick={() => onDeleteRecord(row)}
+                aria-label={`Delete record for ${displayName}`}
+                title="Delete record"
+              >
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
           </div>
         )}
       </div>

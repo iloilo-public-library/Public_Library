@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 import { getServerSession } from "@/lib/auth/session";
-import { isAdminRole, isStaffRole } from "@/lib/auth/rbac";
+import {
+  isAdminRole,
+  isStaffRole,
+  requireStaff,
+  touchSessionActivity,
+} from "@/lib/auth/rbac";
+import { toErrorResponse } from "@/lib/errors";
 import {
   AdminMutationError,
   executeAdminMutation,
@@ -14,14 +20,6 @@ import {
   recordErrorLog,
   toggleResolveErrorLog,
 } from "@/lib/audit/error-logger";
-
-async function requireStaffSession() {
-  const session = await getServerSession();
-  if (!session || !isStaffRole(session.role)) {
-    return null;
-  }
-  return session;
-}
 
 const NOISY_SUBJECT_RE =
   /^(accessible book|protected daisy|in library|overdrive|large type|open library|lending library|internet archive|reading level|nyt:|series:|place:|time:|person:|award:|collection:|ddc:|lcc:|bisac:|dewey )/i;
@@ -132,7 +130,6 @@ async function lookupByIsbn(rawIsbn: string) {
     thumbnail_url: string;
   } | null = null;
 
-  // 1. Fetch Google Books (using digits-only ISBN for exact matching)
   try {
     const gRes = await fetch(
       `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(cleanDigits)}`,
@@ -187,7 +184,6 @@ async function lookupByIsbn(rawIsbn: string) {
     // Continue to Open Library
   }
 
-  // 2. Fetch Open Library (enriches subjects/genre or serves as primary when Google Books misses)
   try {
     const olRes = await fetch(
       `https://openlibrary.org/api/books?bibkeys=ISBN:${encodeURIComponent(cleanDigits)}&format=json&jscmd=data`,
@@ -274,15 +270,14 @@ async function lookupByIsbn(rawIsbn: string) {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const queryObj = Object.fromEntries(searchParams.entries());
   const parsedQuery = adminQuerySchema.safeParse({
+    ...queryObj,
     resource: searchParams.get("resource") || "",
-    isbn: searchParams.get("isbn") || undefined,
-    from: searchParams.get("from") || undefined,
-    to: searchParams.get("to") || undefined,
   });
 
   if (!parsedQuery.success) {
-    return NextResponse.json({ error: "Invalid resource parameter" }, { status: 400 });
+    return toErrorResponse(parsedQuery.error);
   }
 
   const { resource, isbn, from, to } = parsedQuery.data;
@@ -290,10 +285,36 @@ export async function GET(request: Request) {
   const session = await getServerSession();
   const isStaff = Boolean(session && isStaffRole(session.role));
 
-  if (!publicResources.has(resource) && !isStaff) {
+  if (session) {
+    void touchSessionActivity(session);
+  }
+
+  if (!publicResources.has(resource)) {
+    if (!session) {
+      return NextResponse.json(
+        { ok: false, error: "Unauthorized — please log in as staff." },
+        { status: 401 }
+      );
+    }
+    if (!isStaff) {
+      return NextResponse.json(
+        { ok: false, error: "Forbidden — staff access required." },
+        { status: 403 }
+      );
+    }
+  }
+
+  const adminOnlyReadResources = new Set([
+    "admins",
+    "librarians",
+    "system_settings",
+    "error_logs",
+    "backup_logs",
+  ]);
+  if (adminOnlyReadResources.has(resource) && session?.role !== "admin") {
     return NextResponse.json(
-      { error: "Unauthorized — please log in as staff." },
-      { status: 401 }
+      { ok: false, error: "Forbidden — administrator privileges required." },
+      { status: 403 }
     );
   }
 
@@ -304,7 +325,7 @@ export async function GET(request: Request) {
 
   if (!getSupabaseSecretKey()) {
     return NextResponse.json(
-      { error: "SUPABASE_SECRET_KEY is not configured." },
+      { ok: false, error: "SUPABASE_SECRET_KEY is not configured." },
       { status: 503 }
     );
   }
@@ -321,7 +342,7 @@ export async function GET(request: Request) {
     return NextResponse.json(payload);
   } catch (err) {
     if (err instanceof AdminMutationError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
+      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
     }
     const message = err instanceof Error ? err.message : "Database query failed";
     await recordErrorLog({
@@ -331,10 +352,9 @@ export async function GET(request: Request) {
       method: "GET",
       status_code: 500,
       message,
-      details: err instanceof Error ? err.stack || "" : "",
-      user_email: session?.email || "",
+      user_email: session ? `user#${session.userId}` : "",
     });
-    return NextResponse.json({ error: message }, { status: 500 });
+    return toErrorResponse(err);
   }
 }
 
@@ -342,46 +362,55 @@ async function processMutationRequest(
   request: Request,
   defaultAction: string
 ) {
-  const session = await requireStaffSession();
-  if (!session) {
-    return NextResponse.json(
-      { error: "Unauthorized — please log in as staff." },
-      { status: 401 }
-    );
-  }
-
-  if (!getSupabaseSecretKey()) {
-    return NextResponse.json(
-      { error: "SUPABASE_SECRET_KEY is not configured." },
-      { status: 503 }
-    );
-  }
-
   let resource = "";
   let action = defaultAction;
 
   try {
-    const rawBody = await request.json();
-    const parsedBody = adminMutationSchema.safeParse(rawBody);
-    if (!parsedBody.success) {
+    const session = await requireStaff();
+
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch {
       return NextResponse.json(
-        { error: parsedBody.error.issues[0]?.message || "Invalid request payload" },
+        { ok: false, error: "Invalid JSON payload." },
         { status: 400 }
       );
+    }
+
+    const parsedBody = adminMutationSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return toErrorResponse(parsedBody.error);
     }
 
     const { resource: validatedResource, id: rawId, payload } = parsedBody.data;
     resource = validatedResource;
     action = (parsedBody.data.action ?? defaultAction).trim();
+
+    const adminOnlyWriteResources = new Set([
+      "users",
+      "librarians",
+      "admins",
+      "system_settings",
+      "error_logs",
+    ]);
+    if (adminOnlyWriteResources.has(resource) && !isAdminRole(session.role)) {
+      return NextResponse.json(
+        { ok: false, error: "Only Administrators can perform this action." },
+        { status: 403 }
+      );
+    }
+
+    if (!getSupabaseSecretKey()) {
+      return NextResponse.json(
+        { ok: false, error: "SUPABASE_SECRET_KEY is not configured." },
+        { status: 503 }
+      );
+    }
+
     const supabase = createSupabaseServerClient(true);
 
     if (resource === "error_logs") {
-      if (!isAdminRole(session.role)) {
-        return NextResponse.json(
-          { error: "Only Administrators can manage error logs." },
-          { status: 403 }
-        );
-      }
       if (action === "create" || action === "test") {
         const entry = await recordErrorLog(
           {
@@ -392,7 +421,7 @@ async function processMutationRequest(
             status_code: Number(payload.status_code || 500),
             message: String(payload.message || "Simulated admin diagnostic test error"),
             details: String(payload.details || "Triggered manually from Admin Error Logs console."),
-            user_email: session.email,
+            user_email: `user#${session.userId}`,
           },
           supabase
         );
@@ -400,7 +429,7 @@ async function processMutationRequest(
       }
       if (action === "resolve") {
         if (!rawId) {
-          return NextResponse.json({ error: "Log ID is required." }, { status: 400 });
+          return NextResponse.json({ ok: false, error: "Log ID is required." }, { status: 400 });
         }
         await toggleResolveErrorLog(supabase, String(rawId), Boolean(payload.resolved));
         return NextResponse.json({ ok: true });
@@ -411,7 +440,7 @@ async function processMutationRequest(
       }
       if (action === "delete") {
         if (!rawId) {
-          return NextResponse.json({ error: "Log ID is required." }, { status: 400 });
+          return NextResponse.json({ ok: false, error: "Log ID is required." }, { status: 400 });
         }
         await deleteErrorLog(supabase, String(rawId));
         return NextResponse.json({ ok: true });
@@ -429,20 +458,9 @@ async function processMutationRequest(
     return NextResponse.json(result);
   } catch (err) {
     if (err instanceof AdminMutationError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
+      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
     }
-    const message = err instanceof Error ? err.message : "Operation failed";
-    await recordErrorLog({
-      level: "error",
-      source: "API",
-      route: `/api/admin/data (${resource}:${action})`,
-      method: request.method,
-      status_code: 500,
-      message,
-      details: err instanceof Error ? err.stack || "" : "",
-      user_email: session.email,
-    });
-    return NextResponse.json({ error: message }, { status: 500 });
+    return toErrorResponse(err);
   }
 }
 

@@ -1,14 +1,24 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
-import { emailBlindIndex } from "@/lib/auth/session";
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+import { checkEmailAvailabilityService } from "@/services/auth.service";
+import { checkEmailQuerySchema } from "@/validators/auth";
+import { emailSchema } from "@/validators/common";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const email = (searchParams.get("email") ?? "").trim().toLowerCase();
+  const queryObj = Object.fromEntries(searchParams.entries());
+  const parsedQuery = checkEmailQuerySchema.safeParse(queryObj);
 
-  if (!email || !EMAIL_RE.test(email)) {
+  if (!parsedQuery.success) {
+    return NextResponse.json({
+      available: false,
+      taken: false,
+      reason: "Enter a valid email address.",
+    });
+  }
+
+  const emailCheck = emailSchema.safeParse(parsedQuery.data.email);
+  if (!emailCheck.success) {
     return NextResponse.json({
       available: false,
       taken: false,
@@ -22,28 +32,8 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createSupabaseServerClient(true);
-    const lookupKeys = [email];
-    const blinded = emailBlindIndex(email);
-    if (blinded) lookupKeys.unshift(blinded);
-
-    const { data: existing, error } = await supabase
-      .from("users")
-      .select("id")
-      .or(
-        `username.in.(${lookupKeys.map((k) => `"${k.replace(/"/g, "")}"`).join(",")}),email_display.eq."${email.replace(/"/g, "")}"`
-      )
-      .limit(1);
-
-    if (error) {
-      return NextResponse.json({ available: true, taken: false, reason: "" });
-    }
-
-    const taken = (existing?.length ?? 0) > 0;
-    return NextResponse.json({
-      available: !taken,
-      taken,
-      reason: taken ? "This email is already registered." : "Email is available.",
-    });
+    const result = await checkEmailAvailabilityService(supabase, emailCheck.data);
+    return NextResponse.json(result);
   } catch {
     return NextResponse.json({ available: true, taken: false, reason: "" });
   }

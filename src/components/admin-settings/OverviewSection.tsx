@@ -2,10 +2,12 @@
 
 import {
   AtSign,
+  BookOpen,
   Calendar,
   CheckCircle2,
   IdCard,
   Palette,
+  Phone,
   Shield,
   User,
 } from "lucide-react";
@@ -19,6 +21,8 @@ interface OverviewSectionProps {
   adminSince: string;
   sessions: LoginSession[];
   onSelectSection: (section: SectionId) => void;
+  role?: "admin" | "librarian";
+  phone?: string;
 }
 
 export function OverviewSection({
@@ -28,7 +32,10 @@ export function OverviewSection({
   adminSince,
   sessions,
   onSelectSection,
+  role = "admin",
+  phone,
 }: OverviewSectionProps) {
+  const isLibrarian = role === "librarian";
   const statusLabel = profile
     ? profile.is_active && profile.is_approved
       ? "Active & Verified"
@@ -178,6 +185,73 @@ export function OverviewSection({
         </div>
 
         <div>
+          {/* Librarian-only: Full Name + Phone Number */}
+          {isLibrarian && (
+            <>
+              <div
+                className="flex items-center justify-between gap-4 px-5 py-3.5"
+                style={{ borderBottom: "1px solid var(--as-border-subtle)" }}
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-[13px]">
+                  <span
+                    className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px]"
+                    style={{
+                      backgroundColor: "rgba(var(--accent-rgb), 0.1)",
+                      color: "var(--accent)",
+                    }}
+                  >
+                    <User className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <div
+                      className="mb-0.5 text-[0.88rem] font-semibold"
+                      style={{ color: "var(--as-text-primary)" }}
+                    >
+                      Full Name
+                    </div>
+                    <div
+                      className="notranslate truncate text-[0.75rem]"
+                      style={{ color: "var(--as-text-muted)" }}
+                    >
+                      {isLoading ? "Loading..." : displayName}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className="flex items-center justify-between gap-4 px-5 py-3.5"
+                style={{ borderBottom: "1px solid var(--as-border-subtle)" }}
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-[13px]">
+                  <span
+                    className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px]"
+                    style={{
+                      backgroundColor: "rgba(var(--accent-rgb), 0.1)",
+                      color: "var(--accent)",
+                    }}
+                  >
+                    <Phone className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <div
+                      className="mb-0.5 text-[0.88rem] font-semibold"
+                      style={{ color: "var(--as-text-primary)" }}
+                    >
+                      Phone Number
+                    </div>
+                    <div
+                      className="notranslate truncate text-[0.75rem]"
+                      style={{ color: "var(--as-text-muted)" }}
+                    >
+                      {isLoading ? "Loading..." : phone || "—"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
           {/* Username / Email */}
           <div
             className="flex items-center justify-between gap-4 px-5 py-3.5"
@@ -209,6 +283,40 @@ export function OverviewSection({
               </div>
             </div>
           </div>
+
+          {/* Librarian-only: Role */}
+          {isLibrarian && (
+            <div
+              className="flex items-center justify-between gap-4 px-5 py-3.5"
+              style={{ borderBottom: "1px solid var(--as-border-subtle)" }}
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-[13px]">
+                <span
+                  className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px]"
+                  style={{
+                    backgroundColor: "rgba(var(--accent-rgb), 0.1)",
+                    color: "var(--accent)",
+                  }}
+                >
+                  <BookOpen className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <div
+                    className="mb-0.5 text-[0.88rem] font-semibold"
+                    style={{ color: "var(--as-text-primary)" }}
+                  >
+                    Role
+                  </div>
+                  <div
+                    className="text-[0.75rem]"
+                    style={{ color: "var(--as-text-muted)" }}
+                  >
+                    Librarian
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Account Status */}
           <div
@@ -250,7 +358,7 @@ export function OverviewSection({
             </span>
           </div>
 
-          {/* Admin Since */}
+          {/* Admin Since / Librarian Since */}
           <div className="flex items-center justify-between gap-4 px-5 py-3.5">
             <div className="flex min-w-0 flex-1 items-center gap-[13px]">
               <span
@@ -267,7 +375,7 @@ export function OverviewSection({
                   className="mb-0.5 text-[0.88rem] font-semibold"
                   style={{ color: "var(--as-text-primary)" }}
                 >
-                  Admin Since
+                  {isLibrarian ? "Librarian Since" : "Admin Since"}
                 </div>
                 <div
                   className="text-[0.75rem]"
@@ -282,7 +390,7 @@ export function OverviewSection({
       </div>
 
       {/* LOGIN ACTIVITY Card */}
-      <LoginActivityCard sessions={sessions} />
+      <LoginActivityCard sessions={sessions} variant={isLibrarian ? "recent" : "full"} />
     </section>
   );
 }

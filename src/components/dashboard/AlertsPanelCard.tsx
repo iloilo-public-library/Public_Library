@@ -17,6 +17,7 @@ interface AlertsPanelCardProps {
   alerts: DashboardAlertItem[];
   isLoading: boolean;
   partialWarning?: string | null;
+  emptyMessage?: string;
 }
 
 const ALERT_ICONS: Record<DashboardAlertItem["icon"], typeof Lock> = {
@@ -32,6 +33,7 @@ export function AlertsPanelCard({
   alerts,
   isLoading,
   partialWarning,
+  emptyMessage = "All systems look good!",
 }: AlertsPanelCardProps) {
   const count = alerts.length;
   const allClear = !isLoading && count === 0;
@@ -95,7 +97,7 @@ export function AlertsPanelCard({
             style={{ color: "var(--c-green)" }}
             aria-hidden="true"
           />
-          <span>All systems look good!</span>
+          <span>{emptyMessage}</span>
           {partialWarning && (
             <span className="text-[0.72rem]" style={{ color: "var(--c-orange)" }}>
               {partialWarning}

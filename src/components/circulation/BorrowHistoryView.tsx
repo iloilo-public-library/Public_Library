@@ -40,8 +40,29 @@ import "./circulation.css";
 
 const PAGE_SIZE = 15;
 
-export function BorrowHistoryView() {
+export interface BorrowHistoryViewProps {
+  role?: "admin" | "librarian";
+  canReturn?: boolean;
+  canRenew?: boolean;
+  canMarkLost?: boolean;
+  canWaiveFine?: boolean;
+  canExport?: boolean;
+  canDelete?: boolean;
+}
+
+export function BorrowHistoryView({
+  role = "admin",
+  canReturn = true,
+  canRenew = true,
+  canMarkLost = false,
+  canWaiveFine = false,
+  canExport = true,
+  canDelete = true,
+}: BorrowHistoryViewProps = {}) {
   const todayISO = useMemo(() => getManilaTodayISO(), []);
+  const isLibrarian = role === "librarian";
+  void canMarkLost;
+  void canWaiveFine;
 
   const [activeTab, setActiveTab] = useState<"all" | "returns">("all");
   const [typeFilter, setTypeFilter] = useState<"" | "member" | "borrower" | "overdue">("");
@@ -131,12 +152,13 @@ export function BorrowHistoryView() {
       if (dateFrom && (c.date_issued || "") < dateFrom) return false;
       if (dateTo && (c.date_issued || "") > dateTo) return false;
       if (!debouncedQ) return true;
-      const hay = `${c.fullname} ${c.phone_number || ""} ${(c.books ?? [])
+      const includePhone = !(isLibrarian && c.card_type_category === "member");
+      const hay = `${c.fullname} ${includePhone ? c.phone_number || "" : ""} ${(c.books ?? [])
         .map((b) => `${b.book_title} ${b.book_isbn || ""}`)
         .join(" ")}`.toLowerCase();
       return hay.includes(debouncedQ);
     });
-  }, [allCards, typeFilter, dateFrom, dateTo, debouncedQ, todayISO, returnedCardIds]);
+  }, [allCards, typeFilter, dateFrom, dateTo, debouncedQ, todayISO, returnedCardIds, isLibrarian]);
 
   const filteredReturns = useMemo(() => {
     return allReturns.filter((r) => {
@@ -278,7 +300,7 @@ export function BorrowHistoryView() {
   const activeLoading = activeTab === "all" ? cardsLoading : returnsLoading;
 
   return (
-    <StaffShell title="Borrow History" role="admin">
+    <StaffShell title="Borrow History" role={role}>
       <div className="admin-circulation-page">
         {/* Header */}
         <header className="circ-phdr">
@@ -292,9 +314,11 @@ export function BorrowHistoryView() {
             </div>
           </div>
 
-          <button type="button" className="circ-btn export" onClick={handleExportCSV}>
-            <Download className="h-4 w-4" aria-hidden="true" /> Export CSV
-          </button>
+          {canExport && (
+            <button type="button" className="circ-btn export" onClick={handleExportCSV}>
+              <Download className="h-4 w-4" aria-hidden="true" /> Export CSV
+            </button>
+          )}
         </header>
 
         {/* 4 Stat Cards */}
@@ -635,7 +659,7 @@ export function BorrowHistoryView() {
                               >
                                 <Eye className="h-4 w-4" aria-hidden="true" />
                               </button>
-                              {!isReturned && hasBooks && (
+                              {canReturn && !isReturned && hasBooks && (
                                 <button
                                   type="button"
                                   className="circ-icon-btn ret"
@@ -646,24 +670,28 @@ export function BorrowHistoryView() {
                                   <ArrowDownLeft className="h-4 w-4" aria-hidden="true" />
                                 </button>
                               )}
-                              <button
-                                type="button"
-                                className="circ-icon-btn edit"
-                                onClick={() => setEditCard(c)}
-                                aria-label={`Edit or renew card for ${c.fullname}`}
-                                title="Edit / Renew"
-                              >
-                                <Pencil className="h-4 w-4" aria-hidden="true" />
-                              </button>
-                              <button
-                                type="button"
-                                className="circ-icon-btn del"
-                                onClick={() => setDeleteCard(c)}
-                                aria-label={`Delete record for ${c.fullname}`}
-                                title="Delete"
-                              >
-                                <Trash2 className="h-4 w-4" aria-hidden="true" />
-                              </button>
+                              {canRenew && (
+                                <button
+                                  type="button"
+                                  className="circ-icon-btn edit"
+                                  onClick={() => setEditCard(c)}
+                                  aria-label={`Edit or renew card for ${c.fullname}`}
+                                  title="Edit / Renew"
+                                >
+                                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button
+                                  type="button"
+                                  className="circ-icon-btn del"
+                                  onClick={() => setDeleteCard(c)}
+                                  aria-label={`Delete record for ${c.fullname}`}
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -693,17 +721,21 @@ export function BorrowHistoryView() {
                         <button type="button" className="circ-btn" style={{ minHeight: 38, fontSize: "0.78rem" }} onClick={() => setViewCard(c)}>
                           View
                         </button>
-                        {!isReturned && (c.books ?? []).length > 0 && (
+                        {canReturn && !isReturned && (c.books ?? []).length > 0 && (
                           <button type="button" className="circ-btn" style={{ minHeight: 38, fontSize: "0.78rem", color: "var(--circ-warn)" }} onClick={() => setReturnCard(c)}>
                             Return
                           </button>
                         )}
-                        <button type="button" className="circ-btn" style={{ minHeight: 38, fontSize: "0.78rem" }} onClick={() => setEditCard(c)}>
-                          Edit
-                        </button>
-                        <button type="button" className="circ-btn" style={{ minHeight: 38, fontSize: "0.78rem", color: "var(--circ-danger)" }} onClick={() => setDeleteCard(c)}>
-                          Delete
-                        </button>
+                        {canRenew && (
+                          <button type="button" className="circ-btn" style={{ minHeight: 38, fontSize: "0.78rem" }} onClick={() => setEditCard(c)}>
+                            Edit
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button type="button" className="circ-btn" style={{ minHeight: 38, fontSize: "0.78rem", color: "var(--circ-danger)" }} onClick={() => setDeleteCard(c)}>
+                            Delete
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -815,7 +847,7 @@ export function BorrowHistoryView() {
       </div>
 
       {/* Modals */}
-      <CardDetailModal card={viewCard} onClose={() => setViewCard(null)} />
+      <CardDetailModal card={viewCard} role={role} onClose={() => setViewCard(null)} />
       <ProcessReturnModal
         card={returnCard}
         busy={mutating}

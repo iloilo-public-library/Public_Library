@@ -13,6 +13,7 @@ interface BooksAddedChartCardProps {
   isLoading: boolean;
   hasError: boolean;
   onRetry: () => void;
+  showMiniStats?: boolean;
 }
 
 export function BooksAddedChartCard({
@@ -20,6 +21,7 @@ export function BooksAddedChartCard({
   isLoading,
   hasError,
   onRetry,
+  showMiniStats = false,
 }: BooksAddedChartCardProps) {
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
 
@@ -231,6 +233,72 @@ export function BooksAddedChartCard({
               })}
             </svg>
           </div>
+
+          {/* Optional 3-cell mini stats row (legacy librarian dashboard) */}
+          {showMiniStats && (
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <div
+                className="rounded-[9px] px-1.5 py-2 text-center"
+                style={{
+                  backgroundColor: "var(--dash-inner-bg)",
+                  border: "1px solid var(--dash-border-subtle)",
+                }}
+              >
+                <div
+                  className="dash-tabular text-[1.1rem] font-bold leading-none"
+                  style={{ color: "var(--c-blue)" }}
+                >
+                  {series.reduce((sum, d) => sum + d.count, 0).toLocaleString()}
+                </div>
+                <div
+                  className="mt-1 text-[0.6rem] uppercase tracking-[0.06em]"
+                  style={{ color: "var(--dash-text-faint)" }}
+                >
+                  This Week
+                </div>
+              </div>
+              <div
+                className="rounded-[9px] px-1.5 py-2 text-center"
+                style={{
+                  backgroundColor: "var(--dash-inner-bg)",
+                  border: "1px solid var(--dash-border-subtle)",
+                }}
+              >
+                <div
+                  className="dash-tabular text-[1.1rem] font-bold leading-none"
+                  style={{ color: "var(--c-green)" }}
+                >
+                  {(series[series.length - 1]?.count ?? 0).toLocaleString()}
+                </div>
+                <div
+                  className="mt-1 text-[0.6rem] uppercase tracking-[0.06em]"
+                  style={{ color: "var(--dash-text-faint)" }}
+                >
+                  Today
+                </div>
+              </div>
+              <div
+                className="rounded-[9px] px-1.5 py-2 text-center"
+                style={{
+                  backgroundColor: "var(--dash-inner-bg)",
+                  border: "1px solid var(--dash-border-subtle)",
+                }}
+              >
+                <div
+                  className="dash-tabular text-[1.1rem] font-bold leading-none"
+                  style={{ color: "var(--c-gold)" }}
+                >
+                  {Math.max(0, ...series.map((d) => d.count)).toLocaleString()}
+                </div>
+                <div
+                  className="mt-1 text-[0.6rem] uppercase tracking-[0.06em]"
+                  style={{ color: "var(--dash-text-faint)" }}
+                >
+                  Peak Day
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Visually hidden table for screen readers */}
           <table className="sr-only">

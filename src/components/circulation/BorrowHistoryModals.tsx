@@ -66,15 +66,18 @@ function useDialogTrap(open: boolean, onClose: () => void, busy: boolean) {
 
 export function CardDetailModal({
   card,
+  role = "admin",
   onClose,
 }: {
   card: LibraryCardRow | null;
+  role?: "admin" | "librarian";
   onClose: () => void;
 }) {
   const ref = useDialogTrap(Boolean(card), onClose, false);
   if (!card) return null;
   const books = card.books ?? [];
   const totalVols = books.reduce((s, b) => s + Number(b.quantity ?? 1), 0);
+  const hidePatronContacts = role === "librarian" && card.card_type_category === "member";
 
   return (
     <div
@@ -131,8 +134,16 @@ export function CardDetailModal({
             <User className="h-7 w-7 opacity-60 shrink-0" aria-hidden="true" />
             <div>
               <div style={{ fontWeight: 700, fontSize: "1rem" }}>{card.fullname}</div>
-              <div style={{ fontSize: "0.78rem", opacity: 0.75 }}>{card.phone_number || "—"}</div>
-              <div style={{ fontSize: "0.78rem", opacity: 0.75 }}>{card.address || "—"}</div>
+              {hidePatronContacts ? (
+                <div style={{ fontSize: "0.76rem", opacity: 0.7 }}>
+                  Registered Member · Card #{card.id}
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: "0.78rem", opacity: 0.75 }}>{card.phone_number || "—"}</div>
+                  <div style={{ fontSize: "0.78rem", opacity: 0.75 }}>{card.address || "—"}</div>
+                </>
+              )}
             </div>
           </div>
 
