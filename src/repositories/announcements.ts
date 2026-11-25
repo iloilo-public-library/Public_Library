@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SessionPayload } from "@/lib/auth/session";
+import { verifyRepositoryActor } from "@/lib/auth/rbac";
+import { STAFF_ROLES } from "@/config/constants";
 import {
   AdminMutationError,
   formatFullName,
@@ -75,11 +77,13 @@ export async function mutateAnnouncements(
   id: number | null,
   payload: Record<string, unknown>
 ) {
+  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES);
+
   if (action === "delete") {
     if (!id) throw new AdminMutationError("Announcement ID is required.");
     const { error } = await supabase.from("announcements").delete().eq("id", id);
     if (error) throw new AdminMutationError(error.message, 500);
-    return { ok: true, deletedId: id };
+    return { ok: true, deletedId: id, audit_details: `action=delete_announcement id=${id}` };
   }
 
   if (action === "toggle_pin") {
@@ -96,7 +100,11 @@ export async function mutateAnnouncements(
       .update({ pinned: parsed.data.pinned })
       .eq("id", id);
     if (error) throw new AdminMutationError(error.message, 500);
-    return { ok: true, id };
+    return {
+      ok: true,
+      id,
+      audit_details: `action=toggle_pin id=${id} pinned=${parsed.data.pinned}`,
+    };
   }
 
   if (action === "create") {

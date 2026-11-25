@@ -206,3 +206,233 @@ export const announcementTogglePinSchema = z
     pinned: z.boolean(),
   })
   .strict();
+
+const nullableOptStr = z
+  .union([z.string(), z.number(), z.null(), z.undefined()])
+  .transform((v) => (v === null || v === undefined ? "" : String(v).trim()));
+
+export const bookCopyInputSchema = z
+  .object({
+    id: z.coerce.number().int().positive().optional(),
+    copy_number: z.coerce.number().int().min(1).max(5000).optional(),
+    accession_number: nullableOptStr.optional(),
+    condition: z
+      .enum(["Good", "Fair", "Damaged", "Destroyed", "Lost", "Under Repair"])
+      .optional()
+      .default("Good"),
+    circulation_status: z
+      .enum(["Available", "Borrowed", "Reserved", "Unusable"])
+      .optional()
+      .default("Available"),
+    condition_notes: nullableOptStr.optional(),
+    shelf_location: nullableOptStr.optional(),
+  })
+  .passthrough();
+
+export const bookMutationPayloadSchema = z
+  .object({
+    title: z.string().trim().min(1, "Title, Author, and ISBN are required.").max(1000),
+    author: z.string().trim().min(1, "Title, Author, and ISBN are required.").max(1000),
+    isbn: z.string().trim().min(1, "Title, Author, and ISBN are required.").max(100),
+    call_number: nullableOptStr.optional(),
+    catalog_code: nullableOptStr.optional(),
+    accession_prefix: nullableOptStr.optional(),
+    category: nullableOptStr.optional(),
+    class: nullableOptStr.optional(),
+    genre: nullableOptStr.optional(),
+    publisher: nullableOptStr.optional(),
+    edition: nullableOptStr.optional(),
+    published_date: nullableOptStr.optional(),
+    subtitle: nullableOptStr.optional(),
+    description: nullableOptStr.optional(),
+    language: nullableOptStr.optional(),
+    thumbnail_url: nullableOptStr.optional(),
+    api_source: nullableOptStr.optional(),
+    source_of_fund: nullableOptStr.optional(),
+    copy_right: nullableOptStr.optional(),
+    cost_price: z.union([z.number(), z.string(), z.null(), z.undefined()]).optional(),
+    page_count: z.union([z.number(), z.string(), z.null(), z.undefined()]).optional(),
+    date_received: nullableOptStr.optional(),
+    is_borrowable: z.union([z.boolean(), z.string(), z.number()]).optional(),
+    copies_to_add: z.coerce.number().int().min(0).max(5000).optional(),
+    total_copies: z.coerce.number().int().min(0).max(5000).optional(),
+    volumes: z.coerce.number().int().min(0).max(5000).optional(),
+    available_copies: z.coerce.number().int().min(0).max(5000).optional(),
+    damaged_copies: z.coerce.number().int().min(0).max(5000).optional(),
+    destroyed_copies: z.coerce.number().int().min(0).max(5000).optional(),
+    lost_copies: z.coerce.number().int().min(0).max(5000).optional(),
+    shelf_location: nullableOptStr.optional(),
+    inventory_status: nullableOptStr.optional(),
+    status: nullableOptStr.optional(),
+    copies: z.array(bookCopyInputSchema).optional(),
+    sync_counts_from_copies: z.boolean().optional(),
+  })
+  .passthrough();
+
+export const inventoryUpdatePayloadSchema = z
+  .object({
+    book_id: z.coerce.number().int().positive().optional(),
+    total_copies: z.coerce.number().int().min(0).max(5000).optional(),
+    volumes: z.coerce.number().int().min(0).max(5000).optional(),
+    available_copies: z.coerce.number().int().min(0).max(5000).optional(),
+    damaged_copies: z.coerce.number().int().min(0).max(5000).optional(),
+    destroyed_copies: z.coerce.number().int().min(0).max(5000).optional(),
+    lost_copies: z.coerce.number().int().min(0).max(5000).optional(),
+    shelf_location: nullableOptStr.optional(),
+    status: nullableOptStr.optional(),
+    is_borrowable: z.union([z.boolean(), z.string(), z.number()]).optional(),
+    copies: z.array(bookCopyInputSchema).optional(),
+    sync_counts_from_copies: z.boolean().optional(),
+  })
+  .passthrough();
+
+export const accountCreateSchema = z
+  .object({
+    firstname: z
+      .string()
+      .trim()
+      .min(2, "Valid first name, last name, and email are required.")
+      .max(64, "First name must be 64 characters or fewer."),
+    lastname: z
+      .string()
+      .trim()
+      .min(2, "Valid first name, last name, and email are required.")
+      .max(64, "Last name must be 64 characters or fewer."),
+    email: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .email("Valid first name, last name, and email are required.")
+      .max(160),
+    password: z
+      .string()
+      .regex(
+        /^[A-Za-z\d@$!%*?&_#^]{8,64}$/,
+        "Password must be 8-64 chars with uppercase, lowercase, number, and symbol (@$!%*?&_#^)."
+      )
+      .regex(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&_#^]).{8,64}$/,
+        "Password must be 8-64 chars with uppercase, lowercase, number, and symbol (@$!%*?&_#^)."
+      ),
+    role: z.enum(["admin", "librarian", "user"]).optional(),
+    gender: nullableOptStr.optional(),
+    phone_number: nullableOptStr.optional(),
+    phone: nullableOptStr.optional(),
+  })
+  .passthrough();
+
+export const accountResetPasswordSchema = z
+  .object({
+    new_password: z
+      .string()
+      .regex(
+        /^[A-Za-z\d@$!%*?&_#^]{8,64}$/,
+        "New password must be 8-64 chars with uppercase, lowercase, number, and symbol (@$!%*?&_#^)."
+      )
+      .regex(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&_#^]).{8,64}$/,
+        "New password must be 8-64 chars with uppercase, lowercase, number, and symbol (@$!%*?&_#^)."
+      ),
+  })
+  .strict();
+
+export const accountToggleActiveSchema = z
+  .object({
+    is_active: z.boolean(),
+  })
+  .strict();
+
+export const accountRequestReviewSchema = z
+  .object({
+    note: nullableOptStr.optional(),
+    admin_note: nullableOptStr.optional(),
+  })
+  .passthrough();
+
+export const libraryCardBookItemSchema = z.union([
+  z.coerce.number().int().positive(),
+  z.object({
+    id: z.coerce.number().int().positive().optional(),
+    book_id: z.coerce.number().int().positive().optional(),
+    qty: z.coerce.number().int().min(1).max(100).optional(),
+    quantity: z.coerce.number().int().min(1).max(100).optional(),
+  }),
+]);
+
+export const libraryCardCreateSchema = z
+  .object({
+    card_type_category: z.enum(["member", "borrower"]).optional().default("borrower"),
+    user_id: nullableIdSchema,
+    firstname: z.string().trim().min(1, "First name and last name are required.").max(100),
+    lastname: z.string().trim().min(1, "First name and last name are required.").max(100),
+    phone_number: nullableOptStr.optional(),
+    phone: nullableOptStr.optional(),
+    address: nullableOptStr.optional(),
+    date_issued: nullableOptStr.optional(),
+    date_return: nullableOptStr.optional(),
+    card_type: nullableOptStr.optional(),
+    valid_until: nullableOptStr.optional(),
+    photo_path: nullableOptStr.optional(),
+    renewal1_checked: z.union([z.boolean(), z.string(), z.number()]).optional(),
+    renewal1_date: nullableOptStr.optional(),
+    renewal2_checked: z.union([z.boolean(), z.string(), z.number()]).optional(),
+    renewal2_date: nullableOptStr.optional(),
+    book_id: nullableIdSchema,
+    quantity: z.coerce.number().int().min(1).max(100).optional().default(1),
+    book_ids: z.array(libraryCardBookItemSchema).optional(),
+  })
+  .passthrough();
+
+export const libraryCardUpdateSchema = z
+  .object({
+    firstname: nullableOptStr.optional(),
+    lastname: nullableOptStr.optional(),
+    phone_number: nullableOptStr.optional(),
+    phone: nullableOptStr.optional(),
+    address: nullableOptStr.optional(),
+    card_type: nullableOptStr.optional(),
+    date_return: nullableOptStr.optional(),
+    valid_until: nullableOptStr.optional(),
+    photo_path: nullableOptStr.optional(),
+    renewal1_checked: z.union([z.boolean(), z.string(), z.number()]).optional(),
+    renewal1_date: nullableOptStr.optional(),
+    renewal2_checked: z.union([z.boolean(), z.string(), z.number()]).optional(),
+    renewal2_date: nullableOptStr.optional(),
+    book_ids: z.array(libraryCardBookItemSchema).optional(),
+  })
+  .passthrough();
+
+export const libraryCardReturnItemSchema = z
+  .object({
+    row_index: z.coerce.number().int().min(0).optional(),
+    card_book_id: z.coerce.number().int().positive().optional(),
+    qty_returned: z.coerce.number().int().min(0).max(100),
+  })
+  .strict();
+
+export const libraryCardReturnSchema = z
+  .object({
+    return_date: nullableOptStr.optional(),
+    card_id: nullableIdSchema,
+    items: z.array(libraryCardReturnItemSchema).optional(),
+  })
+  .passthrough();
+
+export const systemSettingsUpdateSchema = z
+  .object({
+    maintenance_enabled: z.boolean().optional().default(false),
+    maintenance_message: z.string().trim().max(500).optional().default(""),
+    bypass_role: z.enum(["admin", "admin_librarian"]).optional().default("admin"),
+    lockdown_enabled: z.boolean().optional().default(false),
+    backup_frequency: z
+      .enum(["hourly", "daily", "weekly", "monthly", "off"])
+      .optional()
+      .default("weekly"),
+  })
+  .strict();
+
+export const systemSettingsBackupSchema = z
+  .object({
+    scope: z.string().trim().max(160).optional().default("Supabase Full Database Snapshot"),
+  })
+  .strict();

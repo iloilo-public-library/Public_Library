@@ -46,6 +46,9 @@
 #### November 25, 2026
 - Integrated and hardened the Batch 1 Admin backend (`auth` & `session` foundation, Admin Settings & Login Activity, Admin Dashboard, and Admin Home) with `route -> service -> repository` layering, strict `.strict()` Zod validators, shared server + repository RBAC guards with 60s throttled `login_sessions` heartbeats, table-backed abuse rate limiting (`010_batch1_auth_rate_limits_and_indexes.sql`), `Asia/Manila` dashboard day boundaries, scrubbed audit logging, unit tests, and 87-route integration verification. (`d92fefb`)
 
+#### November 26, 2026
+- Integrated the remaining `legacy-flask/routes/admin_routes.py` backend modules (`books`, `inventory`, `users`/`librarians`/`admins`, `account_requests`, `library_cards`, `returns`, `announcements`, `system_settings`, `/api/admin/users`, and `/api/admin/valid-id/[userId]`) into Node.js/Next.js with Zod validation, duplicate ISBN conflict checks, cascade account cleanup, registration decision emails (`sendRegistrationDecisionEmail`), Fernet decrypted search fallback, multi-book & partial-item return circulation support, Dropbox card-photo cleanup, and repository-level RBAC guards. (`uncommitted`)
+
 ### Git Commit History
 
 | Date | Time | Commit | Message |

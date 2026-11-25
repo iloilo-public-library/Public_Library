@@ -148,3 +148,72 @@ export async function sendOtpEmail(toEmail: string, otp: string): Promise<boolea
     text: `Your Iloilo City Public Library verification code is: ${otp}`,
   });
 }
+
+export interface RegistrationDecisionEmailInput {
+  toEmail: string;
+  firstname: string;
+  approved: boolean;
+  note?: string;
+  siteUrl?: string;
+}
+
+/**
+ * Matches `send_registration_decision_email` in `legacy-flask/email_config/email_config.py`.
+ * Sends an approval or rejection email when an administrator reviews a `register` account request.
+ */
+export async function sendRegistrationDecisionEmail({
+  toEmail,
+  firstname,
+  approved,
+  note = "",
+  siteUrl,
+}: RegistrationDecisionEmailInput): Promise<boolean> {
+  const cleanEmail = toEmail.trim();
+  if (!cleanEmail || !cleanEmail.includes("@")) return false;
+
+  const displayFirst = firstname.trim() || "Member";
+  const cleanNote = note.trim();
+  const baseUrl =
+    siteUrl?.trim() ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    "http://localhost:3000";
+
+  const subject = approved
+    ? "Registration Approved — Iloilo City Public Library"
+    : "Registration Update — Iloilo City Public Library";
+  const headline = approved
+    ? "Your Registration is Approved!"
+    : "Registration Not Approved";
+  const badgeColor = approved ? "#48c78e" : "#ff6363";
+  const bodyText = approved
+    ? `Welcome, ${displayFirst}! Your account has been approved by our admin. You can now log in and start exploring the library.`
+    : `Hi ${displayFirst}, we're sorry to inform you that your registration request was reviewed and was not approved at this time.`;
+  const noteLabel = approved ? "Admin Note" : "Reason";
+  const ctaText = approved ? "Log In Now" : "Visit Our Website";
+  const ctaUrl = approved ? `${baseUrl.replace(/\/+$/, "")}/login` : baseUrl;
+
+  const noteBlock =
+    cleanNote || !approved
+      ? `<div style="margin:0 0 22px;padding:14px 18px;background:#f8fbff;border:1px solid #d0e4f5;border-radius:10px;">
+           <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:4px;">${noteLabel}</div>
+           <div style="font-size:14px;color:#334155;">${cleanNote || "No additional note provided."}</div>
+         </div>`
+      : "";
+
+  const html = wrapEmailLayout(
+    approved ? "Account Approved" : "Registration Update",
+    `<h2 style="margin:0 0 12px;color:${badgeColor};font-size:19px;font-weight:700;">${headline}</h2>
+     <p style="margin:0 0 18px;">${bodyText}</p>
+     ${noteBlock}
+     <p style="text-align:center;margin:0;">
+       <a href="${ctaUrl}" style="display:inline-block;background:${badgeColor};color:${approved ? "#0d1a24" : "#ffffff"};text-decoration:none;font-weight:700;padding:12px 28px;border-radius:24px;">${ctaText}</a>
+     </p>`
+  );
+
+  return sendEmail({
+    to: cleanEmail,
+    subject,
+    html,
+    text: `${bodyText}${cleanNote ? `\n\n${noteLabel}: ${cleanNote}` : ""}\n\n${ctaUrl}`,
+  });
+}

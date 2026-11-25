@@ -1,11 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { safeDecryptData } from "@/lib/crypto/fernet";
+import { maybeEncryptData, safeDecryptData } from "@/lib/crypto/fernet";
 import { AdminMutationError } from "@/repositories/shared";
 import {
   buildGeneratedCopies,
   computeConditionSummary,
   syncBookCopiesInDb,
 } from "@/repositories/inventory";
+import { bookMutationPayloadSchema } from "@/validators/admin";
 
 export async function queryBooks(supabase: SupabaseClient) {
   const [booksRes, invRes, copiesRes] = await Promise.all([
@@ -110,17 +111,52 @@ export async function mutateBooks(
   payload: Record<string, unknown>
 ) {
   if (action === "delete") {
-    if (!id) throw new AdminMutationError("Book ID is required.");
+    if (!id) throw new AdminMutationError("Book ID is required.", 400);
+    const { data: existing } = await supabase
+      .from("books")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+    if (!existing) {
+      throw new AdminMutationError("Book not found.", 404);
+    }
+    await supabase.from("book_inventory").delete().eq("book_id", id);
     const { error } = await supabase.from("books").delete().eq("id", id);
     if (error) throw new AdminMutationError(error.message, 500);
-    return { ok: true, deletedId: id };
+    return { ok: true, deletedId: id, audit_details: `action=delete_book id=${id}` };
   }
 
-  const title = String(payload.title ?? "").trim();
-  const author = String(payload.author ?? "").trim();
-  const isbn = String(payload.isbn ?? "").trim();
-  if (!title || !author || !isbn) {
-    throw new AdminMutationError("Title, Author, and ISBN are required.");
+  const parsed = bookMutationPayloadSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new AdminMutationError(
+      parsed.error.issues[0]?.message || "Title, Author, and ISBN are required.",
+      400
+    );
+  }
+
+  const title = parsed.data.title;
+  const author = parsed.data.author;
+  const isbn = parsed.data.isbn;
+
+  // Duplicate ISBN check (matches legacy-flask/routes/admin_routes.py lines 626-629 & 741-745)
+  const isbnCandidates = Array.from(
+    new Set([isbn, maybeEncryptData(isbn)].filter(Boolean))
+  );
+  let dupQuery = supabase
+    .from("books")
+    .select("id, isbn")
+    .in("isbn", isbnCandidates);
+  if (action === "update" && id) {
+    dupQuery = dupQuery.neq("id", id);
+  }
+  const { data: dupRows } = await dupQuery.limit(1);
+  if (dupRows && dupRows.length > 0) {
+    throw new AdminMutationError(
+      action === "update"
+        ? "Another book with this ISBN already exists."
+        : "A book with this ISBN already exists.",
+      409
+    );
   }
 
   const callNumber =
@@ -132,7 +168,7 @@ export async function mutateBooks(
 
   let volumes = Math.max(
     0,
-    Number(payload.copies_to_add ?? payload.volumes ?? 1) || 0
+    Number(payload.copies_to_add ?? payload.total_copies ?? payload.volumes ?? 1) || 0
   );
   let damaged = Math.max(0, Number(payload.damaged_copies ?? 0) || 0);
   let destroyed = Math.max(0, Number(payload.destroyed_copies ?? 0) || 0);
@@ -143,7 +179,17 @@ export async function mutateBooks(
       : Math.max(0, volumes - damaged - destroyed - lost);
 
   const shelfLocation = String(payload.shelf_location ?? "").trim() || null;
-  const invStatus = String(payload.inventory_status ?? "Available").trim() || "Available";
+  const invStatus =
+    String(payload.inventory_status ?? payload.status ?? "Available").trim() || "Available";
+
+  const rawBorrowable = payload.is_borrowable;
+  const isBorrowable =
+    rawBorrowable === undefined
+      ? true
+      : rawBorrowable !== false &&
+        rawBorrowable !== "false" &&
+        rawBorrowable !== 0 &&
+        rawBorrowable !== "0";
 
   const bookData: Record<string, unknown> = {
     title,
@@ -162,10 +208,16 @@ export async function mutateBooks(
     api_source: String(payload.api_source ?? "Manual").trim() || "Manual",
     source_of_fund: String(payload.source_of_fund ?? "").trim() || null,
     copy_right: String(payload.copy_right ?? "").trim() || null,
-    cost_price: payload.cost_price ? Number(payload.cost_price) : null,
-    page_count: payload.page_count ? Math.max(0, Number(payload.page_count)) : null,
+    cost_price:
+      payload.cost_price !== undefined && payload.cost_price !== null && payload.cost_price !== ""
+        ? Number(payload.cost_price)
+        : null,
+    page_count:
+      payload.page_count !== undefined && payload.page_count !== null && payload.page_count !== ""
+        ? Math.max(0, Math.trunc(Number(payload.page_count)))
+        : null,
     date_received: String(payload.date_received ?? "").trim() || null,
-    is_borrowable: payload.is_borrowable !== false && payload.is_borrowable !== "false",
+    is_borrowable: isBorrowable,
   };
 
   if (action === "create") {
@@ -235,11 +287,25 @@ export async function mutateBooks(
       // Ignore if book_copies table not migrated yet
     }
 
-    return { ok: true, id: newBookId };
+    return {
+      ok: true,
+      id: newBookId,
+      book_id: newBookId,
+      audit_details: `action=create_book id=${newBookId} volumes=${volumes}`,
+    };
   }
 
   if (action === "update") {
-    if (!id) throw new AdminMutationError("Book ID is required.");
+    if (!id) throw new AdminMutationError("Book ID is required.", 400);
+    const { data: existingBook } = await supabase
+      .from("books")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+    if (!existingBook) {
+      throw new AdminMutationError("Book not found.", 404);
+    }
+
     const { error } = await supabase.from("books").update(bookData).eq("id", id);
     if (error) throw new AdminMutationError(error.message, 500);
 
@@ -293,8 +359,12 @@ export async function mutateBooks(
         await supabase.from("book_inventory").insert({ book_id: id, ...baseInvUpdate });
       }
     }
-    return { ok: true, id };
+    return {
+      ok: true,
+      id,
+      audit_details: `action=update_book id=${id} volumes=${volumes}`,
+    };
   }
 
-  throw new AdminMutationError(`Unknown books action: ${action}`);
+  throw new AdminMutationError(`Unknown books action: ${action}`, 400);
 }

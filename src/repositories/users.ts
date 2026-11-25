@@ -2,15 +2,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import type { SessionPayload } from "@/lib/auth/session";
 import { emailBlindIndex } from "@/lib/auth/session";
+import { verifyRepositoryActor } from "@/lib/auth/rbac";
 import { safeDecryptPii } from "@/lib/crypto/fernet";
 import {
   AdminMutationError,
-  PW_ALLOWED_RE,
-  PW_COMPLEXITY_RE,
   computeOnlineStatus,
   formatFullName,
   resolveEmail,
 } from "@/repositories/shared";
+import {
+  accountCreateSchema,
+  accountResetPasswordSchema,
+  accountToggleActiveSchema,
+} from "@/validators/admin";
 
 export async function queryAccountsByRole(
   supabase: SupabaseClient,
@@ -61,27 +65,22 @@ export async function mutateAccounts(
   id: number | null,
   payload: Record<string, unknown>
 ) {
+  await verifyRepositoryActor(supabase, session.userId, ["admin"]);
+
   const defaultRole =
     resource === "admins" ? "admin" : resource === "librarians" ? "librarian" : "user";
 
   if (action === "create") {
-    const firstname = String(payload.firstname ?? "").trim();
-    const lastname = String(payload.lastname ?? "").trim();
-    const email = String(payload.email ?? "").trim().toLowerCase();
-    const password = String(payload.password ?? "");
-    const role =
-      payload.role === "admin" || payload.role === "librarian" || payload.role === "user"
-        ? payload.role
-        : defaultRole;
-
-    if (firstname.length < 2 || lastname.length < 2 || !email.includes("@")) {
-      throw new AdminMutationError("Valid first name, last name, and email are required.");
-    }
-    if (!PW_ALLOWED_RE.test(password) || !PW_COMPLEXITY_RE.test(password)) {
+    const parsed = accountCreateSchema.safeParse(payload);
+    if (!parsed.success) {
       throw new AdminMutationError(
-        "Password must be 8-64 chars with uppercase, lowercase, number, and symbol (@$!%*?&_#^)."
+        parsed.error.issues[0]?.message || "Valid first name, last name, and email are required.",
+        400
       );
     }
+
+    const { firstname, lastname, email, password } = parsed.data;
+    const role = parsed.data.role ?? defaultRole;
 
     const usernameKey = email;
     const lookupKeys = Array.from(
@@ -99,8 +98,8 @@ export async function mutateAccounts(
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
-    const gender = String(payload.gender ?? "").trim();
-    const phone = String(payload.phone_number ?? payload.phone ?? "").trim();
+    const gender = String(parsed.data.gender ?? "").trim();
+    const phone = String(parsed.data.phone_number ?? parsed.data.phone ?? "").trim();
 
     const { data: created, error } = await supabase
       .from("users")
@@ -120,19 +119,49 @@ export async function mutateAccounts(
       .select("id")
       .single();
 
-    if (error || !created) throw new AdminMutationError(error?.message || "Failed to create account.", 500);
-    return { ok: true, id: created.id };
+    if (error || !created) {
+      throw new AdminMutationError(error?.message || "Failed to create account.", 500);
+    }
+    return {
+      ok: true,
+      id: created.id,
+      target_user_id: Number(created.id),
+      audit_details: `action=create_account role=${role}`,
+    };
   }
 
-  if (!id) throw new AdminMutationError("User ID is required.");
+  if (!id) throw new AdminMutationError("User ID is required.", 400);
 
   if (action === "delete") {
     if (id === session.userId) {
-      throw new AdminMutationError("You cannot delete your own active admin account.");
+      throw new AdminMutationError("You cannot delete your own active admin account.", 400);
     }
+    const { data: targetUser } = await supabase
+      .from("users")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+    if (!targetUser) {
+      throw new AdminMutationError("User not found.", 404);
+    }
+
+    // Cascade cleanup matching legacy-flask/routes/admin_routes.py line 1261
+    await Promise.all([
+      supabase.from("user_favorites").delete().eq("user_id", id),
+      supabase.from("user_search_history").delete().eq("user_id", id),
+      supabase.from("user_appearance").delete().eq("user_id", id),
+      supabase.from("user_preferences").delete().eq("user_id", id),
+      supabase.from("notification_reads").delete().eq("user_id", id),
+    ]);
+
     const { error } = await supabase.from("users").delete().eq("id", id);
     if (error) throw new AdminMutationError(error.message, 500);
-    return { ok: true, deletedId: id };
+    return {
+      ok: true,
+      deletedId: id,
+      target_user_id: id,
+      audit_details: `action=delete_account user_id=${id}`,
+    };
   }
 
   if (action === "unlock") {
@@ -141,7 +170,11 @@ export async function mutateAccounts(
       .update({ is_locked: false, failed_attempts: 0, lock_until: null })
       .eq("id", id);
     if (error) throw new AdminMutationError(error.message, 500);
-    return { ok: true };
+    return {
+      ok: true,
+      target_user_id: id,
+      audit_details: `action=unlock_user user_id=${id}`,
+    };
   }
 
   if (action === "approve") {
@@ -150,29 +183,62 @@ export async function mutateAccounts(
       .update({ is_approved: true, is_active: true })
       .eq("id", id);
     if (error) throw new AdminMutationError(error.message, 500);
-    return { ok: true };
+    return {
+      ok: true,
+      target_user_id: id,
+      audit_details: `action=approve_user user_id=${id}`,
+    };
   }
 
-  if (action === "toggle_active") {
-    const nextActive = Boolean(payload.is_active);
+  if (action === "toggle_active" || action === "deactivate" || action === "reactivate") {
+    let nextActive: boolean;
+    if (action === "deactivate") {
+      nextActive = false;
+    } else if (action === "reactivate") {
+      nextActive = true;
+    } else {
+      const parsed = accountToggleActiveSchema.safeParse(payload);
+      if (!parsed.success) {
+        throw new AdminMutationError(
+          parsed.error.issues[0]?.message || "is_active boolean is required.",
+          400
+        );
+      }
+      nextActive = parsed.data.is_active;
+    }
+
     const updateData: Record<string, unknown> = { is_active: nextActive };
     if (!nextActive) {
       updateData.status = "offline";
       updateData.last_seen = new Date().toISOString();
     }
-    const { error } = await supabase.from("users").update(updateData).eq("id", id);
+    const { data: updated, error } = await supabase
+      .from("users")
+      .update(updateData)
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
     if (error) throw new AdminMutationError(error.message, 500);
-    return { ok: true, is_active: nextActive };
+    if (!updated) throw new AdminMutationError("User not found.", 404);
+    return {
+      ok: true,
+      is_active: nextActive,
+      target_user_id: id,
+      audit_details: `action=${action} user_id=${id} is_active=${nextActive}`,
+    };
   }
 
   if (action === "reset_password") {
-    const newPassword = String(payload.new_password ?? "");
-    if (!PW_ALLOWED_RE.test(newPassword) || !PW_COMPLEXITY_RE.test(newPassword)) {
+    const parsed = accountResetPasswordSchema.safeParse(payload);
+    if (!parsed.success) {
       throw new AdminMutationError(
-        "New password must be 8-64 chars with uppercase, lowercase, number, and symbol (@$!%*?&_#^)."
+        parsed.error.issues[0]?.message ||
+          "New password must be 8-64 chars with uppercase, lowercase, number, and symbol (@$!%*?&_#^).",
+        400
       );
     }
-    const hashed = await bcrypt.hash(newPassword, 12);
+
+    const hashed = await bcrypt.hash(parsed.data.new_password, 12);
     const { error } = await supabase
       .from("users")
       .update({
@@ -180,11 +246,17 @@ export async function mutateAccounts(
         failed_attempts: 0,
         is_locked: false,
         lock_until: null,
+        reset_token: null,
+        reset_token_expiry: null,
       })
       .eq("id", id);
     if (error) throw new AdminMutationError(error.message, 500);
-    return { ok: true };
+    return {
+      ok: true,
+      target_user_id: id,
+      audit_details: `action=reset_user_password user_id=${id}`,
+    };
   }
 
-  throw new AdminMutationError(`Unknown account action: ${action}`);
+  throw new AdminMutationError(`Unknown account action: ${action}`, 400);
 }

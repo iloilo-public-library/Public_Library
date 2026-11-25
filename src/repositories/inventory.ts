@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { safeDecryptData } from "@/lib/crypto/fernet";
 import { AdminMutationError } from "@/repositories/shared";
+import { inventoryUpdatePayloadSchema } from "@/validators/admin";
 
 export function computeConditionSummary(
   availableCopies: number,
@@ -307,17 +308,48 @@ export async function mutateInventory(
   id: number | null,
   payload: Record<string, unknown>
 ) {
-  if (!id) throw new AdminMutationError("Inventory ID is required.");
+  const parsed = inventoryUpdatePayloadSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new AdminMutationError(
+      parsed.error.issues[0]?.message || "Invalid inventory payload.",
+      400
+    );
+  }
 
-  const { data: currentInv } = await supabase
-    .from("book_inventory")
-    .select("book_id")
-    .eq("id", id)
-    .single();
+  const payloadBookId = parsed.data.book_id ?? (payload.book_id ? Number(payload.book_id) : 0);
+  if (!id && !payloadBookId) {
+    throw new AdminMutationError("Inventory ID or Book ID is required.", 400);
+  }
 
-  const bookId = Number(currentInv?.book_id ?? payload.book_id ?? 0);
+  let currentInv: { id: number; book_id: number } | null = null;
+  if (id) {
+    const { data } = await supabase
+      .from("book_inventory")
+      .select("id, book_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (data) {
+      currentInv = { id: Number(data.id), book_id: Number(data.book_id) };
+    }
+  }
+  if (!currentInv && payloadBookId) {
+    const { data } = await supabase
+      .from("book_inventory")
+      .select("id, book_id")
+      .eq("book_id", payloadBookId)
+      .maybeSingle();
+    if (data) {
+      currentInv = { id: Number(data.id), book_id: Number(data.book_id) };
+    }
+  }
 
-  let volumes = Math.max(0, Number(payload.volumes ?? 0) || 0);
+  const bookId = Number(currentInv?.book_id ?? payloadBookId ?? 0);
+  const invId = currentInv?.id ?? id;
+
+  let volumes = Math.max(
+    0,
+    Number(payload.volumes ?? payload.total_copies ?? 0) || 0
+  );
   let availableCopies = Math.max(0, Number(payload.available_copies ?? 0) || 0);
   let damagedCopies = Math.max(0, Number(payload.damaged_copies ?? 0) || 0);
   let destroyedCopies = Math.max(0, Number(payload.destroyed_copies ?? 0) || 0);
@@ -352,35 +384,74 @@ export async function mutateInventory(
     status,
   };
 
-  let { data: updatedInv, error } = await supabase
-    .from("book_inventory")
-    .update({
-      ...baseUpdate,
-      destroyed_copies: destroyedCopies,
-      condition_status: conditionStatus,
-    })
-    .eq("id", id)
-    .select("book_id")
-    .single();
+  let resolvedBookId = bookId;
 
-  if (error) {
-    // Fallback if migration 004/009 columns (destroyed_copies / condition_status) aren't in DB yet
-    const retry = await supabase
+  if (currentInv && invId) {
+    let { data: updatedInv, error } = await supabase
       .from("book_inventory")
-      .update(baseUpdate)
-      .eq("id", id)
+      .update({
+        ...baseUpdate,
+        destroyed_copies: destroyedCopies,
+        condition_status: conditionStatus,
+      })
+      .eq("id", invId)
       .select("book_id")
       .single();
-    if (retry.error) throw new AdminMutationError(retry.error.message, 500);
-    updatedInv = retry.data;
+
+    if (error) {
+      // Fallback if migration 004/009 columns (destroyed_copies / condition_status) aren't in DB yet
+      const retry = await supabase
+        .from("book_inventory")
+        .update(baseUpdate)
+        .eq("id", invId)
+        .select("book_id")
+        .single();
+      if (retry.error) throw new AdminMutationError(retry.error.message, 500);
+      updatedInv = retry.data;
+    }
+    if (updatedInv?.book_id) {
+      resolvedBookId = Number(updatedInv.book_id);
+    }
+  } else if (bookId) {
+    // Matches legacy-flask/routes/admin_routes.py line 846: insert book_inventory if missing for book_id
+    const ins = await supabase
+      .from("book_inventory")
+      .insert({
+        book_id: bookId,
+        ...baseUpdate,
+        destroyed_copies: destroyedCopies,
+        condition_status: conditionStatus,
+      })
+      .select("id")
+      .single();
+    if (ins.error) {
+      const retryIns = await supabase
+        .from("book_inventory")
+        .insert({ book_id: bookId, ...baseUpdate })
+        .select("id")
+        .single();
+      if (retryIns.error) throw new AdminMutationError(retryIns.error.message, 500);
+    }
+  } else {
+    throw new AdminMutationError("Inventory record not found.", 404);
   }
 
-  if (updatedInv?.book_id && payload.is_borrowable !== undefined) {
+  if (resolvedBookId && payload.is_borrowable !== undefined) {
+    const rawBorrowable = payload.is_borrowable;
+    const isBorrowable =
+      rawBorrowable !== false &&
+      rawBorrowable !== "false" &&
+      rawBorrowable !== 0 &&
+      rawBorrowable !== "0";
     await supabase
       .from("books")
-      .update({ is_borrowable: Boolean(payload.is_borrowable) })
-      .eq("id", updatedInv.book_id);
+      .update({ is_borrowable: isBorrowable })
+      .eq("id", resolvedBookId);
   }
 
-  return { ok: true, id };
+  return {
+    ok: true,
+    id: invId ?? resolvedBookId,
+    audit_details: `action=update_inventory book_id=${resolvedBookId} volumes=${volumes} available=${availableCopies}`,
+  };
 }

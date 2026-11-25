@@ -1,12 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SessionPayload } from "@/lib/auth/session";
+import { verifyRepositoryActor } from "@/lib/auth/rbac";
+import { STAFF_ROLES } from "@/config/constants";
 import { safeDecryptPii } from "@/lib/crypto/fernet";
+import { sendRegistrationDecisionEmail } from "@/lib/email";
 import {
   AdminMutationError,
   formatFullName,
   getStaffDisplayName,
   resolveEmail,
 } from "@/repositories/shared";
+import { accountRequestReviewSchema } from "@/validators/admin";
 
 export async function queryAccountRequests(supabase: SupabaseClient) {
   const { data, error } = await supabase
@@ -64,14 +68,24 @@ export async function mutateAccountRequests(
   id: number | null,
   payload: Record<string, unknown>
 ) {
-  if (!id) throw new AdminMutationError("Request ID is required.");
-  const note = String(payload.admin_note ?? payload.note ?? "").trim();
+  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES);
+
+  if (!id) throw new AdminMutationError("Request ID is required.", 400);
+
+  const parsedReview = accountRequestReviewSchema.safeParse(payload);
+  if (!parsedReview.success) {
+    throw new AdminMutationError(
+      parsedReview.error.issues[0]?.message || "Invalid account request review payload.",
+      400
+    );
+  }
+  const note = String(parsedReview.data.admin_note || parsedReview.data.note || "").trim();
   const nowIso = new Date().toISOString();
 
   if (action === "delete") {
     const { data: reqRow } = await supabase
       .from("account_requests")
-      .select("id, status, request_type")
+      .select("id, user_id, status, request_type")
       .eq("id", id)
       .single();
     if (!reqRow) throw new AdminMutationError("Request not found.", 404);
@@ -79,11 +93,16 @@ export async function mutateAccountRequests(
       throw new AdminMutationError("Librarians can only manage library card renewal requests.", 403);
     }
     if (reqRow.status === "pending") {
-      throw new AdminMutationError("Cannot delete a pending request. Approve or reject first.");
+      throw new AdminMutationError("Cannot delete a pending request. Approve or reject first.", 400);
     }
     const { error } = await supabase.from("account_requests").delete().eq("id", id);
     if (error) throw new AdminMutationError(error.message, 500);
-    return { ok: true, deletedId: id };
+    return {
+      ok: true,
+      deletedId: id,
+      target_user_id: Number(reqRow.user_id),
+      audit_details: `action=delete_account_request id=${id} type=${String(reqRow.request_type)}`,
+    };
   }
 
   const { data: reqRow, error: fetchErr } = await supabase
@@ -99,12 +118,29 @@ export async function mutateAccountRequests(
     throw new AdminMutationError("Librarians can only manage library card renewal requests.", 403);
   }
 
+  const targetUserId = Number(reqRow.user_id);
+  const reqType = String(reqRow.request_type);
   const author = await getStaffDisplayName(supabase, session.userId, session.role);
 
-  if (action === "approve") {
-    const targetUserId = reqRow.user_id as number;
-    const reqType = String(reqRow.request_type);
+  // Fetch target user's email & firstname for registration decision email (matches admin_routes.py lines 1284 & 1339)
+  let targetUserEmail = "";
+  let targetUserFirstname = "";
+  if (reqType === "register" && targetUserId) {
+    const { data: targetUser } = await supabase
+      .from("users")
+      .select("username, email_display, firstname")
+      .eq("id", targetUserId)
+      .maybeSingle();
+    if (targetUser) {
+      targetUserEmail = resolveEmail(targetUser.email_display, targetUser.username);
+      targetUserFirstname = safeDecryptPii(targetUser.firstname);
+    }
+    if (!targetUserEmail && reqRow.username) {
+      targetUserEmail = resolveEmail(null, reqRow.username);
+    }
+  }
 
+  if (action === "approve") {
     if (reqType === "register") {
       await supabase
         .from("users")
@@ -120,6 +156,7 @@ export async function mutateAccountRequests(
         supabase.from("user_favorites").delete().eq("user_id", targetUserId),
         supabase.from("user_search_history").delete().eq("user_id", targetUserId),
         supabase.from("user_appearance").delete().eq("user_id", targetUserId),
+        supabase.from("user_preferences").delete().eq("user_id", targetUserId),
         supabase.from("notification_reads").delete().eq("user_id", targetUserId),
       ]);
       await supabase.from("users").delete().eq("id", targetUserId);
@@ -168,9 +205,23 @@ export async function mutateAccountRequests(
         author,
         target_user_id: targetUserId,
       });
+
+      if (reqType === "register" && targetUserEmail) {
+        void sendRegistrationDecisionEmail({
+          toEmail: targetUserEmail,
+          firstname: targetUserFirstname,
+          approved: true,
+          note,
+        });
+      }
     }
 
-    return { ok: true, status: "approved" };
+    return {
+      ok: true,
+      status: "approved",
+      target_user_id: targetUserId,
+      audit_details: `action=approve_account_request id=${id} type=${reqType}`,
+    };
   }
 
   if (action === "reject") {
@@ -184,7 +235,15 @@ export async function mutateAccountRequests(
       })
       .eq("id", id);
 
-    const reqType = String(reqRow.request_type);
+    if (reqType === "register" && targetUserEmail) {
+      void sendRegistrationDecisionEmail({
+        toEmail: targetUserEmail,
+        firstname: targetUserFirstname,
+        approved: false,
+        note,
+      });
+    }
+
     const label = reqType === "renew" ? "Renewal" : reqType.charAt(0).toUpperCase() + reqType.slice(1);
     await supabase.from("announcements").insert({
       title: `Account ${label} Request — Not Approved`,
@@ -194,11 +253,16 @@ export async function mutateAccountRequests(
       category: "urgent",
       pinned: false,
       author,
-      target_user_id: reqRow.user_id,
+      target_user_id: targetUserId,
     });
 
-    return { ok: true, status: "rejected" };
+    return {
+      ok: true,
+      status: "rejected",
+      target_user_id: targetUserId,
+      audit_details: `action=reject_account_request id=${id} type=${reqType}`,
+    };
   }
 
-  throw new AdminMutationError(`Unknown account_requests action: ${action}`);
+  throw new AdminMutationError(`Unknown account_requests action: ${action}`, 400);
 }

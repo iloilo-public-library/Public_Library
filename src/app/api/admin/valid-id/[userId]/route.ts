@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth/session";
-import { isStaffRole } from "@/lib/auth/rbac";
+import { isAdminRole, touchSessionActivity } from "@/lib/auth/rbac";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 import { safeDecryptPii } from "@/lib/crypto/fernet";
 import { isDropboxConfigured } from "@/lib/storage/dropbox";
@@ -14,6 +14,7 @@ export async function GET(
   if (!session) {
     return NextResponse.json({ error: "Unauthorized — please sign in." }, { status: 401 });
   }
+  void touchSessionActivity(session);
 
   const { userId: rawUserId } = await context.params;
   const userId = Number(rawUserId);
@@ -21,9 +22,10 @@ export async function GET(
     return NextResponse.json({ error: "Invalid user ID." }, { status: 400 });
   }
 
-  if (!isStaffRole(session.role) && session.userId !== userId) {
+  // Matches legacy-flask/routes/admin_routes.py line 935: only Administrators (or the account owner) may view Valid IDs
+  if (!isAdminRole(session.role) && session.userId !== userId) {
     return NextResponse.json(
-      { error: "Forbidden — insufficient permissions." },
+      { error: "Forbidden — administrator privileges required to view Valid IDs." },
       { status: 403 }
     );
   }
