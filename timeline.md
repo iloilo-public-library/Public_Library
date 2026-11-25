@@ -47,7 +47,7 @@
 - Integrated and hardened the Batch 1 Admin backend (`auth` & `session` foundation, Admin Settings & Login Activity, Admin Dashboard, and Admin Home) with `route -> service -> repository` layering, strict `.strict()` Zod validators, shared server + repository RBAC guards with 60s throttled `login_sessions` heartbeats, table-backed abuse rate limiting (`010_batch1_auth_rate_limits_and_indexes.sql`), `Asia/Manila` dashboard day boundaries, scrubbed audit logging, unit tests, and 87-route integration verification. (`d92fefb`)
 
 #### November 26, 2026
-- Integrated the remaining `legacy-flask/routes/admin_routes.py` backend modules (`books`, `inventory`, `users`/`librarians`/`admins`, `account_requests`, `library_cards`, `returns`, `announcements`, `system_settings`, `/api/admin/users`, and `/api/admin/valid-id/[userId]`) into Node.js/Next.js with Zod validation, duplicate ISBN conflict checks, cascade account cleanup, registration decision emails (`sendRegistrationDecisionEmail`), Fernet decrypted search fallback, multi-book & partial-item return circulation support, Dropbox card-photo cleanup, and repository-level RBAC guards. (`uncommitted`)
+- Integrated the remaining `legacy-flask/routes/admin_routes.py` backend modules (`books`, `inventory`, `users`/`librarians`/`admins`, `account_requests`, `library_cards`, `returns`, `announcements`, `system_settings`, `/api/admin/users`, and `/api/admin/valid-id/[userId]`) into Node.js/Next.js with Zod validation, duplicate ISBN conflict checks, cascade account cleanup, registration decision emails (`sendRegistrationDecisionEmail`), Fernet decrypted search fallback, multi-book & partial-item return circulation support, Dropbox card-photo cleanup, and repository-level RBAC guards. (`a509952`)
 
 ### Git Commit History
 
@@ -68,6 +68,7 @@
 | 2026-11-22 | 19:02 | `e2740fb` | `feat(admin-settings): restore legacy layout, login activity, 3 themes/languages, and fix Zod v4 mutations` |
 | 2026-11-23 | 11:37:28 +0800 | `ba807cd` | `feat(admin): restore announcements, dashboard, accounts, requests, home, calendar, and circulation pages` |
 | 2026-11-25 | 22:37 | `d92fefb` | `feat: restore librarian pages and integrate batch 1 admin auth, settings, and dashboard backend` |
+| 2026-11-26 | 07:57 | `a509952` | `feat(backend): integrate remaining admin backend modules, circulation, and rbac guards` |
 
 
 
