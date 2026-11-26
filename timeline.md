@@ -48,6 +48,10 @@
 
 #### November 26, 2026
 - Integrated the remaining `legacy-flask/routes/admin_routes.py` backend modules (`books`, `inventory`, `users`/`librarians`/`admins`, `account_requests`, `library_cards`, `returns`, `announcements`, `system_settings`, `/api/admin/users`, and `/api/admin/valid-id/[userId]`) into Node.js/Next.js with Zod validation, duplicate ISBN conflict checks, cascade account cleanup, registration decision emails (`sendRegistrationDecisionEmail`), Fernet decrypted search fallback, multi-book & partial-item return circulation support, Dropbox card-photo cleanup, and repository-level RBAC guards. (`a509952`)
+- Completed and unit-tested Batch 2 admin and librarian account management plus account-request backend hardening with role-scoped account mutations, strict Zod payloads, repository-backed `/api/admin/users`, encrypted search fallback, and database-error propagation. (`29d557f`)
+- Completed and verified Batch 3 backend hardening for targeted announcements ("Send To" privacy, picker mode, and audit logging) and the Event Calendar (range loading, categories, Dropbox cover uploads, recurrence splitting, and `CRON_SECRET` event reminders). (`f4ec56a`)
+- Completed and verified Batch 4 backend hardening for Books, Inventory copy-level tracking, atomic circulation borrowing/returns/renewals/fines (`011_circulation_rules.sql`), emergency lockdown/maintenance enforcement, and idempotent rate-limited backups/restore validation. (`f4ec56a`)
+- Fixed the signed-in `"Member Login"` bug in `BookDetailModal` and `/user/browse`, migrated canonical book identity from ISBN to `books.id` with optional checksum-validated ISBNs (`012_book_id_identity.sql`), and verified all 57 unit tests and 161 route checks. (`f4ec56a`)
 
 ### Git Commit History
 
@@ -69,6 +73,8 @@
 | 2026-11-23 | 11:37:28 +0800 | `ba807cd` | `feat(admin): restore announcements, dashboard, accounts, requests, home, calendar, and circulation pages` |
 | 2026-11-25 | 22:37 | `d92fefb` | `feat: restore librarian pages and integrate batch 1 admin auth, settings, and dashboard backend` |
 | 2026-11-26 | 07:57 | `a509952` | `feat(backend): integrate remaining admin backend modules, circulation, and rbac guards` |
+| 2026-11-26 | 09:34 | `29d557f` | `feat(backend): batch 2 account management and account requests` |
+| 2026-11-26 | 21:48 | `f4ec56a` | `feat: complete batch 3-4 backend, member login fix, and book id identity` |
 
 
 
