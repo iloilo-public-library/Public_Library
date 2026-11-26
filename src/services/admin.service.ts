@@ -8,8 +8,18 @@ import {
 } from "@/repositories";
 import { recordAuditEvent } from "@/lib/audit/audit-logger";
 import type { AdminResource } from "@/validators/admin";
+import type { AdminUsersQueryInput } from "@/validators/admin";
+import { queryAdminUsers } from "@/repositories/users";
 
 export { AdminMutationError };
+
+export async function getAdminUsersData(
+  supabase: SupabaseClient,
+  session: SessionPayload,
+  input: AdminUsersQueryInput
+) {
+  return queryAdminUsers(supabase, session, input);
+}
 
 export async function getAdminResourceData(
   supabase: SupabaseClient,

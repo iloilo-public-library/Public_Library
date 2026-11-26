@@ -141,6 +141,7 @@ const PROTECTED_PAGES = [
 
 const userCookie = makeSignedSessionCookie("user", 73, "juan.delacruz@example.com");
 const librarianCookie = makeSignedSessionCookie("librarian", 76, "keiru.tuerto@iloilolibrary.gov.ph");
+const adminCookie = makeSignedSessionCookie("admin", 999, "admin@iloilolibrary.gov.ph");
 
 const API_CHECKS = [
   // Batch 1: Dashboard Stats (401 unauthenticated, 403 member role)
@@ -297,6 +298,68 @@ const API_CHECKS = [
     path: "/api/auth/qr",
     body: { action: "confirm", token: "0123456789abcdef0123456789abcdef" },
     expect: 401,
+  },
+
+  // Batch 2: Admin / Librarian / User management and Account Requests
+  { method: "GET", path: "/api/admin/users", expect: 401 },
+  { method: "GET", path: "/api/admin/users", cookie: userCookie, expect: 403 },
+  {
+    method: "GET",
+    path: "/api/admin/users?unknownField=1",
+    cookie: librarianCookie,
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    body: { resource: "users", action: "create", id: null, payload: {} },
+    expect: 401,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: userCookie,
+    body: { resource: "users", action: "create", id: null, payload: {} },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "users",
+      action: "create",
+      id: null,
+      payload: {},
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    body: { resource: "account_requests", action: "approve", id: 1, payload: {} },
+    expect: 401,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: userCookie,
+    body: { resource: "account_requests", action: "approve", id: 1, payload: {} },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: adminCookie,
+    body: {
+      resource: "account_requests",
+      action: "approve",
+      id: 1,
+      payload: {},
+      unknownField: true,
+    },
+    expect: 400,
   },
 
   // Existing checks

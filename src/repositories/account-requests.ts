@@ -6,19 +6,27 @@ import { safeDecryptPii } from "@/lib/crypto/fernet";
 import { sendRegistrationDecisionEmail } from "@/lib/email";
 import {
   AdminMutationError,
+  assertLibrarianRenewalOnly,
   formatFullName,
   getStaffDisplayName,
   resolveEmail,
 } from "@/repositories/shared";
 import { accountRequestReviewSchema } from "@/validators/admin";
 
-export async function queryAccountRequests(supabase: SupabaseClient) {
-  const { data, error } = await supabase
+export async function queryAccountRequests(
+  supabase: SupabaseClient,
+  sessionRole?: string | null
+) {
+  let query = supabase
     .from("account_requests")
     .select(
       "id, user_id, username, request_type, reason, status, admin_note, created_at, reviewed_at, card_id, renewal1_checked, renewal1_date, renewal2_checked, renewal2_date"
     )
     .order("id", { ascending: false });
+  if (sessionRole === "librarian") {
+    query = query.eq("request_type", "renew");
+  }
+  const { data, error } = await query;
   if (error) throw error;
 
   const userIds = Array.from(
@@ -89,9 +97,7 @@ export async function mutateAccountRequests(
       .eq("id", id)
       .single();
     if (!reqRow) throw new AdminMutationError("Request not found.", 404);
-    if (session.role !== "admin" && String(reqRow.request_type) !== "renew") {
-      throw new AdminMutationError("Librarians can only manage library card renewal requests.", 403);
-    }
+    assertLibrarianRenewalOnly(session.role, String(reqRow.request_type));
     if (reqRow.status === "pending") {
       throw new AdminMutationError("Cannot delete a pending request. Approve or reject first.", 400);
     }
@@ -114,12 +120,9 @@ export async function mutateAccountRequests(
   if (fetchErr || !reqRow) {
     throw new AdminMutationError("Pending request not found or already reviewed.", 404);
   }
-  if (session.role !== "admin" && String(reqRow.request_type) !== "renew") {
-    throw new AdminMutationError("Librarians can only manage library card renewal requests.", 403);
-  }
-
   const targetUserId = Number(reqRow.user_id);
   const reqType = String(reqRow.request_type);
+  assertLibrarianRenewalOnly(session.role, reqType);
   const author = await getStaffDisplayName(supabase, session.userId, session.role);
 
   // Fetch target user's email & firstname for registration decision email (matches admin_routes.py lines 1284 & 1339)
@@ -142,26 +145,31 @@ export async function mutateAccountRequests(
 
   if (action === "approve") {
     if (reqType === "register") {
-      await supabase
+      const { error } = await supabase
         .from("users")
         .update({ is_active: true, is_approved: true })
         .eq("id", targetUserId);
+      if (error) throw new AdminMutationError(error.message, 500);
     } else if (reqType === "deactivate") {
-      await supabase
+      const { error } = await supabase
         .from("users")
         .update({ is_active: false, status: "offline", last_seen: nowIso })
         .eq("id", targetUserId);
+      if (error) throw new AdminMutationError(error.message, 500);
     } else if (reqType === "delete") {
-      await Promise.all([
+      const cleanupResults = await Promise.all([
         supabase.from("user_favorites").delete().eq("user_id", targetUserId),
         supabase.from("user_search_history").delete().eq("user_id", targetUserId),
         supabase.from("user_appearance").delete().eq("user_id", targetUserId),
         supabase.from("user_preferences").delete().eq("user_id", targetUserId),
         supabase.from("notification_reads").delete().eq("user_id", targetUserId),
       ]);
-      await supabase.from("users").delete().eq("id", targetUserId);
+      const cleanupError = cleanupResults.find((result) => result.error)?.error;
+      if (cleanupError) throw new AdminMutationError(cleanupError.message, 500);
+      const { error } = await supabase.from("users").delete().eq("id", targetUserId);
+      if (error) throw new AdminMutationError(error.message, 500);
     } else if (reqType === "renew" && reqRow.card_id) {
-      await supabase
+      const { error } = await supabase
         .from("library_cards")
         .update({
           renewal1_checked: Boolean(reqRow.renewal1_checked),
@@ -170,9 +178,10 @@ export async function mutateAccountRequests(
           renewal2_date: reqRow.renewal2_date,
         })
         .eq("id", reqRow.card_id);
+      if (error) throw new AdminMutationError(error.message, 500);
     }
 
-    await supabase
+    const { error: reviewError } = await supabase
       .from("account_requests")
       .update({
         status: "approved",
@@ -181,6 +190,7 @@ export async function mutateAccountRequests(
         admin_note: note,
       })
       .eq("id", id);
+    if (reviewError) throw new AdminMutationError(reviewError.message, 500);
 
     if (reqType !== "delete") {
       const title =
@@ -197,7 +207,7 @@ export async function mutateAccountRequests(
             : "Your deactivation request has been approved.") +
         (note ? ` Note: "${note}"` : "");
 
-      await supabase.from("announcements").insert({
+      const { error: announcementError } = await supabase.from("announcements").insert({
         title,
         body,
         category: "general",
@@ -205,6 +215,7 @@ export async function mutateAccountRequests(
         author,
         target_user_id: targetUserId,
       });
+      if (announcementError) throw new AdminMutationError(announcementError.message, 500);
 
       if (reqType === "register" && targetUserEmail) {
         void sendRegistrationDecisionEmail({
@@ -225,7 +236,7 @@ export async function mutateAccountRequests(
   }
 
   if (action === "reject") {
-    await supabase
+    const { error: reviewError } = await supabase
       .from("account_requests")
       .update({
         status: "rejected",
@@ -234,6 +245,7 @@ export async function mutateAccountRequests(
         admin_note: note,
       })
       .eq("id", id);
+    if (reviewError) throw new AdminMutationError(reviewError.message, 500);
 
     if (reqType === "register" && targetUserEmail) {
       void sendRegistrationDecisionEmail({
@@ -245,7 +257,7 @@ export async function mutateAccountRequests(
     }
 
     const label = reqType === "renew" ? "Renewal" : reqType.charAt(0).toUpperCase() + reqType.slice(1);
-    await supabase.from("announcements").insert({
+    const { error: announcementError } = await supabase.from("announcements").insert({
       title: `Account ${label} Request — Not Approved`,
       body:
         `Your ${reqType} request was not approved. ` +
@@ -255,6 +267,7 @@ export async function mutateAccountRequests(
       author,
       target_user_id: targetUserId,
     });
+    if (announcementError) throw new AdminMutationError(announcementError.message, 500);
 
     return {
       ok: true,

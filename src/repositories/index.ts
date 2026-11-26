@@ -72,16 +72,7 @@ export async function queryAdminResource(
       return queryAccountsByRole(supabase, resource);
 
     case "account_requests": {
-      const res = await queryAccountRequests(supabase);
-      if (sessionRole === "librarian") {
-        return {
-          ...res,
-          rows: (res.rows ?? []).filter(
-            (r) => String((r as Record<string, unknown>).request_type) === "renew"
-          ),
-        };
-      }
-      return res;
+      return queryAccountRequests(supabase, sessionRole);
     }
 
     case "events":

@@ -10,6 +10,31 @@ export class AdminMutationError extends Error {
   }
 }
 
+export function assertNotOwnAccount(
+  sessionUserId: number,
+  targetUserId: number,
+  action: "delete" | "deactivate"
+) {
+  if (sessionUserId === targetUserId) {
+    throw new AdminMutationError(
+      `You cannot ${action} your own active admin account.`,
+      400
+    );
+  }
+}
+
+export function assertLibrarianRenewalOnly(
+  sessionRole: string,
+  requestType: string
+) {
+  if (sessionRole !== "admin" && requestType !== "renew") {
+    throw new AdminMutationError(
+      "Librarians can only manage library card renewal requests.",
+      403
+    );
+  }
+}
+
 export const PW_ALLOWED_RE = /^[A-Za-z\d@$!%*?&_#^]{8,64}$/;
 export const PW_COMPLEXITY_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&_#^]).{8,64}$/;
 

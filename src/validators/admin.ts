@@ -151,6 +151,8 @@ export const adminUsersQuerySchema = z
   })
   .strict();
 
+export type AdminUsersQueryInput = z.infer<typeof adminUsersQuerySchema>;
+
 const optionalRecipientIdSchema = z
   .union([
     z.number().int().positive("Recipient ID must be a positive integer."),
@@ -319,7 +321,7 @@ export const accountCreateSchema = z
     phone_number: nullableOptStr.optional(),
     phone: nullableOptStr.optional(),
   })
-  .passthrough();
+  .strict();
 
 export const accountResetPasswordSchema = z
   .object({
@@ -347,7 +349,7 @@ export const accountRequestReviewSchema = z
     note: nullableOptStr.optional(),
     admin_note: nullableOptStr.optional(),
   })
-  .passthrough();
+  .strict();
 
 export const libraryCardBookItemSchema = z.union([
   z.coerce.number().int().positive(),
