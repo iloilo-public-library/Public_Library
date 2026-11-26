@@ -7,6 +7,7 @@ import {
   type SessionPayload,
 } from "@/lib/auth/session";
 import { touchSessionActivity } from "@/lib/auth/rbac";
+import { enforceSystemMode } from "@/lib/auth/system-mode";
 import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { recordAuditEvent } from "@/lib/audit/audit-logger";
 import { recordErrorLog } from "@/lib/audit/error-logger";
@@ -193,6 +194,9 @@ export async function authenticateUserLogin(
     );
     throw new UnauthorizedError("Invalid email or password.");
   }
+
+  // Enforce emergency lockdown & maintenance mode before issuing a session (admins always pass)
+  await enforceSystemMode(supabase, user.role);
 
   const nowIso = new Date().toISOString();
   const sessionToken = createSessionToken();

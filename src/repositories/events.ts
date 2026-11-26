@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SessionPayload } from "@/lib/auth/session";
-import { AdminMutationError, requireAdminOnly } from "@/repositories/shared";
+import { verifyRepositoryActor } from "@/lib/auth/rbac";
+import { STAFF_ROLES } from "@/config/constants";
+import { AdminMutationError } from "@/repositories/shared";
 import {
   BUILTIN_EVENT_CATEGORIES,
   eventCategoryCreateSchema,
@@ -38,6 +40,7 @@ export interface QueryEventsOptions {
   from?: string;
   to?: string;
   isStaff?: boolean;
+  sessionRole?: string | null;
 }
 
 async function fetchValidCategorySlugs(supabase: SupabaseClient): Promise<Set<string>> {
@@ -95,7 +98,7 @@ export async function queryEvents(
   supabase: SupabaseClient,
   options: QueryEventsOptions = {}
 ) {
-  const { from, to, isStaff = false } = options;
+  const { from, to, isStaff = false, sessionRole = null } = options;
 
   if (from || to) {
     const parsedRange = eventQueryRangeSchema.safeParse({ from, to });
@@ -134,8 +137,17 @@ export async function queryEvents(
     audience: row.audience || "all",
   }));
 
-  if (!isStaff) {
-    masters = masters.filter((m) => (m.audience || "all") !== "staff");
+  const effectiveStaff = Boolean(
+    isStaff || sessionRole === "admin" || sessionRole === "librarian"
+  );
+  const isAuthenticatedMember = !effectiveStaff && Boolean(sessionRole);
+
+  if (!effectiveStaff) {
+    if (isAuthenticatedMember) {
+      masters = masters.filter((m) => (m.audience || "all") !== "staff");
+    } else {
+      masters = masters.filter((m) => (m.audience || "all") === "all");
+    }
   }
 
   const eventIds = masters.map((m) => m.id);
@@ -175,11 +187,13 @@ export async function queryEvents(
 
 export async function mutateEvents(
   supabase: SupabaseClient,
-  _session: SessionPayload,
+  session: SessionPayload,
   action: string,
   id: number | null,
   payload: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
+  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES);
+
   if (action === "delete") {
     if (!id) throw new AdminMutationError("Event ID is required.", 400);
     const parsedDel = eventDeleteScopeSchema.safeParse(payload);
@@ -275,6 +289,62 @@ export async function mutateEvents(
       );
       if (error) throw new AdminMutationError(error.message, 500);
       return { ok: true, id, scope: "this", audit_details: `reschedule scope=this date=${d.event_date}` };
+    }
+
+    if (existing.recurrence_freq && scope === "following") {
+      const origDate = d.occurrence_date || d.event_date;
+      const splitUntil = computeSplitUntilDate(origDate);
+      const { error: truncErr } = await supabase
+        .from("events")
+        .update({ recurrence_until: splitUntil })
+        .eq("id", id);
+      if (truncErr) throw new AdminMutationError(truncErr.message, 500);
+
+      const isAllDay = d.all_day ?? (!d.start_time && !d.end_time);
+      const splitEventData: Record<string, unknown> = {
+        title: existing.title,
+        description: existing.description ?? null,
+        event_date: d.event_date,
+        end_date: d.end_date ?? null,
+        start_time: isAllDay ? null : d.start_time ?? null,
+        end_time: isAllDay ? null : d.end_time ?? null,
+        all_day: isAllDay,
+        timezone: existing.timezone || "Asia/Manila",
+        location: existing.location ?? null,
+        category: existing.category || "general",
+        audience: existing.audience || "all",
+        cover_image: existing.cover_image ?? null,
+        image: existing.image ?? existing.cover_image ?? null,
+        recurrence_freq: existing.recurrence_freq,
+        recurrence_interval: existing.recurrence_interval ?? 1,
+        recurrence_weekdays: existing.recurrence_weekdays ?? null,
+        recurrence_day_of_month: existing.recurrence_day_of_month ?? null,
+        recurrence_until: existing.recurrence_until ?? null,
+        recurrence_count: existing.recurrence_count ?? null,
+      };
+
+      const { data: created, error: insErr } = await supabase
+        .from("events")
+        .insert(splitEventData)
+        .select("id")
+        .single();
+      if (insErr) throw new AdminMutationError(insErr.message, 500);
+
+      const splitId = Number(created?.id);
+      const remindersMap = await fetchRemindersMap(supabase, [id]);
+      const existingReminders = remindersMap.get(id);
+      if (existingReminders && existingReminders.length > 0) {
+        await syncEventReminders(supabase, splitId, existingReminders);
+      }
+
+      return {
+        ok: true,
+        id: splitId,
+        previous_master_id: id,
+        scope: "following",
+        recurrence_until: splitUntil,
+        audit_details: `reschedule scope=following split_from=${id} new_id=${splitId} date=${d.event_date}`,
+      };
     }
 
     const updateFields: Record<string, unknown> = {
@@ -496,7 +566,7 @@ export async function mutateEventCategories(
   id: number | null,
   payload: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
-  requireAdminOnly(session);
+  await verifyRepositoryActor(supabase, session.userId, ["admin"]);
 
   if (action === "create") {
     const parsed = eventCategoryCreateSchema.safeParse(payload);

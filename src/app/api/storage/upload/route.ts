@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getServerSession } from "@/lib/auth/session";
 import { isStaffRole } from "@/lib/auth/rbac";
+import { enforceRateLimit, getClientIp } from "@/lib/auth/rate-limit";
+import { RateLimitError } from "@/lib/errors";
 import { isDropboxConfigured } from "@/lib/storage/dropbox";
 import { uploadFileToDropboxFolder, type UploadFolderKey } from "@/lib/storage";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
@@ -16,13 +18,6 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { ok: false, error: "Unauthorized — please sign in first." },
       { status: 401 }
-    );
-  }
-
-  if (!isDropboxConfigured()) {
-    return NextResponse.json(
-      { ok: false, error: "Dropbox storage credentials are not configured." },
-      { status: 503 }
     );
   }
 
@@ -53,6 +48,34 @@ export async function POST(request: Request) {
     );
   }
 
+  const supabase = getSupabaseSecretKey() ? createSupabaseServerClient(true) : null;
+  try {
+    await enforceRateLimit(
+      {
+        scope: "storage_upload",
+        identifier: `user:${session.userId}:${getClientIp(request)}`,
+        maxAttempts: 20,
+        windowSeconds: 60,
+      },
+      supabase
+    );
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return NextResponse.json(
+        { ok: false, error: err.message },
+        { status: 429, headers: { "Retry-After": String(err.retryAfterSec) } }
+      );
+    }
+    throw err;
+  }
+
+  if (!isDropboxConfigured()) {
+    return NextResponse.json(
+      { ok: false, error: "Dropbox storage credentials are not configured." },
+      { status: 503 }
+    );
+  }
+
   const fileEntry = formData.get("file");
   if (!(fileEntry instanceof File)) {
     return NextResponse.json(
@@ -64,14 +87,13 @@ export async function POST(request: Request) {
   try {
     const uploaded = await uploadFileToDropboxFolder(folder, fileEntry);
 
-    if (getSupabaseSecretKey()) {
-      const supabase = createSupabaseServerClient(true);
+    if (supabase) {
       await recordAuditEvent(
         {
           action: "upload_file",
           resource: folder,
-          targetId: session.userId,
-          actorEmail: session.email,
+          actorId: session.userId,
+          targetId: uploaded.name,
           actorRole: session.role,
           route: "/api/storage/upload",
           method: "POST",
@@ -98,7 +120,7 @@ export async function POST(request: Request) {
       method: "POST",
       status_code: 400,
       message,
-      user_email: session.email,
+      user_email: `user#${session.userId}`,
     });
     return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }

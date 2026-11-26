@@ -1,32 +1,68 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SessionPayload } from "@/lib/auth/session";
+import { STAFF_ROLES } from "@/config/constants";
+import { verifyRepositoryActor } from "@/lib/auth/rbac";
 import { maybeEncryptData, safeDecryptData } from "@/lib/crypto/fernet";
+import { isbnMatches, normalizeIsbn } from "@/lib/books/isbn";
+import { mapDatabaseError } from "@/lib/errors";
 import { AdminMutationError } from "@/repositories/shared";
 import {
   buildGeneratedCopies,
   computeConditionSummary,
   syncBookCopiesInDb,
 } from "@/repositories/inventory";
-import { bookMutationPayloadSchema } from "@/validators/admin";
+import { bookDeletePayloadSchema, bookMutationPayloadSchema } from "@/validators/admin";
 
-export async function queryBooks(supabase: SupabaseClient) {
+export interface BooksQueryOptions {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  isbn?: string;
+  available?: boolean;
+  damaged?: boolean;
+  condition?: string;
+  category?: string;
+  sort?: string;
+  order?: "asc" | "desc";
+}
+
+const MAX_PAGE_SIZE = 200;
+const DB_FETCH_CAP = 2000;
+
+export async function queryBooks(
+  supabase: SupabaseClient,
+  options: BooksQueryOptions = {}
+) {
+  const page = Math.max(1, Math.trunc(options.page ?? 1));
+  const pageSize = Math.min(
+    MAX_PAGE_SIZE,
+    Math.max(1, Math.trunc(options.pageSize ?? MAX_PAGE_SIZE))
+  );
+  const q = (options.q ?? "").trim().toLowerCase();
+  const categoryFilter = (options.category ?? "").trim().toLowerCase();
+  const conditionFilter = (options.condition ?? "").trim().toLowerCase();
+  const sortField = (options.sort ?? "id").trim().toLowerCase();
+  const sortAsc = options.order === "asc";
+
   const [booksRes, invRes, copiesRes] = await Promise.all([
     supabase
       .from("books")
       .select(
         "id, call_number, date_received, class, author, title, isbn, edition, page_count, category, source_of_fund, cost_price, publisher, copy_right, subtitle, published_date, description, language, thumbnail_url, api_source, is_borrowable, created_at, updated_at"
       )
-      .order("id", { ascending: false }),
-    supabase
-      .from("book_inventory")
-      .select("*"),
+      .order("id", { ascending: false })
+      .limit(DB_FETCH_CAP),
+    supabase.from("book_inventory").select("*").limit(DB_FETCH_CAP),
     supabase
       .from("book_copies")
       .select(
         "id, book_id, copy_number, accession_number, condition, circulation_status, condition_notes, shelf_location"
       )
-      .order("copy_number", { ascending: true }),
+      .order("copy_number", { ascending: true })
+      .limit(DB_FETCH_CAP * 5),
   ]);
-  if (booksRes.error) throw booksRes.error;
+  if (booksRes.error) throw mapDatabaseError(booksRes.error, "Failed to load books.");
+
   const invMap = new Map<number, Record<string, unknown>>();
   for (const inv of invRes.data ?? []) {
     invMap.set(inv.book_id as number, inv);
@@ -41,7 +77,7 @@ export async function queryBooks(supabase: SupabaseClient) {
     }
   }
 
-  const rows = (booksRes.data ?? []).map((b) => {
+  let rows = (booksRes.data ?? []).map((b) => {
     const bookId = Number(b.id);
     const inv = invMap.get(bookId);
     const volumes = Number(inv?.volumes ?? 1);
@@ -101,17 +137,98 @@ export async function queryBooks(supabase: SupabaseClient) {
       copies,
     };
   });
-  return { rows };
+
+  // Server-side filters
+  if (options.available !== undefined) {
+    rows = rows.filter((r) =>
+      options.available ? Number(r.available_copies) > 0 : Number(r.available_copies) <= 0
+    );
+  }
+  if (options.damaged !== undefined) {
+    rows = rows.filter((r) => {
+      const hasDamaged =
+        Number(r.damaged_copies) > 0 ||
+        Number(r.destroyed_copies) > 0 ||
+        Number(r.lost_copies) > 0;
+      return options.damaged ? hasDamaged : !hasDamaged;
+    });
+  }
+  if (categoryFilter) {
+    rows = rows.filter((r) => String(r.category).toLowerCase().includes(categoryFilter));
+  }
+  if (conditionFilter) {
+    rows = rows.filter(
+      (r) =>
+        String(r.condition_status).toLowerCase().includes(conditionFilter) ||
+        r.copies.some((cp) => String(cp.condition).toLowerCase() === conditionFilter)
+    );
+  }
+  if (options.isbn && options.isbn.trim()) {
+    rows = rows.filter((r) => isbnMatches(r.isbn, options.isbn));
+  }
+  if (q) {
+    const normalizedQ = normalizeIsbn(q);
+    rows = rows.filter((r) => {
+      const hay = `${r.title} ${r.author} ${r.isbn} ${r.call_number ?? ""} ${r.catalog_code} ${r.category} ${r.copies
+        .map((cp) => String(cp.accession_number ?? ""))
+        .join(" ")}`.toLowerCase();
+      if (hay.includes(q)) return true;
+      if (normalizedQ && normalizeIsbn(r.isbn)?.includes(normalizedQ)) return true;
+      return false;
+    });
+  }
+
+  // Stable sort with id tie-breaker
+  rows.sort((a, b) => {
+    let cmp = 0;
+    if (sortField === "title") {
+      cmp = String(a.title).localeCompare(String(b.title));
+    } else if (sortField === "author") {
+      cmp = String(a.author).localeCompare(String(b.author));
+    } else if (sortField === "available" || sortField === "available_copies") {
+      cmp = Number(a.available_copies ?? 0) - Number(b.available_copies ?? 0);
+    } else {
+      cmp = Number(a.id ?? 0) - Number(b.id ?? 0);
+    }
+    if (cmp === 0) {
+      return Number(b.id ?? 0) - Number(a.id ?? 0);
+    }
+    return sortAsc ? cmp : -cmp;
+  });
+
+  const total = rows.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+
+  return {
+    rows: rows.slice(start, start + pageSize),
+    total,
+    page: safePage,
+    pageSize,
+    totalPages,
+  };
 }
 
 export async function mutateBooks(
   supabase: SupabaseClient,
+  session: SessionPayload,
   action: string,
   id: number | null,
   payload: Record<string, unknown>
 ) {
+  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES);
+
   if (action === "delete") {
+    const parsedDel = bookDeletePayloadSchema.safeParse(payload);
+    if (!parsedDel.success) {
+      throw new AdminMutationError(
+        parsedDel.error.issues[0]?.message || "Invalid delete payload.",
+        400
+      );
+    }
     if (!id) throw new AdminMutationError("Book ID is required.", 400);
+
     const { data: existing } = await supabase
       .from("books")
       .select("id")
@@ -120,69 +237,122 @@ export async function mutateBooks(
     if (!existing) {
       throw new AdminMutationError("Book not found.", 404);
     }
+
+    // Refuse deleting a book that has currently borrowed copies or active loans
+    const [borrowedCopiesRes, activeLoansRes] = await Promise.all([
+      supabase
+        .from("book_copies")
+        .select("id")
+        .eq("book_id", id)
+        .eq("circulation_status", "Borrowed")
+        .limit(1),
+      supabase
+        .from("library_card_books")
+        .select("id")
+        .eq("book_id", id)
+        .in("loan_status", ["borrowed", "overdue"])
+        .limit(1),
+    ]);
+
+    if (
+      (borrowedCopiesRes.data && borrowedCopiesRes.data.length > 0) ||
+      (activeLoansRes.data && activeLoansRes.data.length > 0)
+    ) {
+      throw new AdminMutationError(
+        "Cannot delete this book because one or more copies are currently borrowed.",
+        409
+      );
+    }
+
+    await supabase.from("book_copies").delete().eq("book_id", id);
     await supabase.from("book_inventory").delete().eq("book_id", id);
     const { error } = await supabase.from("books").delete().eq("id", id);
-    if (error) throw new AdminMutationError(error.message, 500);
-    return { ok: true, deletedId: id, audit_details: `action=delete_book id=${id}` };
+    if (error) throw mapDatabaseError(error, "Failed to delete book.");
+    return { ok: true, deletedId: id, audit_details: `action=delete_book book_id=${id}` };
   }
 
   const parsed = bookMutationPayloadSchema.safeParse(payload);
   if (!parsed.success) {
     throw new AdminMutationError(
-      parsed.error.issues[0]?.message || "Title, Author, and ISBN are required.",
+      parsed.error.issues[0]?.message || "Title and Author are required.",
       400
     );
   }
 
-  const title = parsed.data.title;
-  const author = parsed.data.author;
-  const isbn = parsed.data.isbn;
+  const data = parsed.data;
+  const title = data.title;
+  const author = data.author;
+  const isbn: string | null = data.isbn ?? null;
 
-  // Duplicate ISBN check (matches legacy-flask/routes/admin_routes.py lines 626-629 & 741-745)
-  const isbnCandidates = Array.from(
-    new Set([isbn, maybeEncryptData(isbn)].filter(Boolean))
-  );
-  let dupQuery = supabase
-    .from("books")
-    .select("id, isbn")
-    .in("isbn", isbnCandidates);
-  if (action === "update" && id) {
-    dupQuery = dupQuery.neq("id", id);
-  }
-  const { data: dupRows } = await dupQuery.limit(1);
-  if (dupRows && dupRows.length > 0) {
-    throw new AdminMutationError(
-      action === "update"
-        ? "Another book with this ISBN already exists."
-        : "A book with this ISBN already exists.",
-      409
+  // Duplicate ISBN check ONLY when a non-empty ISBN is provided (blank/null ISBNs are allowed)
+  if (isbn) {
+    const isbnCandidates = Array.from(
+      new Set([isbn, maybeEncryptData(isbn)].filter(Boolean))
     );
+    let dupQuery = supabase
+      .from("books")
+      .select("id, isbn")
+      .in("isbn", isbnCandidates);
+    if (action === "update" && id) {
+      dupQuery = dupQuery.neq("id", id);
+    }
+    const { data: dupRows } = await dupQuery.limit(1);
+    let duplicateBookId: number | null =
+      dupRows && dupRows.length > 0 ? Number(dupRows[0].id) : null;
+
+    // Also catch hyphenated/formatted legacy ISBN variants
+    if (duplicateBookId === null) {
+      let scanQuery = supabase
+        .from("books")
+        .select("id, isbn")
+        .not("isbn", "is", null)
+        .limit(DB_FETCH_CAP);
+      if (action === "update" && id) {
+        scanQuery = scanQuery.neq("id", id);
+      }
+      const { data: existingWithIsbn } = await scanQuery;
+      const match = (existingWithIsbn ?? []).find((row) =>
+        isbnMatches(safeDecryptData(row.isbn), isbn)
+      );
+      if (match) {
+        duplicateBookId = Number(match.id);
+      }
+    }
+
+    if (duplicateBookId !== null) {
+      throw new AdminMutationError(
+        action === "update"
+          ? `Another book with this ISBN already exists (Book #${duplicateBookId}).`
+          : `A book with this ISBN already exists (Book #${duplicateBookId}).`,
+        409
+      );
+    }
   }
 
   const callNumber =
-    String(payload.call_number ?? payload.catalog_code ?? "").trim() || null;
-  const accessionPrefix = String(payload.accession_prefix ?? "").trim() || null;
-  const category = String(payload.category ?? "").trim();
-  const genreClass = String(payload.class ?? payload.genre ?? "").trim();
-  const publisher = String(payload.publisher ?? "").trim();
+    String(data.call_number ?? data.catalog_code ?? "").trim() || null;
+  const accessionPrefix = String(data.accession_prefix ?? "").trim() || null;
+  const category = String(data.category ?? "").trim();
+  const genreClass = String(data.class ?? data.genre ?? "").trim();
+  const publisher = String(data.publisher ?? "").trim();
 
   let volumes = Math.max(
     0,
-    Number(payload.copies_to_add ?? payload.total_copies ?? payload.volumes ?? 1) || 0
+    Number(data.copies_to_add ?? data.total_copies ?? data.volumes ?? 1) || 0
   );
-  let damaged = Math.max(0, Number(payload.damaged_copies ?? 0) || 0);
-  let destroyed = Math.max(0, Number(payload.destroyed_copies ?? 0) || 0);
-  let lost = Math.max(0, Number(payload.lost_copies ?? 0) || 0);
+  let damaged = Math.max(0, Number(data.damaged_copies ?? 0) || 0);
+  let destroyed = Math.max(0, Number(data.destroyed_copies ?? 0) || 0);
+  let lost = Math.max(0, Number(data.lost_copies ?? 0) || 0);
   let available =
-    payload.available_copies !== undefined
-      ? Math.max(0, Number(payload.available_copies) || 0)
+    data.available_copies !== undefined
+      ? Math.max(0, Number(data.available_copies) || 0)
       : Math.max(0, volumes - damaged - destroyed - lost);
 
-  const shelfLocation = String(payload.shelf_location ?? "").trim() || null;
+  const shelfLocation = String(data.shelf_location ?? "").trim() || null;
   const invStatus =
-    String(payload.inventory_status ?? payload.status ?? "Available").trim() || "Available";
+    String(data.inventory_status ?? data.status ?? "Available").trim() || "Available";
 
-  const rawBorrowable = payload.is_borrowable;
+  const rawBorrowable = data.is_borrowable;
   const isBorrowable =
     rawBorrowable === undefined
       ? true
@@ -199,24 +369,24 @@ export async function mutateBooks(
     class: genreClass || null,
     category: category || null,
     publisher: publisher || null,
-    edition: String(payload.edition ?? "").trim() || null,
-    published_date: String(payload.published_date ?? "").trim() || null,
-    subtitle: String(payload.subtitle ?? "").trim() || null,
-    description: String(payload.description ?? "").trim() || null,
-    language: String(payload.language ?? "en").trim().slice(0, 5) || "en",
-    thumbnail_url: String(payload.thumbnail_url ?? "").trim() || null,
-    api_source: String(payload.api_source ?? "Manual").trim() || "Manual",
-    source_of_fund: String(payload.source_of_fund ?? "").trim() || null,
-    copy_right: String(payload.copy_right ?? "").trim() || null,
+    edition: String(data.edition ?? "").trim() || null,
+    published_date: String(data.published_date ?? "").trim() || null,
+    subtitle: String(data.subtitle ?? "").trim() || null,
+    description: String(data.description ?? "").trim() || null,
+    language: String(data.language ?? "en").trim().slice(0, 5) || "en",
+    thumbnail_url: String(data.thumbnail_url ?? "").trim() || null,
+    api_source: String(data.api_source ?? "Manual").trim() || "Manual",
+    source_of_fund: String(data.source_of_fund ?? "").trim() || null,
+    copy_right: String(data.copy_right ?? "").trim() || null,
     cost_price:
-      payload.cost_price !== undefined && payload.cost_price !== null && payload.cost_price !== ""
-        ? Number(payload.cost_price)
+      data.cost_price !== undefined && data.cost_price !== null && data.cost_price !== ""
+        ? Number(data.cost_price)
         : null,
     page_count:
-      payload.page_count !== undefined && payload.page_count !== null && payload.page_count !== ""
-        ? Math.max(0, Math.trunc(Number(payload.page_count)))
+      data.page_count !== undefined && data.page_count !== null && data.page_count !== ""
+        ? Math.max(0, Math.trunc(Number(data.page_count)))
         : null,
-    date_received: String(payload.date_received ?? "").trim() || null,
+    date_received: String(data.date_received ?? "").trim() || null,
     is_borrowable: isBorrowable,
   };
 
@@ -227,7 +397,7 @@ export async function mutateBooks(
       .select("id")
       .single();
     if (error || !inserted) {
-      throw new AdminMutationError(error?.message || "Failed to add book.", 500);
+      throw mapDatabaseError(error, "Failed to add book.");
     }
 
     const newBookId = Number(inserted.id);
@@ -251,47 +421,49 @@ export async function mutateBooks(
       await supabase.from("book_inventory").insert(baseInv);
     }
 
-    // Seed deterministic physical book_copies rows
-    const prefix = (
-      accessionPrefix ||
-      callNumber ||
-      `ICPL-${String(newBookId).padStart(4, "0")}`
-    )
-      .toUpperCase()
-      .replace(/\s+/g, "-");
+    if (Array.isArray(data.copies) && data.copies.length > 0) {
+      await syncBookCopiesInDb(supabase, newBookId, data.copies);
+    } else {
+      const prefix = (
+        accessionPrefix ||
+        callNumber ||
+        `ICPL-${String(newBookId).padStart(4, "0")}`
+      )
+        .toUpperCase()
+        .replace(/\s+/g, "-");
 
-    const generatedCopies = buildGeneratedCopies(
-      newBookId,
-      Math.max(1, Math.min(volumes, 500)),
-      available,
-      damaged,
-      lost,
-      shelfLocation || "Main Stack",
-      destroyed,
-      prefix
-    ).map((cp) => ({
-      book_id: newBookId,
-      copy_number: cp.copy_number,
-      accession_number: cp.accession_number,
-      condition: cp.condition,
-      circulation_status: cp.circulation_status,
-      condition_notes: cp.condition_notes,
-      shelf_location: shelfLocation,
-    }));
+      const generatedCopies = buildGeneratedCopies(
+        newBookId,
+        Math.max(1, Math.min(volumes, 500)),
+        available,
+        damaged,
+        lost,
+        shelfLocation || "Main Stack",
+        destroyed,
+        prefix
+      ).map((cp) => ({
+        book_id: newBookId,
+        copy_number: cp.copy_number,
+        accession_number: cp.accession_number,
+        condition: cp.condition,
+        circulation_status: cp.circulation_status,
+        condition_notes: cp.condition_notes,
+        shelf_location: shelfLocation,
+      }));
 
-    try {
-      await supabase
+      const { error: copyErr } = await supabase
         .from("book_copies")
         .upsert(generatedCopies, { onConflict: "book_id,copy_number" });
-    } catch {
-      // Ignore if book_copies table not migrated yet
+      if (copyErr && copyErr.code === "23505") {
+        throw mapDatabaseError(copyErr, "Duplicate accession number.");
+      }
     }
 
     return {
       ok: true,
       id: newBookId,
       book_id: newBookId,
-      audit_details: `action=create_book id=${newBookId} volumes=${volumes}`,
+      audit_details: `action=create_book book_id=${newBookId} volumes=${volumes}`,
     };
   }
 
@@ -307,11 +479,11 @@ export async function mutateBooks(
     }
 
     const { error } = await supabase.from("books").update(bookData).eq("id", id);
-    if (error) throw new AdminMutationError(error.message, 500);
+    if (error) throw mapDatabaseError(error, "Failed to update book.");
 
-    if (Array.isArray(payload.copies) && payload.copies.length > 0) {
-      const synced = await syncBookCopiesInDb(supabase, id, payload.copies);
-      if (synced && payload.sync_counts_from_copies !== false) {
+    if (Array.isArray(data.copies) && data.copies.length > 0) {
+      const synced = await syncBookCopiesInDb(supabase, id, data.copies);
+      if (synced && data.sync_counts_from_copies !== false) {
         volumes = Math.max(volumes, synced.volumes);
         available = synced.availableCopies;
         damaged = synced.damagedCopies;
@@ -362,7 +534,7 @@ export async function mutateBooks(
     return {
       ok: true,
       id,
-      audit_details: `action=update_book id=${id} volumes=${volumes}`,
+      audit_details: `action=update_book book_id=${id} volumes=${volumes}`,
     };
   }
 

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SessionPayload } from "@/lib/auth/session";
 import { safeDecryptData, safeDecryptPii } from "@/lib/crypto/fernet";
+import { computeOverdueDays, getManilaTodayISO } from "@/lib/circulation/rules";
 import { AdminMutationError, formatFullName } from "@/repositories/shared";
 
 export async function getMemberBorrowedBooks(supabase: SupabaseClient, userId: number) {
@@ -178,13 +179,32 @@ export async function requestMemberCardRenewal(
 ) {
   const { data: card, error: cardErr } = await supabase
     .from("library_cards")
-    .select("id, user_id, renewal1_checked, renewal1_date, renewal2_checked, renewal2_date")
+    .select(
+      "id, user_id, date_return, renewal1_checked, renewal1_date, renewal2_checked, renewal2_date"
+    )
     .eq("id", cardId)
     .eq("user_id", session.userId)
     .single();
 
   if (cardErr || !card) {
     throw new AdminMutationError("Library card not found for your account.", 404);
+  }
+
+  const { data: existingReturn } = await supabase
+    .from("book_returns")
+    .select("id")
+    .eq("card_id", cardId)
+    .limit(1);
+  if (existingReturn && existingReturn.length > 0) {
+    throw new AdminMutationError("Cannot renew a loan that has already been returned.", 409);
+  }
+
+  const today = getManilaTodayISO();
+  if (computeOverdueDays(card.date_return, today) > 0) {
+    throw new AdminMutationError(
+      "Cannot request renewal for an overdue loan. Please return the book at the library.",
+      409
+    );
   }
 
   if (card.renewal1_checked && card.renewal2_checked) {
@@ -204,7 +224,6 @@ export async function requestMemberCardRenewal(
     throw new AdminMutationError("A renewal request for this card is already pending review.", 409);
   }
 
-  const today = new Date().toISOString().slice(0, 10);
   const nextRenewal1Checked = true;
   const nextRenewal1Date = card.renewal1_checked ? card.renewal1_date : today;
   const nextRenewal2Checked = Boolean(card.renewal1_checked);

@@ -104,11 +104,13 @@ export default function PublicBrowsePage() {
       if (selectedCategory !== "All" && cat !== selectedCategory) return false;
       if (onlyAvailable && !(b.is_borrowable && b.available_copies > 0)) return false;
       if (!q) return true;
+      const cleanIdQ = q.replace(/^#/, "");
       return (
-        b.title.toLowerCase().includes(q) ||
-        b.author.toLowerCase().includes(q) ||
-        b.isbn.toLowerCase().includes(q) ||
-        b.call_number.toLowerCase().includes(q) ||
+        String(b.id) === cleanIdQ ||
+        (b.title || "").toLowerCase().includes(q) ||
+        (b.author || "").toLowerCase().includes(q) ||
+        (b.isbn || "").toLowerCase().includes(q) ||
+        (b.call_number || "").toLowerCase().includes(q) ||
         cat.toLowerCase().includes(q)
       );
     });

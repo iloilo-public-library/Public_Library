@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validateOptionalIsbn } from "@/lib/books/isbn";
 import { nullableIdSchema } from "@/validators/common";
 
 export const ADMIN_RESOURCES = [
@@ -36,6 +37,10 @@ export const adminQuerySchema = z
     status: z.string().trim().max(40).optional(),
     category: z.string().trim().max(120).optional(),
     condition: z.string().trim().max(40).optional(),
+    available: z.enum(["true", "false", "1", "0"]).optional(),
+    damaged: z.enum(["true", "false", "1", "0"]).optional(),
+    overdue: z.enum(["true", "false", "1", "0"]).optional(),
+    format: z.enum(["json", "csv"]).optional(),
     sort: z.string().trim().max(64).optional(),
     order: z.enum(["asc", "desc"]).optional(),
   })
@@ -213,29 +218,56 @@ const nullableOptStr = z
   .union([z.string(), z.number(), z.null(), z.undefined()])
   .transform((v) => (v === null || v === undefined ? "" : String(v).trim()));
 
+export const BOOK_COPY_CONDITIONS = [
+  "Good",
+  "Fair",
+  "Damaged",
+  "Destroyed",
+  "Lost",
+  "Under Repair",
+] as const;
+
+export const BOOK_COPY_CIRCULATION_STATUSES = [
+  "Available",
+  "Borrowed",
+  "Reserved",
+  "Unusable",
+] as const;
+
 export const bookCopyInputSchema = z
   .object({
     id: z.coerce.number().int().positive().optional(),
+    book_id: z.coerce.number().int().positive().optional(),
     copy_number: z.coerce.number().int().min(1).max(5000).optional(),
     accession_number: nullableOptStr.optional(),
-    condition: z
-      .enum(["Good", "Fair", "Damaged", "Destroyed", "Lost", "Under Repair"])
-      .optional()
-      .default("Good"),
-    circulation_status: z
-      .enum(["Available", "Borrowed", "Reserved", "Unusable"])
-      .optional()
-      .default("Available"),
+    condition: z.enum(BOOK_COPY_CONDITIONS).optional().default("Good"),
+    circulation_status: z.enum(BOOK_COPY_CIRCULATION_STATUSES).optional().default("Available"),
     condition_notes: nullableOptStr.optional(),
     shelf_location: nullableOptStr.optional(),
   })
-  .passthrough();
+  .strict();
+
+export const bookDeletePayloadSchema = z.object({}).strict();
+
+const optionalValidatedIsbnSchema = z
+  .union([z.string(), z.null(), z.undefined()])
+  .optional()
+  .superRefine((val, ctx) => {
+    const check = validateOptionalIsbn(val);
+    if (!check.ok) {
+      ctx.addIssue({ code: "custom", message: check.error });
+    }
+  })
+  .transform((val) => {
+    const check = validateOptionalIsbn(val);
+    return check.ok ? check.normalized : null;
+  });
 
 export const bookMutationPayloadSchema = z
   .object({
-    title: z.string().trim().min(1, "Title, Author, and ISBN are required.").max(1000),
-    author: z.string().trim().min(1, "Title, Author, and ISBN are required.").max(1000),
-    isbn: z.string().trim().min(1, "Title, Author, and ISBN are required.").max(100),
+    title: z.string().trim().min(1, "Title and Author are required.").max(1000),
+    author: z.string().trim().min(1, "Title and Author are required.").max(1000),
+    isbn: optionalValidatedIsbnSchema,
     call_number: nullableOptStr.optional(),
     catalog_code: nullableOptStr.optional(),
     accession_prefix: nullableOptStr.optional(),
@@ -260,16 +292,19 @@ export const bookMutationPayloadSchema = z
     total_copies: z.coerce.number().int().min(0).max(5000).optional(),
     volumes: z.coerce.number().int().min(0).max(5000).optional(),
     available_copies: z.coerce.number().int().min(0).max(5000).optional(),
+    borrowed_copies: z.coerce.number().int().min(0).max(5000).optional(),
     damaged_copies: z.coerce.number().int().min(0).max(5000).optional(),
     destroyed_copies: z.coerce.number().int().min(0).max(5000).optional(),
     lost_copies: z.coerce.number().int().min(0).max(5000).optional(),
+    condition_status: nullableOptStr.optional(),
+    damage_notes: nullableOptStr.optional(),
     shelf_location: nullableOptStr.optional(),
     inventory_status: nullableOptStr.optional(),
     status: nullableOptStr.optional(),
-    copies: z.array(bookCopyInputSchema).optional(),
+    copies: z.array(bookCopyInputSchema).max(500).optional(),
     sync_counts_from_copies: z.boolean().optional(),
   })
-  .passthrough();
+  .strict();
 
 export const inventoryUpdatePayloadSchema = z
   .object({
@@ -277,16 +312,61 @@ export const inventoryUpdatePayloadSchema = z
     total_copies: z.coerce.number().int().min(0).max(5000).optional(),
     volumes: z.coerce.number().int().min(0).max(5000).optional(),
     available_copies: z.coerce.number().int().min(0).max(5000).optional(),
+    borrowed_copies: z.coerce.number().int().min(0).max(5000).optional(),
     damaged_copies: z.coerce.number().int().min(0).max(5000).optional(),
     destroyed_copies: z.coerce.number().int().min(0).max(5000).optional(),
     lost_copies: z.coerce.number().int().min(0).max(5000).optional(),
+    condition_status: nullableOptStr.optional(),
+    damage_notes: nullableOptStr.optional(),
     shelf_location: nullableOptStr.optional(),
     status: nullableOptStr.optional(),
     is_borrowable: z.union([z.boolean(), z.string(), z.number()]).optional(),
-    copies: z.array(bookCopyInputSchema).optional(),
+    copies: z.array(bookCopyInputSchema).max(500).optional(),
     sync_counts_from_copies: z.boolean().optional(),
   })
-  .passthrough();
+  .strict();
+
+export const bookCopyAddPayloadSchema = z
+  .object({
+    book_id: z.coerce.number().int().positive("Book ID is required."),
+    accession_number: z.string().trim().min(1).max(80).optional(),
+    condition: z.enum(BOOK_COPY_CONDITIONS).optional().default("Good"),
+    condition_notes: nullableOptStr.optional(),
+    shelf_location: nullableOptStr.optional(),
+  })
+  .strict();
+
+export const bookCopyUpdatePayloadSchema = z
+  .object({
+    copy_id: z.coerce.number().int().positive().optional(),
+    book_id: z.coerce.number().int().positive().optional(),
+    accession_number: z.string().trim().min(1).max(80).optional(),
+    condition: z.enum(BOOK_COPY_CONDITIONS).optional(),
+    circulation_status: z.enum(BOOK_COPY_CIRCULATION_STATUSES).optional(),
+    condition_notes: nullableOptStr.optional(),
+    shelf_location: nullableOptStr.optional(),
+  })
+  .strict();
+
+export const bookCopyRetirePayloadSchema = z
+  .object({
+    copy_id: z.coerce.number().int().positive().optional(),
+    book_id: z.coerce.number().int().positive().optional(),
+    condition: z
+      .enum(["Damaged", "Destroyed", "Lost", "Under Repair"])
+      .optional()
+      .default("Destroyed"),
+    condition_notes: nullableOptStr.optional(),
+    reason: nullableOptStr.optional(),
+  })
+  .strict();
+
+export const bookCopyDeletePayloadSchema = z
+  .object({
+    copy_id: z.coerce.number().int().positive().optional(),
+    book_id: z.coerce.number().int().positive().optional(),
+  })
+  .strict();
 
 export const accountCreateSchema = z
   .object({
@@ -353,12 +433,16 @@ export const accountRequestReviewSchema = z
 
 export const libraryCardBookItemSchema = z.union([
   z.coerce.number().int().positive(),
-  z.object({
-    id: z.coerce.number().int().positive().optional(),
-    book_id: z.coerce.number().int().positive().optional(),
-    qty: z.coerce.number().int().min(1).max(100).optional(),
-    quantity: z.coerce.number().int().min(1).max(100).optional(),
-  }),
+  z
+    .object({
+      id: z.coerce.number().int().positive().optional(),
+      book_id: z.coerce.number().int().positive().optional(),
+      isbn: nullableOptStr.optional(),
+      copy_id: z.coerce.number().int().positive().optional(),
+      qty: z.coerce.number().int().min(1).max(100).optional(),
+      quantity: z.coerce.number().int().min(1).max(100).optional(),
+    })
+    .strict(),
 ]);
 
 export const libraryCardCreateSchema = z
@@ -380,10 +464,13 @@ export const libraryCardCreateSchema = z
     renewal2_checked: z.union([z.boolean(), z.string(), z.number()]).optional(),
     renewal2_date: nullableOptStr.optional(),
     book_id: nullableIdSchema,
+    book_isbn: nullableOptStr.optional(),
+    isbn: nullableOptStr.optional(),
+    copy_id: nullableIdSchema,
     quantity: z.coerce.number().int().min(1).max(100).optional().default(1),
     book_ids: z.array(libraryCardBookItemSchema).optional(),
   })
-  .passthrough();
+  .strict();
 
 export const libraryCardUpdateSchema = z
   .object({
@@ -402,13 +489,18 @@ export const libraryCardUpdateSchema = z
     renewal2_date: nullableOptStr.optional(),
     book_ids: z.array(libraryCardBookItemSchema).optional(),
   })
-  .passthrough();
+  .strict();
 
 export const libraryCardReturnItemSchema = z
   .object({
     row_index: z.coerce.number().int().min(0).optional(),
     card_book_id: z.coerce.number().int().positive().optional(),
     qty_returned: z.coerce.number().int().min(0).max(100),
+    return_condition: z
+      .enum(["Good", "Fair", "Damaged", "Destroyed", "Lost"])
+      .optional()
+      .default("Good"),
+    condition_notes: nullableOptStr.optional(),
   })
   .strict();
 
@@ -418,7 +510,35 @@ export const libraryCardReturnSchema = z
     card_id: nullableIdSchema,
     items: z.array(libraryCardReturnItemSchema).optional(),
   })
-  .passthrough();
+  .strict();
+
+export const libraryCardMarkIncidentSchema = z
+  .object({
+    card_book_id: z.coerce.number().int().positive().optional(),
+    copy_id: z.coerce.number().int().positive().optional(),
+    reason: z
+      .string()
+      .trim()
+      .min(3, "A reason (at least 3 characters) is required.")
+      .max(300, "Reason must be 300 characters or fewer."),
+    condition_notes: nullableOptStr.optional(),
+  })
+  .strict();
+
+export const libraryCardWaiveFineSchema = z
+  .object({
+    return_id: z.coerce.number().int().positive().optional(),
+    card_book_id: z.coerce.number().int().positive().optional(),
+    reason: z
+      .string()
+      .trim()
+      .min(3, "A waiver reason (at least 3 characters) is required.")
+      .max(300, "Waiver reason must be 300 characters or fewer."),
+  })
+  .strict();
+
+export const libraryCardDeleteSchema = z.object({}).strict();
+export const returnItemDeleteSchema = z.object({}).strict();
 
 export const systemSettingsUpdateSchema = z
   .object({
@@ -430,11 +550,48 @@ export const systemSettingsUpdateSchema = z
       .enum(["hourly", "daily", "weekly", "monthly", "off"])
       .optional()
       .default("weekly"),
+    confirm: z.boolean().optional(),
+    reason: z.string().trim().max(300).optional(),
   })
   .strict();
+
+export const systemSettingsLockdownSchema = z
+  .object({
+    enabled: z.boolean(),
+    confirm: z.literal(true, {
+      message: "Explicit confirmation (confirm: true) is required.",
+    }),
+    reason: z
+      .string()
+      .trim()
+      .min(3, "A reason (at least 3 characters) is required to toggle lockdown.")
+      .max(300, "Reason must be 300 characters or fewer."),
+  })
+  .strict();
+
+export const systemSettingsScheduleSchema = z
+  .object({
+    frequency: z.enum(["hourly", "daily", "weekly", "monthly", "off"]).optional(),
+    backup_frequency: z.enum(["hourly", "daily", "weekly", "monthly", "off"]).optional(),
+  })
+  .strict()
+  .refine((d) => Boolean(d.frequency || d.backup_frequency), {
+    message: "Backup frequency is required.",
+    path: ["frequency"],
+  });
 
 export const systemSettingsBackupSchema = z
   .object({
     scope: z.string().trim().max(160).optional().default("Supabase Full Database Snapshot"),
+  })
+  .strict();
+
+export const backupRestoreSchema = z
+  .object({
+    backup_log_id: z.coerce.number().int().positive("A valid backup log ID is required."),
+    confirm: z.literal("RESTORE", {
+      message: 'Explicit confirmation (confirm: "RESTORE") is required to restore a backup.',
+    }),
+    reason: z.string().trim().min(3, "A restore reason is required.").max(300).optional(),
   })
   .strict();

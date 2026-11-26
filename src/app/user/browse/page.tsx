@@ -123,11 +123,13 @@ export default function UserBrowsePage() {
       if (onlyAvailable && !(b.is_borrowable && b.available_copies > 0)) return false;
       if (onlyFavorites && !favoriteIds.has(b.id)) return false;
       if (!q) return true;
+      const cleanIdQ = q.replace(/^#/, "");
       return (
-        b.title.toLowerCase().includes(q) ||
-        b.author.toLowerCase().includes(q) ||
-        b.isbn.toLowerCase().includes(q) ||
-        b.call_number.toLowerCase().includes(q) ||
+        String(b.id) === cleanIdQ ||
+        (b.title || "").toLowerCase().includes(q) ||
+        (b.author || "").toLowerCase().includes(q) ||
+        (b.isbn || "").toLowerCase().includes(q) ||
+        (b.call_number || "").toLowerCase().includes(q) ||
         cat.toLowerCase().includes(q)
       );
     });
@@ -387,7 +389,13 @@ export default function UserBrowsePage() {
         </div>
       )}
 
-      <BookDetailModal book={activeBook} onClose={() => setActiveBook(null)} />
+      <BookDetailModal
+        book={activeBook}
+        onClose={() => setActiveBook(null)}
+        isAuthenticated
+        isFavorite={activeBook ? favoriteIds.has(activeBook.id) : false}
+        onToggleFavorite={toggleFavorite}
+      />
     </MemberShell>
   );
 }

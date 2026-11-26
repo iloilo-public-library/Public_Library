@@ -52,12 +52,13 @@ function makeSignedSessionCookie(role, userId = 999, email = "test@iloilolibrary
   return `${SESSION_COOKIE_NAME}=${data}.${sig}`;
 }
 
-function request(method, path, body = null, cookie = "") {
+function request(method, path, body = null, cookie = "", rawContentType = "", extraHeaders = {}) {
   return new Promise((resolve, reject) => {
-    const data = body ? JSON.stringify(body) : null;
-    const headers = {};
+    const isRaw = Boolean(rawContentType && typeof body === "string");
+    const data = body ? (isRaw ? body : JSON.stringify(body)) : null;
+    const headers = { ...extraHeaders };
     if (data) {
-      headers["Content-Type"] = "application/json";
+      headers["Content-Type"] = isRaw ? rawContentType : "application/json";
       headers["Content-Length"] = Buffer.byteLength(data);
     }
     if (cookie) {
@@ -142,6 +143,16 @@ const PROTECTED_PAGES = [
 const userCookie = makeSignedSessionCookie("user", 73, "juan.delacruz@example.com");
 const librarianCookie = makeSignedSessionCookie("librarian", 76, "keiru.tuerto@iloilolibrary.gov.ph");
 const adminCookie = makeSignedSessionCookie("admin", 999, "admin@iloilolibrary.gov.ph");
+
+const MULTIPART_BOUNDARY = "----ICPLVerifyBoundary7MA4YWxkTrZu0gW";
+const MEMBER_EVENT_BANNER_FORM = [
+  `--${MULTIPART_BOUNDARY}`,
+  'Content-Disposition: form-data; name="folder"',
+  "",
+  "event-banners",
+  `--${MULTIPART_BOUNDARY}--`,
+  "",
+].join("\r\n");
 
 const API_CHECKS = [
   // Batch 1: Dashboard Stats (401 unauthenticated, 403 member role)
@@ -362,6 +373,276 @@ const API_CHECKS = [
     expect: 400,
   },
 
+  // Batch 3 Part 1: Announcements "Send To", User Notifications, and Member Picker
+  { method: "GET", path: "/api/user/notifications", expect: 401 },
+  {
+    method: "PUT",
+    path: "/api/user/notifications",
+    body: { action: "read_all" },
+    expect: 401,
+  },
+  {
+    method: "PUT",
+    path: "/api/user/notifications",
+    cookie: userCookie,
+    body: { action: "read_all", unknownField: 1 },
+    expect: 400,
+  },
+  {
+    method: "PUT",
+    path: "/api/user/notifications",
+    cookie: userCookie,
+    body: { action: "read", announcement_id: -1 },
+    expect: 400,
+  },
+  { method: "GET", path: "/api/admin/users?mode=picker", expect: 401 },
+  {
+    method: "GET",
+    path: "/api/admin/users?mode=picker",
+    cookie: userCookie,
+    expect: 403,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/users?mode=picker&unknownField=1",
+    cookie: librarianCookie,
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    body: {
+      resource: "announcements",
+      action: "create",
+      id: null,
+      payload: { title: "Notice", body: "Message" },
+    },
+    expect: 401,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: userCookie,
+    body: {
+      resource: "announcements",
+      action: "create",
+      id: null,
+      payload: { title: "Notice", body: "Message" },
+    },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "announcements",
+      action: "create",
+      id: null,
+      payload: { title: "Notice", body: "Message" },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    body: {
+      resource: "announcements",
+      action: "update",
+      id: 1,
+      payload: { title: "Notice", body: "Message" },
+    },
+    expect: 401,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    cookie: userCookie,
+    body: {
+      resource: "announcements",
+      action: "update",
+      id: 1,
+      payload: { title: "Notice", body: "Message" },
+    },
+    expect: 403,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "announcements",
+      action: "update",
+      id: 1,
+      payload: { title: "Notice", body: "Message", target_user_id: 73 },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+
+  // Batch 3 Part 2: Calendar Core, Event Categories, and Cover Upload RBAC / Strict Validation
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    body: {
+      resource: "events",
+      action: "create",
+      id: null,
+      payload: { title: "Event", event_date: "2026-05-10" },
+    },
+    expect: 401,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: userCookie,
+    body: {
+      resource: "events",
+      action: "create",
+      id: null,
+      payload: { title: "Event", event_date: "2026-05-10" },
+    },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "events",
+      action: "create",
+      id: null,
+      payload: { title: "Event", event_date: "2026-05-10" },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "events",
+      action: "reschedule",
+      id: 1,
+      payload: { event_date: "2026-05-11" },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    body: {
+      resource: "event_categories",
+      action: "create",
+      id: null,
+      payload: { slug: "kids", name: "Kids", color: "#48c78e" },
+    },
+    expect: 401,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: userCookie,
+    body: {
+      resource: "event_categories",
+      action: "create",
+      id: null,
+      payload: { slug: "kids", name: "Kids", color: "#48c78e" },
+    },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "event_categories",
+      action: "create",
+      id: null,
+      payload: { slug: "kids", name: "Kids", color: "#48c78e" },
+    },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: adminCookie,
+    body: {
+      resource: "event_categories",
+      action: "create",
+      id: null,
+      payload: { slug: "kids", name: "Kids", color: "#48c78e" },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/storage/upload",
+    cookie: userCookie,
+    body: MEMBER_EVENT_BANNER_FORM,
+    contentType: `multipart/form-data; boundary=${MULTIPART_BOUNDARY}`,
+    expect: 403,
+  },
+
+  // Batch 3 Part 3: Recurrence DELETE RBAC & strict validation
+  {
+    method: "DELETE",
+    path: "/api/admin/data",
+    body: {
+      resource: "events",
+      action: "delete",
+      id: 1,
+      payload: { scope: "this", occurrence_date: "2026-06-15" },
+    },
+    expect: 401,
+  },
+  {
+    method: "DELETE",
+    path: "/api/admin/data",
+    cookie: userCookie,
+    body: {
+      resource: "events",
+      action: "delete",
+      id: 1,
+      payload: { scope: "this", occurrence_date: "2026-06-15" },
+    },
+    expect: 403,
+  },
+  {
+    method: "DELETE",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "events",
+      action: "delete",
+      id: 1,
+      payload: { scope: "invalid_scope" },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "events",
+      action: "create",
+      id: null,
+      payload: {
+        title: "Recurring",
+        event_date: "2026-06-01",
+        recurrence: { freq: "weekly", unknownRecField: 1 },
+      },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+
   // Existing checks
   { method: "GET", path: "/api/admin/data?resource=books", expect: 401 },
   { method: "GET", path: "/api/admin/data?resource=invalid", expect: 400 },
@@ -389,7 +670,322 @@ const API_CHECKS = [
   { method: "GET", path: "/api/cron/event-reminders", expect: 401 },
   {
     method: "GET",
+    path: "/api/cron/event-reminders",
+    headers: { Authorization: "Bearer wrong-cron-secret-value" },
+    expect: 401,
+  },
+  {
+    method: "GET",
     path: "/api/admin/data?resource=events&from=2026-01-01&to=2026-12-31",
+    expect: 400,
+  },
+
+  // Batch 4 Part 1: Books & Inventory RBAC and strict validation
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=books",
+    cookie: userCookie,
+    expect: 403,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=books&unknownFilter=1",
+    cookie: adminCookie,
+    expect: 400,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=inventory",
+    expect: 401,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=inventory",
+    cookie: userCookie,
+    expect: 403,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=inventory&pageSize=999",
+    cookie: adminCookie,
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    body: {
+      resource: "books",
+      action: "create",
+      id: null,
+      payload: { title: "Book", author: "Author", isbn: "978-0-00-000001-1" },
+    },
+    expect: 401,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: userCookie,
+    body: {
+      resource: "books",
+      action: "create",
+      id: null,
+      payload: { title: "Book", author: "Author", isbn: "978-0-00-000001-1" },
+    },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: adminCookie,
+    body: {
+      resource: "books",
+      action: "create",
+      id: null,
+      payload: { title: "Book", author: "Author", isbn: "978-0-00-000001-1" },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    body: {
+      resource: "inventory",
+      action: "retire_copy",
+      id: 1,
+      payload: { condition: "Destroyed" },
+    },
+    expect: 401,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    cookie: userCookie,
+    body: {
+      resource: "inventory",
+      action: "retire_copy",
+      id: 1,
+      payload: { condition: "Destroyed" },
+    },
+    expect: 403,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    cookie: adminCookie,
+    body: {
+      resource: "inventory",
+      action: "retire_copy",
+      id: 1,
+      payload: { condition: "Destroyed" },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+
+  // Batch 4 Part 2: Circulation (Borrowing, Returns, Renewals, Fines) RBAC & strict validation
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=library_cards",
+    expect: 401,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=library_cards",
+    cookie: userCookie,
+    expect: 403,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=library_cards&badParam=1",
+    cookie: adminCookie,
+    expect: 400,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=returns",
+    expect: 401,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=returns",
+    cookie: userCookie,
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    body: {
+      resource: "library_cards",
+      action: "create",
+      id: null,
+      payload: { firstname: "Test", lastname: "User" },
+    },
+    expect: 401,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: userCookie,
+    body: {
+      resource: "library_cards",
+      action: "create",
+      id: null,
+      payload: { firstname: "Test", lastname: "User" },
+    },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "library_cards",
+      action: "waive_fine",
+      id: 1,
+      payload: { reason: "Trying as librarian" },
+    },
+    expect: 403,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    cookie: adminCookie,
+    body: {
+      resource: "library_cards",
+      action: "return_books",
+      id: 1,
+      payload: { return_date: "2026-05-10" },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/user/renew",
+    body: { card_id: 1, reason: "Need more time" },
+    expect: 401,
+  },
+  {
+    method: "POST",
+    path: "/api/user/renew",
+    cookie: userCookie,
+    body: { card_id: 1, reason: "Need more time", unknownField: true },
+    expect: 400,
+  },
+
+  // Batch 4 Part 3: System Settings & Backups RBAC and strict validation
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=system_settings",
+    expect: 401,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=system_settings",
+    cookie: librarianCookie,
+    expect: 403,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=backup_logs",
+    cookie: librarianCookie,
+    expect: 403,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "system_settings",
+      action: "toggle_lockdown",
+      id: null,
+      payload: { enabled: true, confirm: true, reason: "Test" },
+    },
+    expect: 403,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    cookie: adminCookie,
+    body: {
+      resource: "system_settings",
+      action: "update",
+      id: null,
+      payload: { maintenance_enabled: false },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "GET",
+    path: "/api/backup",
+    cookie: librarianCookie,
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/backup",
+    cookie: librarianCookie,
+    body: { scope: "Full" },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/backup",
+    cookie: adminCookie,
+    body: { scope: "Full", unknownField: true },
+    expect: 400,
+  },
+  {
+    method: "PUT",
+    path: "/api/backup",
+    body: { backup_log_id: 1, confirm: "RESTORE" },
+    expect: 401,
+  },
+  {
+    method: "PUT",
+    path: "/api/backup",
+    cookie: librarianCookie,
+    body: { backup_log_id: 1, confirm: "RESTORE" },
+    expect: 403,
+  },
+  {
+    method: "PUT",
+    path: "/api/backup",
+    cookie: adminCookie,
+    body: { backup_log_id: 1, confirm: "NOPE" },
+    expect: 400,
+  },
+
+  // Book ID identity & optional ISBN route checks
+  {
+    method: "GET",
+    path: "/api/public/books?id=invalid",
+    expect: 400,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=books&isbn=9780132350884",
+    expect: 401,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=books&isbn=9780132350884",
+    cookie: userCookie,
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/user/favorites",
+    body: { book_id: 1 },
+    expect: 401,
+  },
+  {
+    method: "POST",
+    path: "/api/user/favorites",
+    cookie: userCookie,
+    body: { book_id: 1, unknownField: true },
     expect: 400,
   },
 ];
@@ -471,7 +1067,14 @@ async function main() {
     }
 
     for (const check of API_CHECKS) {
-      const res = await request(check.method, check.path, check.body, check.cookie || "");
+      const res = await request(
+        check.method,
+        check.path,
+        check.body,
+        check.cookie || "",
+        check.contentType || "",
+        check.headers || {}
+      );
       if (res.status === check.expect) {
         passed++;
       } else {

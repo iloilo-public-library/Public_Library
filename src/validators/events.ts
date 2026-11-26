@@ -42,6 +42,7 @@ export const eventRecurrenceSchema = z
     until: optionalIsoDate,
     count: z.coerce.number().int().min(1).max(366).nullable().optional(),
   })
+  .strict()
   .nullable()
   .optional();
 
@@ -75,6 +76,7 @@ export const eventQueryRangeSchema = z
     from: z.string().trim().regex(isoDateRe, "from must be YYYY-MM-DD.").optional(),
     to: z.string().trim().regex(isoDateRe, "to must be YYYY-MM-DD.").optional(),
   })
+  .strict()
   .superRefine((val, ctx) => {
     if ((val.from && !val.to) || (!val.from && val.to)) {
       ctx.addIssue({
@@ -99,29 +101,31 @@ export const eventQueryRangeSchema = z
     }
   });
 
-const eventBaseObject = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(1, "Event title is required.")
-    .max(255, "Event title must be 255 characters or fewer."),
-  description: z.string().trim().max(4000).nullable().optional().default(null),
-  event_date: z.string().trim().regex(isoDateRe, "Event date must be YYYY-MM-DD."),
-  end_date: optionalIsoDate,
-  start_time: optionalTime,
-  end_time: optionalTime,
-  all_day: z.boolean().optional(),
-  timezone: z.string().trim().max(64).optional().default("Asia/Manila"),
-  location: z.string().trim().max(255).nullable().optional().default(null),
-  category: z.string().trim().min(1).max(32).optional().default("general"),
-  audience: z.enum(["all", "members", "staff"]).optional().default("all"),
-  cover_image: optionalCoverImageSchema,
-  image: optionalCoverImageSchema,
-  reminders: eventRemindersSchema,
-  recurrence: eventRecurrenceSchema,
-  scope: eventScopeSchema.optional(),
-  occurrence_date: optionalIsoDate,
-});
+const eventBaseObject = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1, "Event title is required.")
+      .max(255, "Event title must be 255 characters or fewer."),
+    description: z.string().trim().max(4000).nullable().optional().default(null),
+    event_date: z.string().trim().regex(isoDateRe, "Event date must be YYYY-MM-DD."),
+    end_date: optionalIsoDate,
+    start_time: optionalTime,
+    end_time: optionalTime,
+    all_day: z.boolean().optional(),
+    timezone: z.string().trim().max(64).optional().default("Asia/Manila"),
+    location: z.string().trim().max(255).nullable().optional().default(null),
+    category: z.string().trim().min(1).max(32).optional().default("general"),
+    audience: z.enum(["all", "members", "staff"]).optional().default("all"),
+    cover_image: optionalCoverImageSchema,
+    image: optionalCoverImageSchema,
+    reminders: eventRemindersSchema,
+    recurrence: eventRecurrenceSchema,
+    scope: eventScopeSchema.optional(),
+    occurrence_date: optionalIsoDate,
+  })
+  .strict();
 
 function validateStartEnd(
   val: {
@@ -165,27 +169,34 @@ export const eventRescheduleSchema = z
     scope: eventScopeSchema.optional(),
     occurrence_date: optionalIsoDate,
   })
+  .strict()
   .superRefine(validateStartEnd);
 
-export const eventDeleteScopeSchema = z.object({
-  scope: eventScopeSchema.optional().default("all"),
-  occurrence_date: optionalIsoDate,
-});
+export const eventDeleteScopeSchema = z
+  .object({
+    scope: eventScopeSchema.optional().default("all"),
+    occurrence_date: optionalIsoDate,
+  })
+  .strict();
 
 const hexColorRe = /^#[0-9a-fA-F]{6}$/;
 
-export const eventCategoryCreateSchema = z.object({
-  slug: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .regex(/^[a-z0-9_-]{2,32}$/, "Category slug must be 2-32 lowercase letters, numbers, - or _."),
-  name: z.string().trim().min(2).max(80),
-  color: z.string().trim().regex(hexColorRe, "Color must be a 6-digit hex code like #48c78e."),
-});
+export const eventCategoryCreateSchema = z
+  .object({
+    slug: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^[a-z0-9_-]{2,32}$/, "Category slug must be 2-32 lowercase letters, numbers, - or _."),
+    name: z.string().trim().min(2).max(80),
+    color: z.string().trim().regex(hexColorRe, "Color must be a 6-digit hex code like #48c78e."),
+  })
+  .strict();
 
-export const eventCategoryUpdateSchema = z.object({
-  name: z.string().trim().min(2).max(80).optional(),
-  color: z.string().trim().regex(hexColorRe, "Color must be a 6-digit hex code like #48c78e.").optional(),
-});
+export const eventCategoryUpdateSchema = z
+  .object({
+    name: z.string().trim().min(2).max(80).optional(),
+    color: z.string().trim().regex(hexColorRe, "Color must be a 6-digit hex code like #48c78e.").optional(),
+  })
+  .strict();
 

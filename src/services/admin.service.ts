@@ -4,7 +4,7 @@ import {
   AdminMutationError,
   handleAdminMutation,
   queryAdminResource,
-  type QueryEventsOptions,
+  type AdminResourceQueryOptions,
 } from "@/repositories";
 import { recordAuditEvent } from "@/lib/audit/audit-logger";
 import type { AdminResource } from "@/validators/admin";
@@ -25,7 +25,7 @@ export async function getAdminResourceData(
   supabase: SupabaseClient,
   resource: AdminResource,
   sessionUserId: number | null,
-  queryOptions?: QueryEventsOptions,
+  queryOptions?: AdminResourceQueryOptions,
   sessionRole?: string | null
 ) {
   return queryAdminResource(supabase, resource, sessionUserId, queryOptions, sessionRole);

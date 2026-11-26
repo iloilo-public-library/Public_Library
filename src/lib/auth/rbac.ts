@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getServerSession, type SessionPayload } from "@/lib/auth/session";
 import { ForbiddenError, UnauthorizedError } from "@/lib/errors";
 import { STAFF_ROLES, type UserRole } from "@/config/constants";
+import { enforceSystemMode } from "@/lib/auth/system-mode";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 
 export type { UserRole };
@@ -137,6 +138,9 @@ export async function verifyRepositoryActor(
   if (!allowedRoles.includes(dbRole)) {
     throw new ForbiddenError("Forbidden — insufficient permissions.");
   }
+
+  // Enforce emergency lockdown & maintenance mode at the repository layer (admins always pass)
+  await enforceSystemMode(supabase, dbRole);
 
   return { id: Number(actor.id), role: dbRole, is_active: Boolean(actor.is_active) };
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { safeDecryptData } from "@/lib/crypto/fernet";
+import { isbnMatches } from "@/lib/books/isbn";
 
 function cleanCatalogField(val: string | null | undefined, fallback = ""): string {
   const dec = safeDecryptData(val ?? "");
@@ -44,11 +45,21 @@ interface BookRow {
   book_inventory: InventoryRow[] | null;
 }
 
-export async function GET() {
+export async function GET(request?: Request) {
   try {
+    const searchParams = request ? new URL(request.url).searchParams : null;
+    const rawId = searchParams?.get("id")?.trim() || "";
+    const rawIsbn = searchParams?.get("isbn")?.trim() || "";
+    if (rawId && (!/^\d+$/.test(rawId) || Number(rawId) <= 0)) {
+      return NextResponse.json({ books: [], error: "Invalid book id." }, { status: 400 });
+    }
+    if (rawIsbn.length > 64) {
+      return NextResponse.json({ books: [], error: "Invalid ISBN parameter." }, { status: 400 });
+    }
+
     const supabase = createSupabaseServerClient(false);
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("books")
       .select(
         `
@@ -61,11 +72,17 @@ export async function GET() {
       )
       .order("id", { ascending: false });
 
+    if (rawId) {
+      query = query.eq("id", Number(rawId));
+    }
+
+    const { data, error } = await query;
+
     if (error) {
       return NextResponse.json({ books: [], error: error.message }, { status: 500 });
     }
 
-    const books = ((data ?? []) as BookRow[]).map((b) => {
+    let books = ((data ?? []) as BookRow[]).map((b) => {
       const inv = Array.isArray(b.book_inventory)
         ? b.book_inventory
         : b.book_inventory
@@ -107,8 +124,16 @@ export async function GET() {
       };
     });
 
+    if (rawIsbn) {
+      books = books.filter((b) => isbnMatches(b.isbn, rawIsbn));
+    }
+
     return NextResponse.json(
-      { books, source: "supabase" },
+      {
+        books,
+        ...(rawId || rawIsbn ? { id: books[0]?.id ?? null } : {}),
+        source: "supabase",
+      },
       {
         headers: {
           "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",

@@ -995,15 +995,14 @@ export function AdminActionModals({
                       <div className="flex gap-2 items-end">
                         <div className="flex-1">
                           <label className={FIELD_LABEL}>
-                            <span>ISBN-10 / ISBN-13 *</span>
+                            <span>ISBN-10 / ISBN-13 (Optional)</span>
                           </label>
                           <div className="relative">
                             <Barcode className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-tl/45" />
                             <input
-                              required
                               value={s(form.isbn)}
                               onChange={(e) => setField("isbn", e.target.value)}
-                              placeholder="9780140449136"
+                              placeholder="9780140449136 (optional)"
                               className={`${INPUT_CLS} pl-8 font-mono`}
                             />
                           </div>

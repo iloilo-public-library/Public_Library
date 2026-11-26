@@ -1,17 +1,53 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, Calendar, Hash, Layers, Lock, LogIn, User, X } from "lucide-react";
+import useSWR from "swr";
+import {
+  BookOpen,
+  Calendar,
+  Hash,
+  Heart,
+  Layers,
+  Lock,
+  LogIn,
+  User,
+  X,
+} from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { swrPrivateConfig } from "@/lib/api";
 import type { Book } from "@/types/library";
+
+interface SessionStatusResponse {
+  authenticated?: boolean;
+  user?: { id: number; role: "admin" | "librarian" | "user"; email: string } | null;
+}
 
 interface BookDetailModalProps {
   book: Book | null;
   onClose: () => void;
+  isAuthenticated?: boolean;
+  isFavorite?: boolean;
+  onToggleFavorite?: (bookId: number) => void;
 }
 
-export function BookDetailModal({ book, onClose }: BookDetailModalProps) {
+export function BookDetailModal({
+  book,
+  onClose,
+  isAuthenticated,
+  isFavorite = false,
+  onToggleFavorite,
+}: BookDetailModalProps) {
+  const { data: sessionData } = useSWR<SessionStatusResponse>(
+    book !== null && isAuthenticated === undefined ? "/api/auth/session" : null,
+    swrPrivateConfig
+  );
+
+  const isSignedIn =
+    isAuthenticated !== undefined ? isAuthenticated : Boolean(sessionData?.authenticated);
+  const userRole = sessionData?.user?.role;
+  const isMember = isAuthenticated === true || userRole === "user";
+
   return (
     <Dialog open={book !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="flex max-h-[88vh] max-w-[680px] flex-col p-0">
@@ -20,6 +56,9 @@ export function BookDetailModal({ book, onClose }: BookDetailModalProps) {
             <div className="flex items-center justify-between border-b border-white/8 px-6 py-4">
               <DialogTitle className="flex items-center gap-2 text-[0.95rem] font-bold text-accent">
                 <BookOpen className="h-4 w-4" /> Book Details
+                <span className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 font-mono text-[0.68rem] font-medium text-white/60">
+                  #{book.id}
+                </span>
               </DialogTitle>
               <DialogDescription className="sr-only">
                 Detailed catalog metadata for {book.title}
@@ -101,7 +140,7 @@ export function BookDetailModal({ book, onClose }: BookDetailModalProps) {
                         ISBN
                       </span>
                       <span className="inline-flex items-center gap-1 font-mono text-white">
-                        <Hash className="h-3 w-3 text-accent/60" /> {book.isbn || "—"}
+                        <Hash className="h-3 w-3 text-accent/60" /> {book.isbn || "No ISBN"}
                       </span>
                     </div>
                     <div>
@@ -135,19 +174,45 @@ export function BookDetailModal({ book, onClose }: BookDetailModalProps) {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3 border-t border-white/8 px-6 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/8 px-6 py-4">
               <span className="text-[0.76rem] text-white/45">
-                Log in as a registered member to bookmark or check borrowing status.
+                {isSignedIn
+                  ? isMember
+                    ? "Visit the library desk with Book #" + book.id + " to borrow an available copy."
+                    : "Signed in with staff access."
+                  : "Log in as a registered member to bookmark or check borrowing status."}
               </span>
               <div className="flex items-center gap-2">
                 <Button variant="secondary" size="sm" onClick={onClose}>
                   Close
                 </Button>
-                <Button variant="accent" size="sm" asChild>
-                  <Link href="/login">
-                    <LogIn className="h-3.5 w-3.5" /> Member Login
-                  </Link>
-                </Button>
+                {isSignedIn ? (
+                  <>
+                    {onToggleFavorite && (
+                      <Button
+                        variant={isFavorite ? "danger" : "secondary"}
+                        size="sm"
+                        onClick={() => onToggleFavorite(book.id)}
+                      >
+                        <Heart className={`h-3.5 w-3.5 ${isFavorite ? "fill-current" : ""}`} />
+                        {isFavorite ? "Saved" : "Save"}
+                      </Button>
+                    )}
+                    {isMember && (
+                      <Button variant="accent" size="sm" asChild>
+                        <Link href="/user/borrowed" onClick={onClose}>
+                          <BookOpen className="h-3.5 w-3.5" /> My Borrowed
+                        </Link>
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <Button variant="accent" size="sm" asChild>
+                    <Link href="/login">
+                      <LogIn className="h-3.5 w-3.5" /> Member Login
+                    </Link>
+                  </Button>
+                )}
               </div>
             </div>
           </>

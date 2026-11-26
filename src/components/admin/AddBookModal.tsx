@@ -199,7 +199,7 @@ export function AddBookModal({ open, onClose, onSubmit }: AddBookModalProps) {
         {/* ISBN + Lookup */}
         <div>
           <label className={FIELD_LABEL}>
-            <span>ISBN-10 / ISBN-13 *</span>
+            <span>ISBN-10 / ISBN-13 (Optional)</span>
             <span className="font-mono text-[0.63rem] font-normal lowercase text-accent/80">
               supports barcode scanner
             </span>
@@ -208,10 +208,9 @@ export function AddBookModal({ open, onClose, onSubmit }: AddBookModalProps) {
             <div className="relative flex-1">
               <Barcode className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-tl/45" />
               <input
-                required
                 value={isbn}
                 onChange={(e) => setIsbn(e.target.value)}
-                placeholder="978-0-14-044913-6"
+                placeholder="978-0-14-044913-6 (leave blank if none)"
                 className={`${FIELD_INPUT} pl-8 font-mono`}
               />
             </div>

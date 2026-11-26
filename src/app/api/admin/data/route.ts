@@ -14,6 +14,7 @@ import {
   getAdminResourceData,
 } from "@/services/admin.service";
 import { adminMutationSchema, adminQuerySchema } from "@/validators/admin";
+import { buildBorrowHistoryCsv } from "@/lib/circulation/rules";
 import {
   clearAllErrorLogs,
   deleteErrorLog,
@@ -280,7 +281,25 @@ export async function GET(request: Request) {
     return toErrorResponse(parsedQuery.error);
   }
 
-  const { resource, isbn, from, to } = parsedQuery.data;
+  const {
+    resource,
+    isbn,
+    from,
+    to,
+    page,
+    limit,
+    pageSize,
+    q,
+    status,
+    category,
+    condition,
+    available,
+    damaged,
+    overdue,
+    format,
+    sort,
+    order,
+  } = parsedQuery.data;
   const publicResources = new Set(["events", "event_categories", "announcements"]);
   const session = await getServerSession();
   const isStaff = Boolean(session && isStaffRole(session.role));
@@ -332,13 +351,55 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createSupabaseServerClient(true);
+    const parseBoolParam = (v?: string) =>
+      v === undefined ? undefined : v === "true" || v === "1";
+
     const payload = await getAdminResourceData(
       supabase,
       resource,
       isStaff && session ? session.userId : null,
-      resource === "events" ? { from, to, isStaff } : undefined,
+      {
+        from,
+        to,
+        isStaff,
+        sessionRole: session?.role ?? null,
+        page,
+        pageSize: pageSize ?? limit,
+        q,
+        isbn,
+        status,
+        category,
+        condition,
+        available: parseBoolParam(available),
+        damaged: parseBoolParam(damaged),
+        overdue: parseBoolParam(overdue),
+        format,
+        sort,
+        order,
+      },
       isStaff && session ? session.role : null
     );
+    if (
+      format === "csv" &&
+      (resource === "library_cards" || resource === "returns")
+    ) {
+      const rows = Array.isArray((payload as { rows?: unknown[] }).rows)
+        ? ((payload as { rows: Array<Record<string, unknown>> }).rows)
+        : [];
+      const csv = buildBorrowHistoryCsv(rows, {
+        isLibrarian: session?.role === "librarian",
+        resource,
+      });
+      return new NextResponse(csv, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${resource}-export.csv"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+
     return NextResponse.json(payload);
   } catch (err) {
     if (err instanceof AdminMutationError) {
@@ -391,10 +452,15 @@ async function processMutationRequest(
       "users",
       "librarians",
       "admins",
+      "event_categories",
       "system_settings",
       "error_logs",
     ]);
-    if (adminOnlyWriteResources.has(resource) && !isAdminRole(session.role)) {
+    if (
+      (adminOnlyWriteResources.has(resource) ||
+        (resource === "library_cards" && action === "waive_fine")) &&
+      !isAdminRole(session.role)
+    ) {
       return NextResponse.json(
         { ok: false, error: "Only Administrators can perform this action." },
         { status: 403 }

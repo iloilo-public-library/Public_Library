@@ -56,29 +56,39 @@ export const userSettingsMutationSchema = z.discriminatedUnion("action", [
 
 export type UserSettingsMutationInput = z.infer<typeof userSettingsMutationSchema>;
 
-export const userFavoriteSchema = z.object({
-  book_id: positiveIntSchema,
-});
+export const userFavoriteSchema = z
+  .object({
+    book_id: positiveIntSchema,
+  })
+  .strict();
 
 export const userSearchHistorySchema = z.object({
   query: z.string().trim().min(1, "Search query cannot be empty.").max(255),
 });
 
 export const userNotificationActionSchema = z.discriminatedUnion("action", [
-  z.object({
-    action: z.literal("read"),
-    announcement_id: positiveIntSchema,
-  }),
-  z.object({
-    action: z.literal("dismiss"),
-    announcement_id: positiveIntSchema,
-  }),
-  z.object({
-    action: z.literal("read_all"),
-  }),
+  z
+    .object({
+      action: z.literal("read"),
+      announcement_id: positiveIntSchema,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("dismiss"),
+      announcement_id: positiveIntSchema,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("read_all"),
+    })
+    .strict(),
 ]);
 
-export const userRenewCardSchema = z.object({
-  card_id: positiveIntSchema,
-  reason: z.string().trim().max(500).optional().default("Patron requested library card renewal."),
-});
+export const userRenewCardSchema = z
+  .object({
+    card_id: positiveIntSchema,
+    reason: z.string().trim().max(500).optional().default("Patron requested library card renewal."),
+  })
+  .strict();

@@ -15,7 +15,6 @@ export async function sendEmail({ to, subject, html, text }: SendEmailInput): Pr
 
   if (!apiKey) {
     logger.info("Email skipped (dev mode: RESEND_API_KEY not configured)", {
-      to,
       subject,
     });
     return true;
@@ -40,13 +39,12 @@ export async function sendEmail({ to, subject, html, text }: SendEmailInput): Pr
     });
 
     if (resp.ok) {
-      logger.info("Email delivered via Resend", { to, subject });
+      logger.info("Email delivered via Resend", { subject });
       return true;
     }
 
     const errText = await resp.text().catch(() => "");
     logger.error("Resend API returned error", {
-      to,
       subject,
       status: resp.status,
       body: errText.slice(0, 300),
@@ -54,7 +52,6 @@ export async function sendEmail({ to, subject, html, text }: SendEmailInput): Pr
     return false;
   } catch (err) {
     logger.error("Email delivery failed", {
-      to,
       subject,
       error: err instanceof Error ? err.message : String(err),
     });

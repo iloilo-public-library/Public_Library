@@ -35,11 +35,27 @@ export * from "@/repositories/announcements";
 export * from "@/repositories/system-settings";
 export * from "@/repositories/admin-profile";
 
+export interface AdminResourceQueryOptions extends QueryEventsOptions {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  isbn?: string;
+  status?: string;
+  category?: string;
+  condition?: string;
+  available?: boolean;
+  damaged?: boolean;
+  overdue?: boolean;
+  format?: "json" | "csv";
+  sort?: string;
+  order?: "asc" | "desc";
+}
+
 export async function queryAdminResource(
   supabase: SupabaseClient,
   resource: string,
   sessionUserId: number | null,
-  queryOptions?: QueryEventsOptions,
+  queryOptions?: AdminResourceQueryOptions,
   sessionRole?: string | null
 ) {
   const adminOnlyReadResources = new Set([
@@ -55,16 +71,22 @@ export async function queryAdminResource(
 
   switch (resource) {
     case "inventory":
-      return queryInventory(supabase);
+      return queryInventory(supabase, queryOptions);
 
     case "books":
-      return queryBooks(supabase);
+      return queryBooks(supabase, queryOptions);
 
     case "library_cards":
-      return queryLibraryCards(supabase);
+      return queryLibraryCards(supabase, {
+        ...queryOptions,
+        sessionRole: queryOptions?.sessionRole ?? sessionRole,
+      });
 
     case "returns":
-      return queryReturns(supabase);
+      return queryReturns(supabase, {
+        ...queryOptions,
+        sessionRole: queryOptions?.sessionRole ?? sessionRole,
+      });
 
     case "users":
     case "librarians":
@@ -76,7 +98,12 @@ export async function queryAdminResource(
     }
 
     case "events":
-      return queryEvents(supabase, queryOptions);
+      return queryEvents(
+        supabase,
+        queryOptions
+          ? { ...queryOptions, sessionRole: queryOptions.sessionRole ?? sessionRole }
+          : { sessionRole }
+      );
 
     case "event_categories":
       return queryEventCategories(supabase);
@@ -120,10 +147,10 @@ export async function handleAdminMutation(
       return mutateAccounts(supabase, session, resource, action, id, payload);
 
     case "books":
-      return mutateBooks(supabase, action, id, payload);
+      return mutateBooks(supabase, session, action, id, payload);
 
     case "inventory":
-      return mutateInventory(supabase, id, payload);
+      return mutateInventory(supabase, session, action, id, payload);
 
     case "library_cards":
       return mutateLibraryCards(supabase, session, action, id, payload);
@@ -142,7 +169,7 @@ export async function handleAdminMutation(
 
     case "system_settings":
       requireAdminOnly(session);
-      return mutateSystemSettings(supabase, action, payload);
+      return mutateSystemSettings(supabase, session, action, payload);
 
     case "admin_profile":
       return mutateAdminProfile(supabase, session, action, payload);
