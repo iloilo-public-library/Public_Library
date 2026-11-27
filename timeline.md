@@ -53,6 +53,9 @@
 - Completed and verified Batch 4 backend hardening for Books, Inventory copy-level tracking, atomic circulation borrowing/returns/renewals/fines (`011_circulation_rules.sql`), emergency lockdown/maintenance enforcement, and idempotent rate-limited backups/restore validation. (`f4ec56a`)
 - Fixed the signed-in `"Member Login"` bug in `BookDetailModal` and `/user/browse`, migrated canonical book identity from ISBN to `books.id` with optional checksum-validated ISBNs (`012_book_id_identity.sql`), and verified all 57 unit tests and 161 route checks. (`f4ec56a`)
 
+#### November 27, 2026
+- Hardened the Librarian backend with repository-level DB-role/lock/session/lockdown verification (`verifyRepositoryActor` and `getActiveSessionStatus`), strict patron PII redaction in JSON and CSV, renewal-only account-request enforcement, single-card `id` lookup on `library_cards`/`returns`, `admin_profile` PIN expiry fields and partial profile updates, 67 passing unit tests, and 189 passing route checks. (`6087ad3`)
+
 ### Git Commit History
 
 | Date | Time | Commit | Message |
@@ -75,6 +78,7 @@
 | 2026-11-26 | 07:57 | `a509952` | `feat(backend): integrate remaining admin backend modules, circulation, and rbac guards` |
 | 2026-11-26 | 09:34 | `29d557f` | `feat(backend): batch 2 account management and account requests` |
 | 2026-11-26 | 21:48 | `f4ec56a` | `feat: complete batch 3-4 backend, member login fix, and book id identity` |
+| 2026-11-27 | 10:28 | `6087ad3` | `feat(librarian): enforce repo-level rbac, patron redaction, card id lookup, and profile parity` |
 
 
 
