@@ -306,6 +306,9 @@ test("1. Strict Zod: event, reschedule, delete, range, and category schemas reje
 
 test("2. Audience enforcement in queryEvents: guest vs member vs staff", async () => {
   const mockDb = createMockSupabase({
+    users: [
+      { id: 2, role: "librarian", is_active: true, is_approved: true },
+    ],
     events: [
       { id: 1, title: "Public Event", event_date: "2026-05-10", audience: "all", category: "general" },
       { id: 2, title: "Members Only", event_date: "2026-05-11", audience: "members", category: "workshop" },
@@ -328,7 +331,11 @@ test("2. Audience enforcement in queryEvents: guest vs member vs staff", async (
   );
 
   // Staff (librarian / admin): sees all three
-  const staffRes = await queryEvents(mockDb, { isStaff: true, sessionRole: "librarian" });
+  const staffRes = await queryEvents(mockDb, {
+    isStaff: true,
+    sessionRole: "librarian",
+    actorId: 2,
+  });
   assert.deepEqual(
     staffRes.rows.map((r) => r.id),
     [1, 2, 3]

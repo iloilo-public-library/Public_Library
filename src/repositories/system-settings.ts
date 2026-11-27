@@ -64,7 +64,12 @@ async function terminateNonAdminSessions(supabase: SupabaseClient): Promise<numb
   return ids.length;
 }
 
-export async function querySystemSettings(supabase: SupabaseClient) {
+export async function querySystemSettings(
+  supabase: SupabaseClient,
+  actorId?: number | null,
+  sessionToken?: string | null
+) {
+  await verifyRepositoryActor(supabase, actorId, ["admin"], sessionToken);
   const [settingsRes, logsRes, errLogs] = await Promise.all([
     supabase.from("system_settings").select("*").limit(1),
     supabase
@@ -82,12 +87,22 @@ export async function querySystemSettings(supabase: SupabaseClient) {
   };
 }
 
-export async function queryErrorLogs(supabase: SupabaseClient) {
+export async function queryErrorLogs(
+  supabase: SupabaseClient,
+  actorId?: number | null,
+  sessionToken?: string | null
+) {
+  await verifyRepositoryActor(supabase, actorId, ["admin"], sessionToken);
   const rows = await listErrorLogs(supabase);
   return { rows };
 }
 
-export async function queryBackupLogs(supabase: SupabaseClient) {
+export async function queryBackupLogs(
+  supabase: SupabaseClient,
+  actorId?: number | null,
+  sessionToken?: string | null
+) {
+  await verifyRepositoryActor(supabase, actorId, ["admin"], sessionToken);
   const { data, error } = await supabase
     .from("backup_logs")
     .select("id, backup_type, scope, file_name, file_size_bytes, status, error_message, created_at")
@@ -105,7 +120,7 @@ export async function mutateSystemSettings(
   action: string,
   payload: Record<string, unknown>
 ) {
-  await verifyRepositoryActor(supabase, session.userId, ["admin"]);
+  await verifyRepositoryActor(supabase, session.userId, ["admin"], session.sessionToken);
 
   if (action === "run_backup") {
     const parsed = systemSettingsBackupSchema.safeParse(payload);

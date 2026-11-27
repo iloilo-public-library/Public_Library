@@ -15,8 +15,12 @@ import {
 
 export async function queryAnnouncements(
   supabase: SupabaseClient,
-  sessionUserId: number | null
+  sessionUserId: number | null,
+  sessionToken?: string | null
 ) {
+  if (sessionUserId) {
+    await verifyRepositoryActor(supabase, sessionUserId, STAFF_ROLES, sessionToken);
+  }
   let query = supabase
     .from("announcements")
     .select("id, title, body, category, pinned, author, target_user_id, created_at")
@@ -77,7 +81,12 @@ export async function mutateAnnouncements(
   id: number | null,
   payload: Record<string, unknown>
 ) {
-  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES);
+  const actor = await verifyRepositoryActor(
+    supabase,
+    session.userId,
+    STAFF_ROLES,
+    session.sessionToken
+  );
 
   if (action === "delete") {
     if (!id) throw new AdminMutationError("Announcement ID is required.");
@@ -143,7 +152,7 @@ export async function mutateAnnouncements(
       targetUserName = formatFullName(recipient.firstname, recipient.lastname);
     }
 
-    const author = await getStaffDisplayName(supabase, session.userId, session.role);
+    const author = await getStaffDisplayName(supabase, actor.id, actor.role);
     const { data, error } = await supabase
       .from("announcements")
       .insert({

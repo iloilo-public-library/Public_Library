@@ -36,6 +36,7 @@ export * from "@/repositories/system-settings";
 export * from "@/repositories/admin-profile";
 
 export interface AdminResourceQueryOptions extends QueryEventsOptions {
+  id?: number;
   page?: number;
   pageSize?: number;
   q?: string;
@@ -69,59 +70,79 @@ export async function queryAdminResource(
     throw new AdminMutationError("Forbidden — administrator privileges required.", 403);
   }
 
+  const actorId = queryOptions?.actorId ?? sessionUserId;
+  const sessionToken = queryOptions?.sessionToken ?? null;
+
   switch (resource) {
     case "inventory":
-      return queryInventory(supabase, queryOptions);
+      return queryInventory(supabase, {
+        ...queryOptions,
+        actorId,
+        sessionToken,
+      });
 
     case "books":
-      return queryBooks(supabase, queryOptions);
+      return queryBooks(supabase, {
+        ...queryOptions,
+        actorId,
+        sessionToken,
+      });
 
     case "library_cards":
       return queryLibraryCards(supabase, {
         ...queryOptions,
+        actorId,
+        sessionToken,
         sessionRole: queryOptions?.sessionRole ?? sessionRole,
       });
 
     case "returns":
       return queryReturns(supabase, {
         ...queryOptions,
+        actorId,
+        sessionToken,
         sessionRole: queryOptions?.sessionRole ?? sessionRole,
       });
 
     case "users":
     case "librarians":
     case "admins":
-      return queryAccountsByRole(supabase, resource);
+      return queryAccountsByRole(supabase, resource, actorId, sessionToken);
 
     case "account_requests": {
-      return queryAccountRequests(supabase, sessionRole);
+      return queryAccountRequests(supabase, actorId, sessionToken);
     }
 
     case "events":
       return queryEvents(
         supabase,
         queryOptions
-          ? { ...queryOptions, sessionRole: queryOptions.sessionRole ?? sessionRole }
-          : { sessionRole }
+          ? {
+              ...queryOptions,
+              actorId,
+              sessionToken,
+              sessionRole: queryOptions.sessionRole ?? sessionRole,
+            }
+          : { actorId, sessionToken, sessionRole }
       );
 
     case "event_categories":
       return queryEventCategories(supabase);
 
     case "announcements":
-      return queryAnnouncements(supabase, sessionUserId);
+      return queryAnnouncements(supabase, actorId, sessionToken);
 
     case "system_settings":
-      return querySystemSettings(supabase);
+      return querySystemSettings(supabase, actorId, sessionToken);
 
     case "error_logs":
-      return queryErrorLogs(supabase);
+      return queryErrorLogs(supabase, actorId, sessionToken);
 
     case "backup_logs":
-      return queryBackupLogs(supabase);
+      return queryBackupLogs(supabase, actorId, sessionToken);
 
     case "admin_profile":
-      return queryAdminProfile(supabase, sessionUserId);
+      return queryAdminProfile(supabase, actorId, sessionToken);
 
     default:
       return { rows: [] };

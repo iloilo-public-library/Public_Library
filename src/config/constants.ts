@@ -27,6 +27,7 @@ export const STAFF_ROUTE_PREFIXES = [
 ] as const;
 
 export const ADMIN_ONLY_ROUTE_PREFIXES = [
+  "/dashboard",
   "/admin",
   "/admin-settings",
   "/system-settings",

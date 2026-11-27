@@ -458,10 +458,10 @@ test("7. Member privacy & Librarian patron redaction + CSV formula sanitization"
     (err) => err.status === 404
   );
 
-  // Librarian view redacts member phone/address
-  const libView = await queryLibraryCards(supabase, { sessionRole: "librarian" });
-  assert.equal(libView.rows[0].phone_number, "");
-  assert.equal(libView.rows[0].address, "");
+  // Librarian view redacts member phone/address (omitted completely)
+  const libView = await queryLibraryCards(supabase, { actorId: 2, sessionRole: "librarian" });
+  assert.equal(libView.rows[0].phone_number, undefined);
+  assert.equal(libView.rows[0].address, undefined);
 
   // CSV sanitizes leading formula characters
   const csv = buildBorrowHistoryCsv([{ id: 1, fullname: "=CMD('calc')", status: "active" }], {

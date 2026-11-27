@@ -27,6 +27,7 @@ export type AdminResource = z.infer<typeof adminResourceSchema>;
 export const adminQuerySchema = z
   .object({
     resource: adminResourceSchema,
+    id: z.coerce.number().int().positive().optional(),
     isbn: z.string().trim().max(64).optional(),
     from: z.string().trim().max(32).optional(),
     to: z.string().trim().max(32).optional(),
@@ -78,7 +79,8 @@ export const adminUpdateProfileSchema = z
       .refine(
         (s) => NAME_RE.test(s),
         "Enter a valid first name (letters, spaces, . ' - only, max 64)."
-      ),
+      )
+      .optional(),
     lastname: z
       .string()
       .trim()
@@ -87,8 +89,9 @@ export const adminUpdateProfileSchema = z
       .refine(
         (s) => NAME_RE.test(s),
         "Enter a valid last name (letters, spaces, . ' - only, max 64)."
-      ),
-    gender: z.enum(["Male", "Female", "Others", ""]).optional().default(""),
+      )
+      .optional(),
+    gender: z.enum(["Male", "Female", "Others", ""]).optional(),
     phone_number: z
       .string()
       .trim()
@@ -98,10 +101,17 @@ export const adminUpdateProfileSchema = z
         const digits = v.replace(/\D/g, "");
         return PHONE_RE.test(v) && digits.length >= 7 && digits.length <= 15;
       }, "Enter a valid phone number (7–15 digits).")
-      .optional()
-      .default(""),
+      .optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (d) =>
+      d.firstname !== undefined ||
+      d.lastname !== undefined ||
+      d.gender !== undefined ||
+      d.phone_number !== undefined,
+    { message: "At least one profile field is required." }
+  );
 
 export const adminChangePasswordSchema = z
   .object({

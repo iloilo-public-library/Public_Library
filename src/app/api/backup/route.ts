@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 import { getServerSession } from "@/lib/auth/session";
-import { isAdminRole } from "@/lib/auth/rbac";
+import { isAdminRole, verifyRepositoryActor } from "@/lib/auth/rbac";
 import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import {
   isScheduledBackupDue,
@@ -103,6 +103,12 @@ export async function GET(request: Request) {
     );
   }
 
+  try {
+    await verifyRepositoryActor(supabase, session.userId, ["admin"], session.sessionToken);
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+
   const [settingsRes, logsRes] = await Promise.all([
     supabase.from("system_settings").select("backup_frequency, updated_at").limit(1),
     supabase
@@ -160,6 +166,7 @@ export async function POST(request: Request) {
     }
 
     const supabase = createSupabaseServerClient(true);
+    await verifyRepositoryActor(supabase, session.userId, ["admin"], session.sessionToken);
     await enforceRateLimit(
       {
         scope: "admin:backup",
@@ -232,6 +239,7 @@ export async function PUT(request: Request) {
     }
 
     const supabase = createSupabaseServerClient(true);
+    await verifyRepositoryActor(supabase, session.userId, ["admin"], session.sessionToken);
     await enforceRateLimit(
       {
         scope: "admin:restore",

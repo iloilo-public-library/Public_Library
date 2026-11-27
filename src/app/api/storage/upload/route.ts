@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getServerSession } from "@/lib/auth/session";
-import { isStaffRole } from "@/lib/auth/rbac";
+import { isStaffRole, verifyRepositoryActor } from "@/lib/auth/rbac";
+import { STAFF_ROLES } from "@/config/constants";
 import { enforceRateLimit, getClientIp } from "@/lib/auth/rate-limit";
-import { RateLimitError } from "@/lib/errors";
+import { RateLimitError, toErrorResponse } from "@/lib/errors";
 import { isDropboxConfigured } from "@/lib/storage/dropbox";
 import { uploadFileToDropboxFolder, type UploadFolderKey } from "@/lib/storage";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
@@ -49,6 +50,18 @@ export async function POST(request: Request) {
   }
 
   const supabase = getSupabaseSecretKey() ? createSupabaseServerClient(true) : null;
+  if (supabase) {
+    try {
+      await verifyRepositoryActor(
+        supabase,
+        session.userId,
+        folder === "valid-ids" ? ["admin", "librarian", "user"] : STAFF_ROLES,
+        session.sessionToken
+      );
+    } catch (err) {
+      return toErrorResponse(err);
+    }
+  }
   try {
     await enforceRateLimit(
       {

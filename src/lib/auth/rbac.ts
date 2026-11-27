@@ -74,8 +74,10 @@ export async function touchSessionActivity(
         .is("logout_at", null),
       supabase
         .from("users")
-        .update({ last_seen: nowIso, status: "active" })
-        .eq("id", session.userId),
+        .update({ last_seen: nowIso })
+        .eq("id", session.userId)
+        .eq("is_active", true)
+        .eq("is_approved", true),
     ]);
   } catch {
     // Non-blocking heartbeat update
@@ -118,7 +120,8 @@ export async function requireAdmin(): Promise<SessionPayload> {
 export async function verifyRepositoryActor(
   supabase: SupabaseClient,
   actorId: number | null | undefined,
-  allowedRoles: readonly UserRole[]
+  allowedRoles: readonly UserRole[],
+  sessionToken?: string | null
 ): Promise<{ id: number; role: UserRole; is_active: boolean }> {
   if (!actorId || !Number.isInteger(actorId) || actorId <= 0) {
     throw new UnauthorizedError("Unauthorized — valid session required.");
@@ -126,7 +129,7 @@ export async function verifyRepositoryActor(
 
   const { data: actor, error } = await supabase
     .from("users")
-    .select("id, role, is_active, is_approved")
+    .select("id, role, is_active, is_approved, is_locked, lock_until")
     .eq("id", actorId)
     .maybeSingle();
 
@@ -134,9 +137,34 @@ export async function verifyRepositoryActor(
     throw new UnauthorizedError("Unauthorized — account is inactive or not found.");
   }
 
+  const isCurrentlyLocked =
+    Boolean(actor.is_locked) &&
+    (!actor.lock_until || Date.parse(String(actor.lock_until)) > Date.now());
+  if (isCurrentlyLocked) {
+    throw new UnauthorizedError("Unauthorized — account is temporarily locked.");
+  }
+
   const dbRole = actor.role as UserRole;
   if (!allowedRoles.includes(dbRole)) {
     throw new ForbiddenError("Forbidden — insufficient permissions.");
+  }
+
+  if (sessionToken) {
+    const { data: sessionRows, error: sessionError } = await supabase
+      .from("login_sessions")
+      .select("id, logout_at")
+      .eq("user_id", actorId)
+      .eq("session_token", sessionToken)
+      .limit(1);
+
+    if (sessionError) {
+      throw new UnauthorizedError("Unauthorized — unable to verify active session.");
+    }
+
+    const activeRow = Array.isArray(sessionRows) ? sessionRows[0] : null;
+    if (!activeRow || activeRow.logout_at !== null) {
+      throw new UnauthorizedError("Unauthorized — session has been terminated or expired.");
+    }
   }
 
   // Enforce emergency lockdown & maintenance mode at the repository layer (admins always pass)

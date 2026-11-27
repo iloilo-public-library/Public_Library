@@ -448,6 +448,7 @@ test("5. Privacy: member A cannot read or mutate member B's targeted announcemen
 test("6. Admin list exposes target_user_id and target_user_name only (never email/phone)", async () => {
   const mockDb = createMockSupabase({
     users: [
+      { id: 1, role: "admin", is_active: true, is_approved: true },
       {
         id: 20,
         firstname: "Maria",

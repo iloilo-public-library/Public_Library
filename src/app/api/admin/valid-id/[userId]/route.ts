@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth/session";
-import { isAdminRole, touchSessionActivity } from "@/lib/auth/rbac";
+import { isAdminRole, touchSessionActivity, verifyRepositoryActor } from "@/lib/auth/rbac";
+import { toErrorResponse } from "@/lib/errors";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 import { safeDecryptPii } from "@/lib/crypto/fernet";
 import { isDropboxConfigured } from "@/lib/storage/dropbox";
@@ -45,6 +46,23 @@ export async function GET(
   }
 
   const supabase = createSupabaseServerClient(true);
+  try {
+    const actor = await verifyRepositoryActor(
+      supabase,
+      session.userId,
+      ["admin", "librarian", "user"],
+      session.sessionToken
+    );
+    if (actor.role !== "admin" && actor.id !== userId) {
+      return NextResponse.json(
+        { error: "Forbidden — administrator privileges required to view Valid IDs." },
+        { status: 403 }
+      );
+    }
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+
   const { data: user, error } = await supabase
     .from("users")
     .select("valid_id_path")

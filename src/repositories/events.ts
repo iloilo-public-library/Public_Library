@@ -41,6 +41,8 @@ export interface QueryEventsOptions {
   to?: string;
   isStaff?: boolean;
   sessionRole?: string | null;
+  actorId?: number | null;
+  sessionToken?: string | null;
 }
 
 async function fetchValidCategorySlugs(supabase: SupabaseClient): Promise<Set<string>> {
@@ -98,7 +100,14 @@ export async function queryEvents(
   supabase: SupabaseClient,
   options: QueryEventsOptions = {}
 ) {
-  const { from, to, isStaff = false, sessionRole = null } = options;
+  const { from, to, isStaff = false, sessionRole = null, actorId = null, sessionToken = null } = options;
+
+  const claimsStaffAccess = Boolean(
+    isStaff || sessionRole === "admin" || sessionRole === "librarian"
+  );
+  if (claimsStaffAccess) {
+    await verifyRepositoryActor(supabase, actorId, STAFF_ROLES, sessionToken);
+  }
 
   if (from || to) {
     const parsedRange = eventQueryRangeSchema.safeParse({ from, to });
@@ -192,7 +201,7 @@ export async function mutateEvents(
   id: number | null,
   payload: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
-  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES);
+  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES, session.sessionToken);
 
   if (action === "delete") {
     if (!id) throw new AdminMutationError("Event ID is required.", 400);
@@ -566,7 +575,7 @@ export async function mutateEventCategories(
   id: number | null,
   payload: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
-  await verifyRepositoryActor(supabase, session.userId, ["admin"]);
+  await verifyRepositoryActor(supabase, session.userId, ["admin"], session.sessionToken);
 
   if (action === "create") {
     const parsed = eventCategoryCreateSchema.safeParse(payload);

@@ -988,6 +988,193 @@ const API_CHECKS = [
     body: { book_id: 1, unknownField: true },
     expect: 400,
   },
+
+  // Librarian Security Hardening: 401, 403, and unknown-field 400 checks
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=librarians",
+    expect: 401,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=librarians",
+    cookie: librarianCookie,
+    expect: 403,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=error_logs",
+    expect: 401,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=error_logs",
+    cookie: librarianCookie,
+    expect: 403,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=backup_logs",
+    expect: 401,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=isbn_lookup&isbn=9780132350884",
+    expect: 401,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=isbn_lookup&isbn=9780132350884",
+    cookie: userCookie,
+    expect: 403,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=users",
+    expect: 401,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=users",
+    cookie: userCookie,
+    expect: 403,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=users&unknownField=1",
+    cookie: librarianCookie,
+    expect: 400,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/valid-id/1",
+    cookie: librarianCookie,
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "error_logs",
+      action: "clear",
+      id: null,
+      payload: {},
+    },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: adminCookie,
+    body: {
+      resource: "error_logs",
+      action: "clear",
+      id: null,
+      payload: {},
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/error-logs",
+    body: { message: "Client error", unknownField: true },
+    expect: 400,
+  },
+
+  // Parity checks: single-card library_cards?id=1, returns?id=1, and admin_profile partial update_profile
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=library_cards&id=1",
+    expect: 401,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=library_cards&id=1",
+    cookie: userCookie,
+    expect: 403,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=library_cards&id=1&unknownField=1",
+    cookie: librarianCookie,
+    expect: 400,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=library_cards&id=abc",
+    cookie: librarianCookie,
+    expect: 400,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=library_cards&id=0",
+    cookie: librarianCookie,
+    expect: 400,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=returns&id=1",
+    expect: 401,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=returns&id=1",
+    cookie: userCookie,
+    expect: 403,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=returns&id=1&unknownField=1",
+    cookie: librarianCookie,
+    expect: 400,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=returns&id=abc",
+    cookie: librarianCookie,
+    expect: 400,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=returns&id=-1",
+    cookie: librarianCookie,
+    expect: 400,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    body: {
+      resource: "admin_profile",
+      action: "update_profile",
+      payload: { firstname: "Lina" },
+    },
+    expect: 401,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    cookie: userCookie,
+    body: {
+      resource: "admin_profile",
+      action: "update_profile",
+      payload: { firstname: "Lina" },
+    },
+    expect: 403,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "admin_profile",
+      action: "update_profile",
+      payload: { firstname: "Lina" },
+      unknownField: true,
+    },
+    expect: 400,
+  },
 ];
 
 async function main() {
@@ -1063,6 +1250,19 @@ async function main() {
       failed++;
       console.error(
         `FAIL RBAC PAGE /admin-settings (librarian): expected 307 -> /librarian/dashboard, got ${libOnAdminSettings.status} (${libOnAdminSettings.location})`
+      );
+    }
+
+    const libOnAdminDash = await request("GET", "/dashboard", null, librarianCookie);
+    if (
+      libOnAdminDash.status === 307 &&
+      libOnAdminDash.location.endsWith("/librarian/dashboard")
+    ) {
+      passed++;
+    } else {
+      failed++;
+      console.error(
+        `FAIL RBAC PAGE /dashboard (librarian): expected 307 -> /librarian/dashboard, got ${libOnAdminDash.status} (${libOnAdminDash.location})`
       );
     }
 

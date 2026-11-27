@@ -23,14 +23,15 @@ const SESSION_HISTORY_LIMIT = 1000;
 
 export async function queryAdminProfile(
   supabase: SupabaseClient,
-  sessionUserId: number | null
+  sessionUserId: number | null,
+  sessionToken?: string | null
 ) {
   if (!sessionUserId) {
     throw new AdminMutationError("Unauthorized — please log in.", 401);
   }
 
   // Repository-level RBAC verification
-  await verifyRepositoryActor(supabase, sessionUserId, STAFF_ROLES);
+  await verifyRepositoryActor(supabase, sessionUserId, STAFF_ROLES, sessionToken);
 
   const cutoffIso = new Date(
     Date.now() - SESSION_HISTORY_DAYS * 24 * 60 * 60 * 1000
@@ -46,7 +47,7 @@ export async function queryAdminProfile(
       .single(),
     supabase
       .from("login_sessions")
-      .select("id, session_token, login_at, last_active_at, logout_at")
+      .select("id, login_at, last_active_at, logout_at")
       .eq("user_id", sessionUserId)
       .gte("login_at", cutoffIso)
       .order("login_at", { ascending: false })
@@ -63,6 +64,13 @@ export async function queryAdminProfile(
   const pinExpired = Boolean(
     hasPin && (!Number.isFinite(pinSetMs) || Date.now() - pinSetMs > PIN_EXPIRY_MS)
   );
+  const pinValid = Boolean(hasPin && !pinExpired);
+  const pinDaysLeft = pinValid
+    ? Math.max(
+        1,
+        Math.ceil((PIN_EXPIRY_MS - (Date.now() - pinSetMs)) / (24 * 60 * 60 * 1000))
+      )
+    : 0;
 
   const firstname = safeDecryptPii(u.firstname);
   const lastname = safeDecryptPii(u.lastname);
@@ -84,13 +92,20 @@ export async function queryAdminProfile(
       is_active: u.is_active,
       is_approved: u.is_approved,
       otp_enabled: u.otp_enabled,
-      pin_enabled: u.pin_enabled,
+      pin_enabled: Boolean(u.pin_enabled) && !pinExpired,
       has_pin: hasPin,
       pin_expired: pinExpired,
+      pin_valid: pinValid,
+      pin_days_left: pinDaysLeft,
       created_at: u.created_at,
       last_seen: u.last_seen,
     },
-    loginActivity: sessionsRes.data ?? [],
+    loginActivity: (sessionsRes.data ?? []).map((s) => ({
+      id: s.id,
+      login_at: s.login_at,
+      last_active_at: s.last_active_at,
+      logout_at: s.logout_at,
+    })),
   };
 }
 
@@ -100,7 +115,7 @@ export async function mutateAdminProfile(
   action: string,
   payload: Record<string, unknown>
 ) {
-  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES);
+  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES, session.sessionToken);
 
   if (action === "update_profile") {
     const parsed = adminUpdateProfileSchema.safeParse(payload);
@@ -111,18 +126,54 @@ export async function mutateAdminProfile(
       );
     }
 
-    const { firstname, lastname, gender, phone_number } = parsed.data;
+    const { data: existing, error: existingErr } = await supabase
+      .from("users")
+      .select("firstname, lastname, gender, phone_number")
+      .eq("id", session.userId)
+      .single();
+
+    if (existingErr || !existing) {
+      throw mapDatabaseError(existingErr, "Failed to load current profile.");
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (parsed.data.firstname !== undefined) {
+      updates.firstname = parsed.data.firstname;
+    }
+    if (parsed.data.lastname !== undefined) {
+      updates.lastname = parsed.data.lastname;
+    }
+    if (parsed.data.gender !== undefined) {
+      updates.gender = parsed.data.gender || null;
+    }
+    if (parsed.data.phone_number !== undefined) {
+      updates.phone_number = parsed.data.phone_number || null;
+    }
+
     const { error } = await supabase
       .from("users")
-      .update({
-        firstname,
-        lastname,
-        gender: gender || null,
-        phone_number: phone_number || null,
-      })
+      .update(updates)
       .eq("id", session.userId);
 
     if (error) throw new AdminMutationError(error.message, 500);
+
+    const firstname =
+      parsed.data.firstname !== undefined
+        ? parsed.data.firstname
+        : safeDecryptPii(existing.firstname);
+    const lastname =
+      parsed.data.lastname !== undefined
+        ? parsed.data.lastname
+        : safeDecryptPii(existing.lastname);
+    const gender =
+      parsed.data.gender !== undefined
+        ? parsed.data.gender
+        : safeDecryptPii(existing.gender);
+    const phone_number =
+      parsed.data.phone_number !== undefined
+        ? parsed.data.phone_number
+        : safeDecryptPii(existing.phone_number);
+
     return {
       ok: true,
       target_user_id: session.userId,
@@ -131,7 +182,7 @@ export async function mutateAdminProfile(
         firstname,
         lastname,
         fullname: `${firstname} ${lastname}`.trim(),
-        initials: `${firstname[0] ?? ""}${lastname[0] ?? ""}`.toUpperCase() || "A",
+        initials: `${firstname.trim()[0] ?? ""}${lastname.trim()[0] ?? ""}`.toUpperCase() || "A",
         gender,
         phone_number,
       },
@@ -200,13 +251,20 @@ export async function mutateAdminProfile(
     if (method === "pin" && enabled) {
       const { data: user, error: userErr } = await supabase
         .from("users")
-        .select("pin_code")
+        .select("pin_code, pin_set_at")
         .eq("id", session.userId)
         .single();
       if (userErr) throw new AdminMutationError(userErr.message, 500);
       if (!user?.pin_code) {
         throw new AdminMutationError(
           "Please set a 6-digit PIN before enabling PIN login.",
+          400
+        );
+      }
+      const pinSetMs = user.pin_set_at ? Date.parse(String(user.pin_set_at)) : NaN;
+      if (!Number.isFinite(pinSetMs) || Date.now() - pinSetMs > PIN_EXPIRY_MS) {
+        throw new AdminMutationError(
+          "Your security PIN has expired (older than 7 days). Please set a new 6-digit PIN first.",
           400
         );
       }

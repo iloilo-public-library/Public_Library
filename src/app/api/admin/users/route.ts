@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/session";
 import { isStaffRole, touchSessionActivity } from "@/lib/auth/rbac";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 import { AdminMutationError } from "@/repositories/shared";
+import { toErrorResponse } from "@/lib/errors";
 import { getAdminUsersData } from "@/services/admin.service";
 import { adminUsersQuerySchema } from "@/validators/admin";
 
@@ -54,8 +55,6 @@ export async function GET(request: Request) {
         { status: error.status }
       );
     }
-    const message =
-      error instanceof Error ? error.message : "Failed to query users.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return toErrorResponse(error);
   }
 }

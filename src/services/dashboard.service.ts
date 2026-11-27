@@ -11,14 +11,18 @@ export async function getDashboardStatsService(
   supabase: SupabaseClient,
   session: SessionPayload
 ) {
-  return queryDashboardStats(supabase, session.userId);
+  return queryDashboardStats(supabase, session.userId, session.sessionToken);
 }
 
 export async function getStaffAppearanceService(
   supabase: SupabaseClient,
   session: SessionPayload
 ) {
-  const appearance = await queryStaffAppearance(supabase, session.userId);
+  const appearance = await queryStaffAppearance(
+    supabase,
+    session.userId,
+    session.sessionToken
+  );
   return { ok: true as const, appearance };
 }
 
@@ -27,7 +31,12 @@ export async function updateStaffAppearanceService(
   session: SessionPayload,
   input: { theme: string; language: string }
 ) {
-  const saved = await upsertStaffAppearance(supabase, session.userId, input);
+  const saved = await upsertStaffAppearance(
+    supabase,
+    session.userId,
+    input,
+    session.sessionToken
+  );
 
   await recordAuditEvent(
     {

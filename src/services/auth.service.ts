@@ -269,9 +269,47 @@ export async function getActiveSessionStatus(
       if (!dbUser || !dbUser.is_active || !dbUser.is_approved) {
         return { authenticated: false, user: null };
       }
+
+      const isCurrentlyLocked =
+        Boolean(dbUser.is_locked) &&
+        (!dbUser.lock_until || Date.parse(String(dbUser.lock_until)) > Date.now());
+      if (isCurrentlyLocked) {
+        return { authenticated: false, user: null };
+      }
+
+      if (session.sessionToken) {
+        const { data: sessionRows, error: sessionError } = await supabase
+          .from("login_sessions")
+          .select("id, logout_at")
+          .eq("user_id", session.userId)
+          .eq("session_token", session.sessionToken)
+          .limit(1);
+
+        if (sessionError) {
+          return { authenticated: false, user: null };
+        }
+        const activeRow = Array.isArray(sessionRows) ? sessionRows[0] : null;
+        if (!activeRow || activeRow.logout_at !== null) {
+          return { authenticated: false, user: null };
+        }
+      }
+
+      // Enforce emergency lockdown & maintenance mode (admins always pass)
+      await enforceSystemMode(supabase, dbUser.role);
+
       await touchSessionActivity(session, supabase);
+
+      return {
+        authenticated: true,
+        user: {
+          id: dbUser.id,
+          role: dbUser.role,
+          email: resolveEmail(dbUser.email_display, dbUser.username) || session.email,
+        },
+      };
     } catch {
-      // If DB check fails transiently, fall back to signed session token validity
+      // Fail closed on DB errors or system mode blocks
+      return { authenticated: false, user: null };
     }
   }
 

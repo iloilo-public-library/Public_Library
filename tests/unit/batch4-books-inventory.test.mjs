@@ -313,16 +313,16 @@ test("Books & Inventory list endpoints support bounded pagination, search, and f
     book_copies: [],
   });
 
-  const avail = await queryBooks(supabase, { available: true, page: 1, pageSize: 1 });
+  const avail = await queryBooks(supabase, { actorId: 1, available: true, page: 1, pageSize: 1 });
   assert.equal(avail.total, 2);
   assert.equal(avail.rows.length, 1);
   assert.equal(avail.totalPages, 2);
 
-  const damagedInv = await queryInventory(supabase, { damaged: true });
+  const damagedInv = await queryInventory(supabase, { actorId: 1, damaged: true });
   assert.equal(damagedInv.total, 1);
   assert.equal(damagedInv.rows[0].book_id, 1);
 
-  const searchRes = await queryInventory(supabase, { q: "darwin" });
+  const searchRes = await queryInventory(supabase, { actorId: 1, q: "darwin" });
   assert.equal(searchRes.total, 1);
   assert.equal(searchRes.rows[0].book_id, 2);
 });

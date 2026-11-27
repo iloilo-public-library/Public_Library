@@ -10,14 +10,24 @@ import { STAFF_ROLES } from "@/config/constants";
 
 export async function queryDashboardStats(
   supabase: SupabaseClient,
-  actorId: number
+  actorId: number,
+  sessionToken?: string | null
 ) {
   // Repository-level RBAC check for staff access
-  await verifyRepositoryActor(supabase, actorId, STAFF_ROLES);
+  const actor = await verifyRepositoryActor(supabase, actorId, STAFF_ROLES, sessionToken);
+  const isLibrarian = actor.role === "librarian";
 
   const manilaDays = getManilaLastNDays(7);
   const sevenDaysAgoKey = manilaDays[0] ?? toManilaDateKey();
   const todayManilaKey = manilaDays[manilaDays.length - 1] ?? toManilaDateKey();
+
+  let pendingReqQuery = supabase
+    .from("account_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending");
+  if (isLibrarian) {
+    pendingReqQuery = pendingReqQuery.eq("request_type", "renew");
+  }
 
   const [
     booksRes,
@@ -35,13 +45,12 @@ export async function queryDashboardStats(
     supabase.from("library_cards").select("id, date_return"),
     supabase.from("library_card_books").select("card_id, quantity, loan_status"),
     supabase.from("book_returns").select("id, card_id"),
-    supabase
-      .from("users")
-      .select("id, role, status, is_active, is_approved, is_locked, last_seen"),
-    supabase
-      .from("account_requests")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "pending"),
+    isLibrarian
+      ? supabase.from("users").select("id, role").eq("role", "user")
+      : supabase
+          .from("users")
+          .select("id, role, status, is_active, is_approved, is_locked, last_seen"),
+    pendingReqQuery,
   ]);
 
   if (booksRes.error) throw mapDatabaseError(booksRes.error, "Failed to load catalog counts.");
@@ -139,6 +148,24 @@ export async function queryDashboardStats(
     count,
   }));
 
+  if (isLibrarian) {
+    return {
+      total_books: books.length,
+      total_volumes: totalVolumes,
+      available_books: availableCopies,
+      borrowed_books: borrowedBooks,
+      damaged_books: damagedBooks,
+      lost_books: lostBooks,
+      overdue_books: overdueBooks,
+      total_users: roles.user,
+      pending_requests: pendingReqRes.count ?? 0,
+      active_cards: cards.length,
+      total_returns: returnRows.length,
+      books_per_day: booksPerDay,
+      source: "supabase",
+    };
+  }
+
   return {
     total_books: books.length,
     total_volumes: totalVolumes,
@@ -170,9 +197,10 @@ export async function queryDashboardStats(
 
 export async function queryStaffAppearance(
   supabase: SupabaseClient,
-  userId: number
+  userId: number,
+  sessionToken?: string | null
 ): Promise<{ theme: string; language: string; updated_at: string | null }> {
-  await verifyRepositoryActor(supabase, userId, STAFF_ROLES);
+  await verifyRepositoryActor(supabase, userId, STAFF_ROLES, sessionToken);
 
   const prefRes = await supabase
     .from("user_preferences")
@@ -206,9 +234,10 @@ export async function queryStaffAppearance(
 export async function upsertStaffAppearance(
   supabase: SupabaseClient,
   userId: number,
-  input: { theme: string; language: string }
+  input: { theme: string; language: string },
+  sessionToken?: string | null
 ): Promise<{ theme: string; language: string }> {
-  await verifyRepositoryActor(supabase, userId, STAFF_ROLES);
+  await verifyRepositoryActor(supabase, userId, STAFF_ROLES, sessionToken);
 
   const payload = {
     user_id: userId,

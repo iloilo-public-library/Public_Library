@@ -20,10 +20,59 @@ import type { AdminUsersQueryInput } from "@/validators/admin";
 
 export async function queryAccountsByRole(
   supabase: SupabaseClient,
-  resource: "users" | "librarians" | "admins"
+  resource: "users" | "librarians" | "admins",
+  actorId?: number | null,
+  sessionToken?: string | null
 ) {
+  const allowedRoles =
+    resource === "users" ? (["admin", "librarian"] as const) : (["admin"] as const);
+  const actor = await verifyRepositoryActor(supabase, actorId, allowedRoles, sessionToken);
+  const isLibrarian = actor.role === "librarian";
+
   const roleFilter =
     resource === "users" ? "user" : resource === "librarians" ? "librarian" : "admin";
+
+  if (isLibrarian) {
+    const { data, error } = await supabase
+      .from("users")
+      .select(
+        "id, firstname, lastname, role, status, is_active, is_approved, is_locked, last_seen"
+      )
+      .eq("role", "user")
+      .order("id", { ascending: false });
+    if (error) throw error;
+
+    const userIds = (data ?? []).map((u) => Number(u.id)).filter((id) => id > 0);
+    const cardMap = new Map<number, string>();
+    if (userIds.length > 0) {
+      const { data: cardRows } = await supabase
+        .from("library_cards")
+        .select("id, user_id")
+        .in("user_id", userIds)
+        .order("id", { ascending: false });
+      for (const card of cardRows ?? []) {
+        const uid = Number(card.user_id);
+        if (!cardMap.has(uid)) {
+          cardMap.set(uid, `LC-${String(card.id).padStart(6, "0")}`);
+        }
+      }
+    }
+
+    const rows = (data ?? []).map((u) => ({
+      id: Number(u.id),
+      firstname: safeDecryptPii(u.firstname),
+      lastname: safeDecryptPii(u.lastname),
+      fullname: formatFullName(u.firstname, u.lastname),
+      library_card_number: cardMap.get(Number(u.id)) ?? null,
+      role: u.role,
+      status: computeOnlineStatus(u.status, u.last_seen),
+      is_active: Boolean(u.is_active),
+      is_approved: Boolean(u.is_approved),
+      is_locked: Boolean(u.is_locked),
+    }));
+    return { rows };
+  }
+
   const { data, error } = await supabase
     .from("users")
     .select(
@@ -57,6 +106,23 @@ export async function queryAccountsByRole(
     };
   });
   return { rows };
+}
+
+function formatLibrarianPatronRow(
+  user: Record<string, unknown>,
+  libraryCardNumber: string | null = null
+): Record<string, unknown> {
+  return {
+    id: Number(user.id),
+    firstname: safeDecryptPii(user.firstname),
+    lastname: safeDecryptPii(user.lastname),
+    fullname: formatFullName(user.firstname, user.lastname),
+    library_card_number: libraryCardNumber,
+    role: user.role,
+    status: computeOnlineStatus(user.status, user.last_seen),
+    is_active: user.is_active !== undefined ? Boolean(user.is_active) : true,
+    is_approved: Boolean(user.is_approved),
+  };
 }
 
 function formatAdminUserRow(
@@ -105,22 +171,25 @@ function formatAdminUserRow(
 
 function matchesAdminUserSearch(
   user: Record<string, unknown>,
-  query: string
+  query: string,
+  allowContactSearch = true
 ): boolean {
   if (!query) return true;
   const queryLower = query.toLowerCase();
   const firstname = safeDecryptPii(user.firstname).toLowerCase();
   const lastname = safeDecryptPii(user.lastname).toLowerCase();
   const fullname = `${firstname} ${lastname}`.trim();
-  const email = resolveEmail(user.email_display, user.username).toLowerCase();
-  const phone = safeDecryptPii(user.phone_number).toLowerCase();
-  return (
+  if (
     firstname.includes(queryLower) ||
     lastname.includes(queryLower) ||
-    fullname.includes(queryLower) ||
-    email.includes(queryLower) ||
-    phone.includes(queryLower)
-  );
+    fullname.includes(queryLower)
+  ) {
+    return true;
+  }
+  if (!allowContactSearch) return false;
+  const email = resolveEmail(user.email_display, user.username).toLowerCase();
+  const phone = safeDecryptPii(user.phone_number).toLowerCase();
+  return email.includes(queryLower) || phone.includes(queryLower);
 }
 
 export async function queryAdminUsers(
@@ -128,15 +197,17 @@ export async function queryAdminUsers(
   session: SessionPayload,
   input: AdminUsersQueryInput
 ) {
-  await verifyRepositoryActor(
+  const actor = await verifyRepositoryActor(
     supabase,
     session.userId,
-    ["admin", "librarian"]
+    ["admin", "librarian"],
+    session.sessionToken
   );
 
-  const isAdmin = session.role === "admin";
-  const selectColumns =
-    "id, username, email_display, firstname, lastname, age, gender, phone_number, school, city, province, education_level, occupation, is_government, office_phone, valid_id_path, role, status, is_active, is_approved, is_locked, failed_attempts, lock_until, otp_enabled, pin_enabled, created_at, last_seen";
+  const isAdmin = actor.role === "admin";
+  const selectColumns = isAdmin
+    ? "id, username, email_display, firstname, lastname, age, gender, phone_number, school, city, province, education_level, occupation, is_government, office_phone, valid_id_path, role, status, is_active, is_approved, is_locked, failed_attempts, lock_until, otp_enabled, pin_enabled, created_at, last_seen"
+    : "id, firstname, lastname, role, status, is_active, is_approved, last_seen";
 
   if (input.id) {
     const { data: user, error } = await supabase
@@ -147,13 +218,26 @@ export async function queryAdminUsers(
     if (error || !user) {
       throw new AdminMutationError("User not found.", 404);
     }
-    if (session.role === "librarian" && user.role !== "user") {
+    const userRecord = user as unknown as Record<string, unknown>;
+    if (!isAdmin && userRecord.role !== "user") {
       throw new AdminMutationError(
         "Librarians can only inspect patron accounts.",
         403
       );
     }
-    return { ok: true as const, user: formatAdminUserRow(user, isAdmin) };
+    if (!isAdmin) {
+      const { data: cardRows } = await supabase
+        .from("library_cards")
+        .select("id")
+        .eq("user_id", Number(userRecord.id))
+        .order("id", { ascending: false })
+        .limit(1);
+      const cardNum = cardRows?.[0]?.id
+        ? `LC-${String(cardRows[0].id).padStart(6, "0")}`
+        : null;
+      return { ok: true as const, user: formatLibrarianPatronRow(userRecord, cardNum) };
+    }
+    return { ok: true as const, user: formatAdminUserRow(userRecord, true) };
   }
 
   const isPickerMode = input.mode === "picker" || input.role === "member";
@@ -163,11 +247,13 @@ export async function queryAdminUsers(
   const queryText = input.q.trim();
 
   if (isPickerMode) {
+    const pickerSelect = isAdmin
+      ? "id, username, email_display, firstname, lastname, phone_number, is_active, is_approved"
+      : "id, firstname, lastname, is_active, is_approved";
+
     let pickerQuery = supabase
       .from("users")
-      .select(
-        "id, username, email_display, firstname, lastname, phone_number, is_active, is_approved"
-      )
+      .select(pickerSelect)
       .eq("role", "user")
       .eq("is_active", true)
       .eq("is_approved", true)
@@ -175,14 +261,16 @@ export async function queryAdminUsers(
 
     if (queryText) {
       const safeQuery = queryText.replace(/[%_,()"]/g, "");
-      const blindEmail = emailBlindIndex(queryText);
       if (safeQuery) {
         const clauses = [
           `firstname.ilike.%${safeQuery}%`,
           `lastname.ilike.%${safeQuery}%`,
-          `email_display.ilike.%${safeQuery}%`,
         ];
-        if (blindEmail) clauses.push(`username.eq.${blindEmail}`);
+        if (isAdmin) {
+          clauses.push(`email_display.ilike.%${safeQuery}%`);
+          const blindEmail = emailBlindIndex(queryText);
+          if (blindEmail) clauses.push(`username.eq.${blindEmail}`);
+        }
         pickerQuery = pickerQuery.or(clauses.join(","));
       }
     }
@@ -193,9 +281,7 @@ export async function queryAdminUsers(
     if (queryText && (!memberRows || memberRows.length === 0)) {
       const { data: fallbackRows, error: fallbackError } = await supabase
         .from("users")
-        .select(
-          "id, username, email_display, firstname, lastname, phone_number, is_active, is_approved"
-        )
+        .select(pickerSelect)
         .eq("role", "user")
         .eq("is_active", true)
         .eq("is_approved", true)
@@ -204,12 +290,16 @@ export async function queryAdminUsers(
       if (fallbackError) throw fallbackError;
       memberRows = (fallbackRows ?? [])
         .filter((row) =>
-          matchesAdminUserSearch(row, queryText.toLowerCase())
+          matchesAdminUserSearch(
+            row as unknown as Record<string, unknown>,
+            queryText.toLowerCase(),
+            isAdmin
+          )
         )
         .slice(0, effectiveLimit);
     }
 
-    const rows = memberRows ?? [];
+    const rows = (memberRows ?? []) as unknown as Array<Record<string, unknown>>;
     const memberIds = rows.map((row) => Number(row.id));
     const cardMap = new Map<number, string>();
     if (memberIds.length > 0) {
@@ -239,7 +329,7 @@ export async function queryAdminUsers(
     return { ok: true as const, users, count: users.length };
   }
 
-  const effectiveRole = session.role === "librarian" ? "user" : input.role;
+  const effectiveRole = !isAdmin ? "user" : input.role;
   let userQuery = supabase
     .from("users")
     .select(selectColumns)
@@ -250,16 +340,20 @@ export async function queryAdminUsers(
 
   if (queryText) {
     const safeQuery = queryText.replace(/[%_,()"]/g, "");
-    const blindEmail = emailBlindIndex(queryText);
     if (safeQuery) {
       const clauses = [
         `firstname.ilike.%${safeQuery}%`,
         `lastname.ilike.%${safeQuery}%`,
-        `email_display.ilike.%${safeQuery}%`,
-        `username.ilike.%${safeQuery}%`,
-        `phone_number.ilike.%${safeQuery}%`,
       ];
-      if (blindEmail) clauses.push(`username.eq.${blindEmail}`);
+      if (isAdmin) {
+        clauses.push(
+          `email_display.ilike.%${safeQuery}%`,
+          `username.ilike.%${safeQuery}%`,
+          `phone_number.ilike.%${safeQuery}%`
+        );
+        const blindEmail = emailBlindIndex(queryText);
+        if (blindEmail) clauses.push(`username.eq.${blindEmail}`);
+      }
       userQuery = userQuery.or(clauses.join(","));
     }
   }
@@ -280,14 +374,39 @@ export async function queryAdminUsers(
     if (fallbackError) throw fallbackError;
     data = (fallbackRows ?? [])
       .filter((row) =>
-        matchesAdminUserSearch(row, queryText.toLowerCase())
+        matchesAdminUserSearch(
+          row as unknown as Record<string, unknown>,
+          queryText.toLowerCase(),
+          isAdmin
+        )
       )
       .slice(0, effectiveLimit);
   }
 
-  const users = (data ?? []).map((row) =>
-    formatAdminUserRow(row, isAdmin)
-  );
+  const rowList = (data ?? []) as unknown as Array<Record<string, unknown>>;
+  if (!isAdmin) {
+    const patronIds = rowList.map((r) => Number(r.id)).filter((id) => id > 0);
+    const cardMap = new Map<number, string>();
+    if (patronIds.length > 0) {
+      const { data: cardRows } = await supabase
+        .from("library_cards")
+        .select("id, user_id")
+        .in("user_id", patronIds)
+        .order("id", { ascending: false });
+      for (const card of cardRows ?? []) {
+        const uid = Number(card.user_id);
+        if (!cardMap.has(uid)) {
+          cardMap.set(uid, `LC-${String(card.id).padStart(6, "0")}`);
+        }
+      }
+    }
+    const users = rowList.map((row) =>
+      formatLibrarianPatronRow(row, cardMap.get(Number(row.id)) ?? null)
+    );
+    return { ok: true as const, users, count: users.length };
+  }
+
+  const users = rowList.map((row) => formatAdminUserRow(row, true));
   return { ok: true as const, users, count: users.length };
 }
 
@@ -299,7 +418,7 @@ export async function mutateAccounts(
   id: number | null,
   payload: Record<string, unknown>
 ) {
-  await verifyRepositoryActor(supabase, session.userId, ["admin"]);
+  await verifyRepositoryActor(supabase, session.userId, ["admin"], session.sessionToken);
 
   const defaultRole =
     resource === "admins" ? "admin" : resource === "librarians" ? "librarian" : "user";

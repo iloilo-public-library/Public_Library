@@ -15,38 +15,71 @@ import { accountRequestReviewSchema } from "@/validators/admin";
 
 export async function queryAccountRequests(
   supabase: SupabaseClient,
-  sessionRole?: string | null
+  actorId?: number | null,
+  sessionToken?: string | null
 ) {
+  const actor = await verifyRepositoryActor(supabase, actorId, STAFF_ROLES, sessionToken);
+  const isLibrarian = actor.role === "librarian";
+
+  const reqSelect: string = isLibrarian
+    ? "id, user_id, request_type, reason, status, admin_note, created_at, reviewed_at, card_id, renewal1_checked, renewal1_date, renewal2_checked, renewal2_date"
+    : "id, user_id, username, request_type, reason, status, admin_note, created_at, reviewed_at, card_id, renewal1_checked, renewal1_date, renewal2_checked, renewal2_date";
+
   let query = supabase
     .from("account_requests")
-    .select(
-      "id, user_id, username, request_type, reason, status, admin_note, created_at, reviewed_at, card_id, renewal1_checked, renewal1_date, renewal2_checked, renewal2_date"
-    )
+    .select(reqSelect)
     .order("id", { ascending: false });
-  if (sessionRole === "librarian") {
+  if (isLibrarian) {
     query = query.eq("request_type", "renew");
   }
   const { data, error } = await query;
   if (error) throw error;
 
+  const reqRows = (data ?? []) as unknown as Array<Record<string, unknown>>;
   const userIds = Array.from(
-    new Set((data ?? []).map((r) => r.user_id as number).filter(Boolean))
+    new Set(reqRows.map((r) => Number(r.user_id)).filter((uid) => Number.isInteger(uid) && uid > 0))
   );
   const userMap = new Map<number, Record<string, unknown>>();
   if (userIds.length > 0) {
+    const userSelect: string = isLibrarian
+      ? "id, firstname, lastname"
+      : "id, username, email_display, firstname, lastname, age, gender, phone_number, school, city, province, education_level, occupation, is_government, office_phone, valid_id_path, created_at";
     const { data: usersData } = await supabase
       .from("users")
-      .select(
-        "id, username, email_display, firstname, lastname, age, gender, phone_number, school, city, province, education_level, occupation, is_government, office_phone, valid_id_path, created_at"
-      )
+      .select(userSelect)
       .in("id", userIds);
-    for (const u of usersData ?? []) {
-      userMap.set(u.id as number, u);
+    for (const u of (usersData ?? []) as unknown as Array<Record<string, unknown>>) {
+      userMap.set(Number(u.id), u);
     }
   }
 
-  const rows = (data ?? []).map((r) => {
-    const u = userMap.get(r.user_id as number);
+  if (isLibrarian) {
+    const rows = reqRows.map((r) => {
+      const u = userMap.get(Number(r.user_id));
+      return {
+        id: r.id,
+        user_id: r.user_id,
+        request_type: r.request_type,
+        reason: r.reason,
+        status: r.status,
+        admin_note: r.admin_note,
+        created_at: r.created_at,
+        reviewed_at: r.reviewed_at,
+        card_id: r.card_id,
+        renewal1_checked: r.renewal1_checked,
+        renewal1_date: r.renewal1_date,
+        renewal2_checked: r.renewal2_checked,
+        renewal2_date: r.renewal2_date,
+        fullname: u ? formatFullName(u.firstname, u.lastname) : "—",
+        firstname: u ? safeDecryptPii(u.firstname) : "",
+        lastname: u ? safeDecryptPii(u.lastname) : "",
+      };
+    });
+    return { rows };
+  }
+
+  const rows = reqRows.map((r) => {
+    const u = userMap.get(Number(r.user_id));
     return {
       ...r,
       email: u ? resolveEmail(u.email_display, u.username) : resolveEmail(null, r.username),
@@ -76,7 +109,13 @@ export async function mutateAccountRequests(
   id: number | null,
   payload: Record<string, unknown>
 ) {
-  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES);
+  const actor = await verifyRepositoryActor(
+    supabase,
+    session.userId,
+    STAFF_ROLES,
+    session.sessionToken
+  );
+  const isLibrarian = actor.role === "librarian";
 
   if (!id) throw new AdminMutationError("Request ID is required.", 400);
 
@@ -91,13 +130,24 @@ export async function mutateAccountRequests(
   const nowIso = new Date().toISOString();
 
   if (action === "delete") {
-    const { data: reqRow } = await supabase
+    let deleteQuery = supabase
       .from("account_requests")
       .select("id, user_id, status, request_type")
-      .eq("id", id)
-      .single();
-    if (!reqRow) throw new AdminMutationError("Request not found.", 404);
-    assertLibrarianRenewalOnly(session.role, String(reqRow.request_type));
+      .eq("id", id);
+    if (isLibrarian) {
+      deleteQuery = deleteQuery.eq("request_type", "renew");
+    }
+    const { data: reqRow } = await deleteQuery.maybeSingle();
+    if (!reqRow) {
+      if (isLibrarian) {
+        throw new AdminMutationError(
+          "Librarians can only manage library card renewal requests.",
+          403
+        );
+      }
+      throw new AdminMutationError("Request not found.", 404);
+    }
+    assertLibrarianRenewalOnly(actor.role, String(reqRow.request_type));
     if (reqRow.status === "pending") {
       throw new AdminMutationError("Cannot delete a pending request. Approve or reject first.", 400);
     }
@@ -111,19 +161,28 @@ export async function mutateAccountRequests(
     };
   }
 
-  const { data: reqRow, error: fetchErr } = await supabase
+  let fetchQuery = supabase
     .from("account_requests")
     .select("*")
     .eq("id", id)
-    .eq("status", "pending")
-    .single();
+    .eq("status", "pending");
+  if (isLibrarian) {
+    fetchQuery = fetchQuery.eq("request_type", "renew");
+  }
+  const { data: reqRow, error: fetchErr } = await fetchQuery.maybeSingle();
   if (fetchErr || !reqRow) {
+    if (isLibrarian) {
+      throw new AdminMutationError(
+        "Librarians can only manage library card renewal requests.",
+        403
+      );
+    }
     throw new AdminMutationError("Pending request not found or already reviewed.", 404);
   }
   const targetUserId = Number(reqRow.user_id);
   const reqType = String(reqRow.request_type);
-  assertLibrarianRenewalOnly(session.role, reqType);
-  const author = await getStaffDisplayName(supabase, session.userId, session.role);
+  assertLibrarianRenewalOnly(actor.role, reqType);
+  const author = await getStaffDisplayName(supabase, actor.id, actor.role);
 
   // Fetch target user's email & firstname for registration decision email (matches admin_routes.py lines 1284 & 1339)
   let targetUserEmail = "";

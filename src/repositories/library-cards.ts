@@ -28,6 +28,7 @@ import {
 } from "@/validators/admin";
 
 export interface LibraryCardsQueryOptions {
+  id?: number;
   page?: number;
   pageSize?: number;
   q?: string;
@@ -38,6 +39,8 @@ export interface LibraryCardsQueryOptions {
   sort?: string;
   order?: "asc" | "desc";
   sessionRole?: string | null;
+  actorId?: number | null;
+  sessionToken?: string | null;
 }
 
 const MAX_PAGE_SIZE = 200;
@@ -562,6 +565,12 @@ export async function queryLibraryCards(
   supabase: SupabaseClient,
   options: LibraryCardsQueryOptions = {}
 ) {
+  const actor = await verifyRepositoryActor(
+    supabase,
+    options.actorId,
+    STAFF_ROLES,
+    options.sessionToken
+  );
   const page = Math.max(1, Math.trunc(options.page ?? 1));
   const pageSize = Math.min(
     MAX_PAGE_SIZE,
@@ -573,27 +582,38 @@ export async function queryLibraryCards(
   const toDate = (options.to ?? "").trim();
   const sortField = (options.sort ?? "id").trim().toLowerCase();
   const sortAsc = options.order === "asc";
-  const isLibrarian = options.sessionRole === "librarian";
+  const isLibrarian = actor.role === "librarian";
   const todayIso = getManilaTodayISO();
 
+  const singleId = options.id;
+  let cardsQuery = supabase
+    .from("library_cards")
+    .select(
+      "id, card_type_category, user_id, firstname, lastname, phone_number, address, date_issued, date_return, renewal1_checked, renewal1_date, renewal2_checked, renewal2_date, card_type, valid_until, photo_path, registered_by, created_at"
+    );
+  let cardBooksQuery = supabase
+    .from("library_card_books")
+    .select(
+      "id, card_id, book_id, copy_id, book_title, book_author, book_isbn, quantity, loan_status, fine_amount, fine_paid, fine_waived"
+    );
+  let returnsQuery = supabase
+    .from("book_returns")
+    .select("id, card_id, return_date, overdue_days, fine_amount, fine_paid, fine_waived");
+
+  if (singleId !== undefined) {
+    cardsQuery = cardsQuery.eq("id", singleId).limit(1);
+    cardBooksQuery = cardBooksQuery.eq("card_id", singleId).limit(DB_FETCH_CAP);
+    returnsQuery = returnsQuery.eq("card_id", singleId).limit(DB_FETCH_CAP);
+  } else {
+    cardsQuery = cardsQuery.order("id", { ascending: false }).limit(DB_FETCH_CAP);
+    cardBooksQuery = cardBooksQuery.limit(DB_FETCH_CAP * 4);
+    returnsQuery = returnsQuery.limit(DB_FETCH_CAP);
+  }
+
   const [cardsRes, cardBooksRes, returnsRes] = await Promise.all([
-    supabase
-      .from("library_cards")
-      .select(
-        "id, card_type_category, user_id, firstname, lastname, phone_number, address, date_issued, date_return, renewal1_checked, renewal1_date, renewal2_checked, renewal2_date, card_type, valid_until, photo_path, registered_by, created_at"
-      )
-      .order("id", { ascending: false })
-      .limit(DB_FETCH_CAP),
-    supabase
-      .from("library_card_books")
-      .select(
-        "id, card_id, book_id, copy_id, book_title, book_author, book_isbn, quantity, loan_status, fine_amount, fine_paid, fine_waived"
-      )
-      .limit(DB_FETCH_CAP * 4),
-    supabase
-      .from("book_returns")
-      .select("id, card_id, return_date, overdue_days, fine_amount, fine_paid, fine_waived")
-      .limit(DB_FETCH_CAP),
+    cardsQuery,
+    cardBooksQuery,
+    returnsQuery,
   ]);
   if (cardsRes.error) throw mapDatabaseError(cardsRes.error, "Failed to load borrow records.");
 
@@ -659,17 +679,23 @@ export async function queryLibraryCards(
     const fineWaived = Boolean(ret?.fine_waived) || cardBooks.some((b) => Boolean(b.fine_waived));
     const status = isReturned ? "returned" : overdueDays > 0 ? "overdue" : "active";
 
-    // Librarians have read-only patron access without member contact PII
-    const redactMemberPii = isLibrarian && c.card_type_category === "member";
+    // Librarians never receive patron contact PII (phone_number / address) for ANY card category
+    const {
+      phone_number: rawPhone,
+      address: rawAddress,
+      ...cardWithoutContact
+    } = c as Record<string, unknown>;
 
-    return {
-      ...c,
+    const baseCardRow = {
+      ...cardWithoutContact,
+      id: cid,
+      card_type_category: c.card_type_category,
+      date_issued: c.date_issued,
+      date_return: c.date_return,
       type: c.card_type_category,
       firstname: fn,
       lastname: ln,
       fullname: formatFullName(c.firstname, c.lastname),
-      phone_number: redactMemberPii ? "" : safeDecryptPii(c.phone_number),
-      address: redactMemberPii ? "" : safeDecryptPii(c.address),
       photo_url: photoUrl,
       registered_by_name:
         typeof c.registered_by === "number"
@@ -683,7 +709,32 @@ export async function queryLibraryCards(
       fine_amount: fineWaived ? 0 : fineAmount,
       fine_waived: fineWaived,
     };
+
+    if (isLibrarian) {
+      return baseCardRow;
+    }
+
+    return {
+      ...baseCardRow,
+      phone_number: safeDecryptPii(rawPhone),
+      address: safeDecryptPii(rawAddress),
+    };
   });
+
+  if (singleId !== undefined) {
+    const card = rows[0];
+    if (!card) {
+      throw new AdminMutationError("Library card not found.", 404);
+    }
+    return {
+      rows: [card],
+      card,
+      total: 1,
+      page: 1,
+      pageSize: 1,
+      totalPages: 1,
+    };
+  }
 
   if (statusFilter) {
     rows = rows.filter(
@@ -703,7 +754,10 @@ export async function queryLibraryCards(
   }
   if (q) {
     rows = rows.filter((r) => {
-      const hay = `${r.fullname} ${r.phone_number} ${r.books
+      const contactPart = isLibrarian
+        ? ""
+        : String((r as Record<string, unknown>).phone_number ?? "");
+      const hay = `${r.fullname} ${contactPart} ${r.books
         .map((b) => `${b.book_title ?? ""} ${b.book_isbn ?? ""}`)
         .join(" ")}`.toLowerCase();
       return hay.includes(q);
@@ -746,7 +800,7 @@ export async function mutateLibraryCards(
   id: number | null,
   payload: Record<string, unknown>
 ) {
-  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES);
+  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES, session.sessionToken);
   const todayIso = getManilaTodayISO();
 
   if (action === "delete") {
@@ -1210,7 +1264,7 @@ export async function mutateLibraryCards(
 
   if (action === "waive_fine") {
     // Admin only!
-    await verifyRepositoryActor(supabase, session.userId, ["admin"]);
+    await verifyRepositoryActor(supabase, session.userId, ["admin"], session.sessionToken);
     const parsed = libraryCardWaiveFineSchema.safeParse(payload);
     if (!parsed.success) {
       throw new AdminMutationError(

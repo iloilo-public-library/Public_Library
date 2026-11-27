@@ -6,8 +6,10 @@ import {
   isStaffRole,
   requireStaff,
   touchSessionActivity,
+  verifyRepositoryActor,
 } from "@/lib/auth/rbac";
-import { toErrorResponse } from "@/lib/errors";
+import { STAFF_ROLES } from "@/config/constants";
+import { AppError, toErrorResponse } from "@/lib/errors";
 import {
   AdminMutationError,
   executeAdminMutation,
@@ -283,6 +285,7 @@ export async function GET(request: Request) {
 
   const {
     resource,
+    id,
     isbn,
     from,
     to,
@@ -338,6 +341,19 @@ export async function GET(request: Request) {
   }
 
   if (resource === "isbn_lookup") {
+    if (getSupabaseSecretKey() && session) {
+      try {
+        const supabase = createSupabaseServerClient(true);
+        await verifyRepositoryActor(
+          supabase,
+          session.userId,
+          STAFF_ROLES,
+          session.sessionToken
+        );
+      } catch (err) {
+        return toErrorResponse(err);
+      }
+    }
     const result = await lookupByIsbn(isbn || "");
     return NextResponse.json(result);
   }
@@ -359,10 +375,12 @@ export async function GET(request: Request) {
       resource,
       isStaff && session ? session.userId : null,
       {
+        id,
         from,
         to,
         isStaff,
         sessionRole: session?.role ?? null,
+        sessionToken: isStaff && session ? session.sessionToken : null,
         page,
         pageSize: pageSize ?? limit,
         q,
@@ -383,11 +401,21 @@ export async function GET(request: Request) {
       format === "csv" &&
       (resource === "library_cards" || resource === "returns")
     ) {
+      const verifiedActor = session
+        ? await verifyRepositoryActor(
+            supabase,
+            session.userId,
+            STAFF_ROLES,
+            session.sessionToken
+          )
+        : null;
       const rows = Array.isArray((payload as { rows?: unknown[] }).rows)
         ? ((payload as { rows: Array<Record<string, unknown>> }).rows)
         : [];
       const csv = buildBorrowHistoryCsv(rows, {
-        isLibrarian: session?.role === "librarian",
+        isLibrarian: verifiedActor
+          ? verifiedActor.role === "librarian"
+          : session?.role === "librarian",
         resource,
       });
       return new NextResponse(csv, {
@@ -404,6 +432,9 @@ export async function GET(request: Request) {
   } catch (err) {
     if (err instanceof AdminMutationError) {
       return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+    }
+    if (err instanceof AppError) {
+      return toErrorResponse(err);
     }
     const message = err instanceof Error ? err.message : "Database query failed";
     await recordErrorLog({
@@ -477,6 +508,12 @@ async function processMutationRequest(
     const supabase = createSupabaseServerClient(true);
 
     if (resource === "error_logs") {
+      await verifyRepositoryActor(
+        supabase,
+        session.userId,
+        ["admin"],
+        session.sessionToken
+      );
       if (action === "create" || action === "test") {
         const entry = await recordErrorLog(
           {

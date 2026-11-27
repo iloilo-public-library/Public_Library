@@ -227,12 +227,12 @@ test("5. Legacy ISBN lookup and search by ISBN resolve to the same books.id", as
   });
 
   // Lookup by hyphenated ISBN resolves to Book #88
-  const lookup = await queryBooks(supabase, { isbn: "978-0-13-235088-4" });
+  const lookup = await queryBooks(supabase, { actorId: 1, isbn: "978-0-13-235088-4" });
   assert.equal(lookup.rows.length, 1);
   assert.equal(lookup.rows[0].id, 88);
 
   // Search by ISBN with hyphens still finds Book #88
-  const search = await queryBooks(supabase, { q: "978-0-13-235088-4" });
+  const search = await queryBooks(supabase, { actorId: 1, q: "978-0-13-235088-4" });
   assert.equal(search.rows.length, 1);
   assert.equal(search.rows[0].id, 88);
 

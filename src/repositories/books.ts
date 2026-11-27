@@ -24,6 +24,8 @@ export interface BooksQueryOptions {
   category?: string;
   sort?: string;
   order?: "asc" | "desc";
+  actorId?: number | null;
+  sessionToken?: string | null;
 }
 
 const MAX_PAGE_SIZE = 200;
@@ -33,6 +35,12 @@ export async function queryBooks(
   supabase: SupabaseClient,
   options: BooksQueryOptions = {}
 ) {
+  await verifyRepositoryActor(
+    supabase,
+    options.actorId,
+    STAFF_ROLES,
+    options.sessionToken
+  );
   const page = Math.max(1, Math.trunc(options.page ?? 1));
   const pageSize = Math.min(
     MAX_PAGE_SIZE,
@@ -217,7 +225,7 @@ export async function mutateBooks(
   id: number | null,
   payload: Record<string, unknown>
 ) {
-  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES);
+  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES, session.sessionToken);
 
   if (action === "delete") {
     const parsedDel = bookDeletePayloadSchema.safeParse(payload);

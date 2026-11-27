@@ -23,6 +23,8 @@ export interface InventoryQueryOptions {
   condition?: string;
   sort?: string;
   order?: "asc" | "desc";
+  actorId?: number | null;
+  sessionToken?: string | null;
 }
 
 const MAX_PAGE_SIZE = 200;
@@ -392,6 +394,12 @@ export async function queryInventory(
   supabase: SupabaseClient,
   options: InventoryQueryOptions = {}
 ) {
+  await verifyRepositoryActor(
+    supabase,
+    options.actorId,
+    STAFF_ROLES,
+    options.sessionToken
+  );
   const page = Math.max(1, Math.trunc(options.page ?? 1));
   const pageSize = Math.min(
     MAX_PAGE_SIZE,
@@ -599,7 +607,7 @@ export async function mutateInventory(
   id: number | null,
   payload: Record<string, unknown>
 ) {
-  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES);
+  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES, session.sessionToken);
 
   if (action === "add_copy") {
     const parsed = bookCopyAddPayloadSchema.safeParse(payload);
