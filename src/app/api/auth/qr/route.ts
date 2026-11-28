@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 import { getServerSession, SESSION_COOKIE_NAME } from "@/lib/auth/session";
+import { verifyRepositoryActor } from "@/lib/auth/rbac";
 import { enforceRateLimit, getClientIp } from "@/lib/auth/rate-limit";
 import {
   cleanupExpiredQrTokens,
@@ -9,6 +10,7 @@ import {
   createQrLoginToken,
   getQrTokenRow,
 } from "@/lib/auth/qr";
+import { generateQrDataUrl } from "@/lib/auth/qr-image";
 import { recordAuditEvent } from "@/lib/audit/audit-logger";
 import { recordErrorLog } from "@/lib/audit/error-logger";
 import { toErrorResponse } from "@/lib/errors";
@@ -35,6 +37,17 @@ export async function GET(request: Request) {
   const supabase = createSupabaseServerClient(true);
 
   try {
+    await enforceRateLimit(
+      {
+        scope: "auth:qr:check",
+        identifier: `${getClientIp(request)}:${parsed.data.token}`,
+        maxAttempts: 60,
+        windowSeconds: 60,
+        blockSeconds: 120,
+      },
+      supabase
+    );
+
     await cleanupExpiredQrTokens(supabase);
     const row = await getQrTokenRow(supabase, parsed.data.token);
     if (!row) {
@@ -139,6 +152,13 @@ export async function POST(request: Request) {
         supabase
       );
 
+      await verifyRepositoryActor(
+        supabase,
+        session.userId,
+        ["admin", "librarian", "user"],
+        session.sessionToken
+      );
+
       const result = await confirmQrToken(supabase, parsed.data.token, session.userId);
       if (!result.ok) {
         return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
@@ -190,9 +210,7 @@ export async function POST(request: Request) {
     const created = await createQrLoginToken(supabase);
     const origin = new URL(request.url).origin;
     const scanUrl = `${origin}/scan-qr?token=${encodeURIComponent(created.token)}`;
-    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=${encodeURIComponent(
-      scanUrl
-    )}`;
+    const qrImageUrl = generateQrDataUrl(scanUrl);
 
     return NextResponse.json({
       ok: true,

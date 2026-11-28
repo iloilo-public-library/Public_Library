@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "@/lib/auth/session";
+import { getPendingMfaSession } from "@/lib/auth/session";
 import { getClientIp } from "@/lib/auth/rate-limit";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 import { toErrorResponse } from "@/lib/errors";
@@ -16,12 +16,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const parsed = resendOtpSchema.parse(rawBody);
-    const session = await getServerSession();
-    const targetEmail = parsed.email?.trim().toLowerCase() || session?.email || "";
-    if (!session && !targetEmail) {
+    resendOtpSchema.parse(rawBody);
+    const pendingMfa = await getPendingMfaSession();
+    if (!pendingMfa) {
       return NextResponse.json(
-        { ok: false, error: "Unauthorized — sign in or supply your account email." },
+        { ok: false, error: "MFA verification session is missing or expired. Please sign in again." },
         { status: 401 }
       );
     }
@@ -36,8 +35,7 @@ export async function POST(request: Request) {
     const supabase = createSupabaseServerClient(true);
     const result = await resendOtpService(
       supabase,
-      session,
-      parsed.email,
+      pendingMfa,
       getClientIp(request)
     );
     return NextResponse.json(result);

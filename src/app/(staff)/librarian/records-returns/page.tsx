@@ -8,7 +8,7 @@ export default function LibrarianRecordsReturnsPage() {
       canRenew
       canExport
       canDelete
-      canMarkLost={false}
+      canMarkLost
       canWaiveFine={false}
     />
   );

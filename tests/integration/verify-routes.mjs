@@ -80,6 +80,7 @@ function request(method, path, body = null, cookie = "", rawContentType = "", ex
           resolve({
             status: res.statusCode,
             location: res.headers.location || "",
+            headers: res.headers,
             body: chunks,
           })
         );
@@ -153,6 +154,63 @@ const MEMBER_EVENT_BANNER_FORM = [
   `--${MULTIPART_BOUNDARY}--`,
   "",
 ].join("\r\n");
+
+function buildSignupMultipartForm(fields, fileSpec) {
+  const parts = [];
+  for (const [key, val] of Object.entries(fields)) {
+    parts.push(
+      `--${MULTIPART_BOUNDARY}\r\n` +
+        `Content-Disposition: form-data; name="${key}"\r\n\r\n` +
+        `${val}\r\n`
+    );
+  }
+  if (fileSpec) {
+    parts.push(
+      `--${MULTIPART_BOUNDARY}\r\n` +
+        `Content-Disposition: form-data; name="valid_id"; filename="${fileSpec.filename}"\r\n` +
+        `Content-Type: ${fileSpec.contentType}\r\n\r\n` +
+        `${fileSpec.content}\r\n`
+    );
+  }
+  parts.push(`--${MULTIPART_BOUNDARY}--\r\n`);
+  return parts.join("");
+}
+
+const VERIFY_TS = Date.now();
+const SIGNUP_SPOOFED_VALID_ID_FORM = buildSignupMultipartForm(
+  {
+    firstname: "Verify",
+    lastname: "Spoof",
+    email: `verify.spoof.${VERIFY_TS}@example.com`,
+    password: "StrongPassword@123",
+    confirm_password: "StrongPassword@123",
+    gender: "Male",
+    age: "22",
+    phone: "09171234567",
+  },
+  {
+    filename: "spoof.jpg",
+    contentType: "image/jpeg",
+    content: "this is plain text masquerading as a jpeg",
+  }
+);
+const SIGNUP_OVERSIZED_VALID_ID_FORM = buildSignupMultipartForm(
+  {
+    firstname: "Verify",
+    lastname: "Oversize",
+    email: `verify.oversize.${VERIFY_TS}@example.com`,
+    password: "StrongPassword@123",
+    confirm_password: "StrongPassword@123",
+    gender: "Female",
+    age: "24",
+    phone: "09171234568",
+  },
+  {
+    filename: "oversized.jpg",
+    contentType: "image/jpeg",
+    content: "A".repeat(2 * 1024 * 1024 + 128),
+  }
+);
 
 const API_CHECKS = [
   // Batch 1: Dashboard Stats (401 unauthenticated, 403 member role)
@@ -860,6 +918,262 @@ const API_CHECKS = [
     },
     expect: 400,
   },
+  // Circulation Integrity: CSV limit, 401/403, and unknown-field 400 checks
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=library_cards&format=csv",
+    expect: 401,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=library_cards&format=csv",
+    cookie: userCookie,
+    expect: 403,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=library_cards&format=json&limit=500",
+    cookie: adminCookie,
+    expect: 400,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=library_cards&format=csv&limit=5001",
+    cookie: adminCookie,
+    expect: 400,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=returns&format=csv&unknownParam=1",
+    cookie: adminCookie,
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: adminCookie,
+    body: {
+      resource: "library_cards",
+      action: "create",
+      id: null,
+      payload: { firstname: "A", lastname: "B" },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    cookie: adminCookie,
+    body: {
+      resource: "library_cards",
+      action: "update",
+      id: 1,
+      payload: { firstname: "A" },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    cookie: adminCookie,
+    body: {
+      resource: "library_cards",
+      action: "mark_lost",
+      id: 1,
+      payload: { reason: "Lost book" },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  // Official Circulation Policy: library_holidays & resolve_replacement RBAC + validation
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=library_holidays",
+    expect: 401,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=library_holidays",
+    cookie: userCookie,
+    expect: 403,
+  },
+  {
+    method: "GET",
+    path: "/api/admin/data?resource=library_holidays",
+    cookie: librarianCookie,
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    body: {
+      resource: "library_holidays",
+      action: "create",
+      id: null,
+      payload: { holiday_date: "2026-12-25", name: "Christmas Day" },
+    },
+    expect: 401,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: userCookie,
+    body: {
+      resource: "library_holidays",
+      action: "create",
+      id: null,
+      payload: { holiday_date: "2026-12-25", name: "Christmas Day" },
+    },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "library_holidays",
+      action: "create",
+      id: null,
+      payload: { holiday_date: "2026-12-25", name: "Christmas Day" },
+    },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: adminCookie,
+    body: {
+      resource: "library_holidays",
+      action: "create",
+      id: null,
+      payload: { holiday_date: "2026-12-25", name: "Christmas Day" },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    body: {
+      resource: "library_cards",
+      action: "resolve_replacement",
+      id: 1,
+      payload: { card_book_id: 1, resolution: "replaced", reason: "Replaced copy" },
+    },
+    expect: 401,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    cookie: userCookie,
+    body: {
+      resource: "library_cards",
+      action: "resolve_replacement",
+      id: 1,
+      payload: { card_book_id: 1, resolution: "replaced", reason: "Replaced copy" },
+    },
+    expect: 403,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "library_cards",
+      action: "resolve_replacement",
+      id: 1,
+      payload: { card_book_id: 1, resolution: "waived", reason: "Waive test" },
+    },
+    expect: 403,
+  },
+  {
+    method: "PUT",
+    path: "/api/admin/data",
+    cookie: adminCookie,
+    body: {
+      resource: "library_cards",
+      action: "resolve_replacement",
+      id: 1,
+      payload: { card_book_id: 1, resolution: "replaced", reason: "Replaced copy" },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  // Circulation Fines, Payments & Admin-Only Returns Delete checks
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    body: {
+      resource: "library_cards",
+      action: "record_fine_payment",
+      id: 1,
+      payload: { amount: 25, idempotency_key: "verify-route-pay-001" },
+    },
+    expect: 401,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: userCookie,
+    body: {
+      resource: "library_cards",
+      action: "record_fine_payment",
+      id: 1,
+      payload: { amount: 25, idempotency_key: "verify-route-pay-002" },
+    },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "library_cards",
+      action: "record_fine_payment",
+      id: 1,
+      payload: { amount: 25, idempotency_key: "verify-route-pay-003" },
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "DELETE",
+    path: "/api/admin/data",
+    body: {
+      resource: "returns",
+      action: "delete",
+      id: 1,
+      payload: {},
+    },
+    expect: 401,
+  },
+  {
+    method: "DELETE",
+    path: "/api/admin/data",
+    cookie: librarianCookie,
+    body: {
+      resource: "returns",
+      action: "delete",
+      id: 1,
+      payload: {},
+    },
+    expect: 403,
+  },
+  {
+    method: "DELETE",
+    path: "/api/admin/data",
+    cookie: adminCookie,
+    body: {
+      resource: "returns",
+      action: "delete",
+      id: 1,
+      payload: {},
+      unknownField: true,
+    },
+    expect: 400,
+  },
   {
     method: "POST",
     path: "/api/user/renew",
@@ -1175,6 +1489,297 @@ const API_CHECKS = [
     },
     expect: 400,
   },
+
+  // Member Security: 401 unauthenticated, 403 wrong role (librarian/admin), 400 unknown/invalid fields
+  { method: "GET", path: "/api/user/borrowed-books", expect: 401 },
+  { method: "GET", path: "/api/user/borrowed-books", cookie: librarianCookie, expect: 403 },
+  { method: "GET", path: "/api/user/borrowed-books", cookie: adminCookie, expect: 403 },
+
+  { method: "GET", path: "/api/user/return-history", expect: 401 },
+  { method: "GET", path: "/api/user/return-history", cookie: librarianCookie, expect: 403 },
+  { method: "GET", path: "/api/user/return-history", cookie: adminCookie, expect: 403 },
+
+  { method: "POST", path: "/api/user/renew", body: { card_id: 1 }, expect: 401 },
+  {
+    method: "POST",
+    path: "/api/user/renew",
+    cookie: librarianCookie,
+    body: { card_id: 1 },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/user/renew",
+    cookie: userCookie,
+    body: { card_id: 1, unknownField: true },
+    expect: 400,
+  },
+
+  { method: "GET", path: "/api/user/favorites", expect: 401 },
+  { method: "GET", path: "/api/user/favorites", cookie: librarianCookie, expect: 403 },
+  { method: "POST", path: "/api/user/favorites", body: { book_id: 1 }, expect: 401 },
+  {
+    method: "POST",
+    path: "/api/user/favorites",
+    cookie: adminCookie,
+    body: { book_id: 1 },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/user/favorites",
+    cookie: userCookie,
+    body: { book_id: 1, user_id: 999 },
+    expect: 400,
+  },
+
+  { method: "GET", path: "/api/user/search-history", expect: 401 },
+  { method: "GET", path: "/api/user/search-history", cookie: librarianCookie, expect: 403 },
+  { method: "POST", path: "/api/user/search-history", body: { query: "test" }, expect: 401 },
+  {
+    method: "POST",
+    path: "/api/user/search-history",
+    cookie: librarianCookie,
+    body: { query: "test" },
+    expect: 403,
+  },
+  {
+    method: "POST",
+    path: "/api/user/search-history",
+    cookie: userCookie,
+    body: { query: "test", extraField: true },
+    expect: 400,
+  },
+  { method: "DELETE", path: "/api/user/search-history", expect: 401 },
+  { method: "DELETE", path: "/api/user/search-history", cookie: adminCookie, expect: 403 },
+
+  { method: "GET", path: "/api/user/notifications", expect: 401 },
+  { method: "GET", path: "/api/user/notifications", cookie: librarianCookie, expect: 403 },
+  {
+    method: "PUT",
+    path: "/api/user/notifications",
+    body: { action: "read_all" },
+    expect: 401,
+  },
+  {
+    method: "PUT",
+    path: "/api/user/notifications",
+    cookie: adminCookie,
+    body: { action: "read_all" },
+    expect: 403,
+  },
+  {
+    method: "PUT",
+    path: "/api/user/notifications",
+    cookie: userCookie,
+    body: { action: "read_all", extraField: true },
+    expect: 400,
+  },
+
+  { method: "GET", path: "/api/user/settings", expect: 401 },
+  { method: "GET", path: "/api/user/settings", cookie: librarianCookie, expect: 403 },
+  { method: "GET", path: "/api/user/settings", cookie: adminCookie, expect: 403 },
+  {
+    method: "PUT",
+    path: "/api/user/settings",
+    body: { action: "clear_favorites" },
+    expect: 401,
+  },
+  {
+    method: "PUT",
+    path: "/api/user/settings",
+    cookie: librarianCookie,
+    body: { action: "clear_favorites" },
+    expect: 403,
+  },
+  {
+    method: "PUT",
+    path: "/api/user/settings",
+    cookie: userCookie,
+    body: { action: "update_profile", firstname: "Juan", lastname: "Dela", role: "admin" },
+    expect: 400,
+  },
+  {
+    method: "PUT",
+    path: "/api/user/settings",
+    cookie: userCookie,
+    body: { action: "set_pin", password: "Pass@123", pin: "123456", confirm: "654321" },
+    expect: 400,
+  },
+  {
+    method: "PUT",
+    path: "/api/user/settings",
+    cookie: userCookie,
+    body: { action: "set_pin", password: "Pass@123", pin: "123456", confirm: "123456", extra: 1 },
+    expect: 400,
+  },
+
+  { method: "GET", path: "/api/user/valid-id", expect: 401 },
+  { method: "GET", path: "/api/user/valid-id", cookie: librarianCookie, expect: 403 },
+  { method: "GET", path: "/api/user/valid-id", cookie: adminCookie, expect: 403 },
+  { method: "GET", path: "/api/user/valid-id?id=102", cookie: userCookie, expect: 400 },
+
+  {
+    method: "POST",
+    path: "/api/auth/signup",
+    body: {
+      firstname: "Public",
+      lastname: "Admin",
+      email: "public.admin@example.com",
+      password: "Password@123",
+      role: "admin",
+    },
+    expect: 401,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/signup",
+    cookie: userCookie,
+    body: {
+      firstname: "Member",
+      lastname: "Admin",
+      email: "member.admin@example.com",
+      password: "Password@123",
+      role: "librarian",
+    },
+    expect: 403,
+  },
+
+  // Auth Hardening: 401 unauthenticated/cookie-isolation, 403 wrong role, 400 missing captcha or unknown fields
+  {
+    method: "POST",
+    path: "/api/auth/login",
+    body: { email: "admin@example.com", password: "Password@123" },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/login",
+    body: {
+      email: "admin@example.com",
+      password: "Password@123",
+      captcha_token: "valid-looking-captcha-token-123456",
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/verify-otp",
+    cookie: userCookie,
+    body: { otp: "123456" },
+    expect: 401,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/verify-otp",
+    body: { email: "admin@example.com", otp: "123456" },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/verify-pin",
+    cookie: userCookie,
+    body: { pin: "123456" },
+    expect: 401,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/verify-pin",
+    body: { email: "admin@example.com", pin: "123456" },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/resend-otp",
+    cookie: userCookie,
+    body: {},
+    expect: 401,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/resend-otp",
+    body: { email: "admin@example.com" },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/verify-captcha",
+    body: { token: "0123456789abcdef", answer: "12", unknownField: 1 },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/reset-password",
+    body: { action: "request", email: "user@example.com", unknownField: true },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/reset-pin",
+    body: { action: "request", email: "user@example.com", unknownField: true },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/signup",
+    cookie: librarianCookie,
+    body: {
+      firstname: "Lib",
+      lastname: "Escalation",
+      email: "lib.escalation@example.com",
+      password: "Password@123",
+      role: "admin",
+    },
+    expect: 403,
+  },
+
+  // Auth Hardening P2: signup decimal age, unknown fields, and multipart spoofed/oversized valid_id
+  {
+    method: "POST",
+    path: "/api/auth/signup",
+    body: {
+      firstname: "Decimal",
+      lastname: "Age",
+      email: "decimal.age@example.com",
+      password: "StrongPassword@123",
+      confirm_password: "StrongPassword@123",
+      gender: "Male",
+      age: 18.5,
+      phone: "09171234567",
+    },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/signup",
+    body: {
+      firstname: "Unknown",
+      lastname: "Field",
+      email: "unknown.field@example.com",
+      password: "StrongPassword@123",
+      confirm_password: "StrongPassword@123",
+      gender: "Female",
+      age: 20,
+      phone: "09171234567",
+      unknownField: true,
+    },
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/signup",
+    body: SIGNUP_SPOOFED_VALID_ID_FORM,
+    contentType: `multipart/form-data; boundary=${MULTIPART_BOUNDARY}`,
+    expect: 400,
+  },
+  {
+    method: "POST",
+    path: "/api/auth/signup",
+    body: SIGNUP_OVERSIZED_VALID_ID_FORM,
+    contentType: `multipart/form-data; boundary=${MULTIPART_BOUNDARY}`,
+    expect: 400,
+  },
 ];
 
 async function main() {
@@ -1281,6 +1886,65 @@ async function main() {
         failed++;
         console.error(
           `FAIL API ${check.method} ${check.path}: expected ${check.expect}, got ${res.status} (${res.body})`
+        );
+      }
+    }
+
+    // Auth Hardening P2: POST /api/auth/qr returns local data:image/svg+xml;base64,... (no external URL)
+    const qrRes = await request("POST", "/api/auth/qr", { action: "generate" });
+    let qrParsed = null;
+    try {
+      qrParsed = JSON.parse(qrRes.body);
+    } catch {
+      qrParsed = null;
+    }
+    const qrImgUrl = typeof qrParsed?.qr_image_url === "string" ? qrParsed.qr_image_url : "";
+    const qrSvgDecoded = qrImgUrl.startsWith("data:image/svg+xml;base64,")
+      ? Buffer.from(qrImgUrl.slice("data:image/svg+xml;base64,".length), "base64").toString("utf8")
+      : "";
+    if (
+      qrRes.status === 200 &&
+      qrParsed?.ok === true &&
+      qrImgUrl.startsWith("data:image/svg+xml;base64,") &&
+      !qrImgUrl.includes("api.qrserver.com") &&
+      qrSvgDecoded.includes("<svg")
+    ) {
+      passed++;
+    } else {
+      failed++;
+      console.error(
+        `FAIL API POST /api/auth/qr (generate): expected 200 with local SVG data URL, got ${qrRes.status} (${qrRes.body.slice(0, 200)})`
+      );
+    }
+
+    // Security & Cache-Control: no-store headers on pages, /api/auth/*, and /logout
+    const homeRes = await request("GET", "/");
+    const requiredSecurityHeaders = [
+      ["strict-transport-security", /max-age=/i],
+      ["x-frame-options", /^DENY$/i],
+      ["x-content-type-options", /^nosniff$/i],
+      ["referrer-policy", /strict-origin-when-cross-origin/i],
+      ["content-security-policy-report-only", /default-src 'self'/i],
+    ];
+    for (const [hdrName, pattern] of requiredSecurityHeaders) {
+      const val = String(homeRes.headers?.[hdrName] || "");
+      if (pattern.test(val)) {
+        passed++;
+      } else {
+        failed++;
+        console.error(`FAIL HEADER / ${hdrName}: expected ${pattern}, got "${val}"`);
+      }
+    }
+
+    for (const noStorePath of ["/api/auth/session", "/logout"]) {
+      const res = await request("GET", noStorePath);
+      const cc = String(res.headers?.["cache-control"] || "");
+      if (/no-store/i.test(cc)) {
+        passed++;
+      } else {
+        failed++;
+        console.error(
+          `FAIL HEADER ${noStorePath} cache-control: expected no-store, got "${cc}"`
         );
       }
     }

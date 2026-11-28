@@ -45,7 +45,8 @@ const ACCEPTED_ID_TYPES = new Set([
   "image/webp",
   "application/pdf",
 ]);
-const MAX_ID_BYTES = 5 * 1024 * 1024;
+const MAX_ID_BYTES = 2 * 1024 * 1024;
+const ACCEPTED_ID_EXT_RE = /\.(jpe?g|png|webp|pdf)$/i;
 
 interface SignupWizardProps {
   onSuccess: (message: string) => void;
@@ -77,8 +78,10 @@ export function SignupWizard({
   // Step 2 — Documents & Affiliation
   const [isGovernment, setIsGovernment] = useState(false);
   const [officePhone, setOfficePhone] = useState("");
+  const [validIdFile, setValidIdFile] = useState<File | null>(null);
   const [validIdName, setValidIdName] = useState("");
   const [validIdSizeLabel, setValidIdSizeLabel] = useState("");
+  const [validIdError, setValidIdError] = useState<string | null>(null);
 
   // Step 3 — Account & Security
   const [email, setEmail] = useState("");
@@ -172,24 +175,49 @@ export function SignupWizard({
             ? "Strong"
             : "Very Strong";
 
+  const clearSelectedValidId = () => {
+    setValidIdFile(null);
+    setValidIdName("");
+    setValidIdSizeLabel("");
+    setValidIdError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const handleFileChange = (file: File | undefined) => {
     onError(null);
+    setValidIdError(null);
     if (!file) {
-      setValidIdName("");
-      setValidIdSizeLabel("");
+      clearSelectedValidId();
       return;
     }
-    if (!ACCEPTED_ID_TYPES.has(file.type)) {
-      onError("Invalid ID file format. Accepted: JPG, PNG, WEBP, or PDF.");
+    const mimeOk = file.type ? ACCEPTED_ID_TYPES.has(file.type) : ACCEPTED_ID_EXT_RE.test(file.name);
+    if (!mimeOk) {
+      clearSelectedValidId();
+      const msg = "Invalid ID file format. Accepted: JPG, PNG, WEBP, or PDF.";
+      setValidIdError(msg);
+      onError(msg);
+      return;
+    }
+    if (file.size <= 0) {
+      clearSelectedValidId();
+      const msg = "The selected Valid ID file is empty.";
+      setValidIdError(msg);
+      onError(msg);
       return;
     }
     if (file.size > MAX_ID_BYTES) {
-      onError("Valid ID file must be 5 MB or smaller.");
+      clearSelectedValidId();
+      const msg = "Valid ID file must be 2 MB or smaller.";
+      setValidIdError(msg);
+      onError(msg);
       return;
     }
     const kb = Math.round(file.size / 1024);
+    setValidIdFile(file);
     setValidIdName(file.name);
-    setValidIdSizeLabel(kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`);
+    setValidIdSizeLabel(kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${Math.max(1, kb)} KB`);
   };
 
   const handleNextFromStep1 = () => {
@@ -203,8 +231,8 @@ export function SignupWizard({
       return;
     }
     const numAge = Number(age);
-    if (!age || Number.isNaN(numAge) || numAge < 7 || numAge > 120) {
-      onError("Please enter a valid age between 7 and 120.");
+    if (!age || !Number.isInteger(numAge) || numAge < 7 || numAge > 120) {
+      onError("Please enter a valid whole-number age between 7 and 120.");
       return;
     }
     if (phone.replace(/\D/g, "").length < 7) {
@@ -261,27 +289,30 @@ export function SignupWizard({
 
     setSubmitting(true);
     try {
+      const formData = new FormData();
+      formData.append("firstname", firstname.trim());
+      formData.append("lastname", lastname.trim());
+      formData.append("age", age.trim());
+      formData.append("gender", gender);
+      formData.append("phone", phone.trim());
+      formData.append("school", school.trim());
+      formData.append("city", city.trim());
+      formData.append("province", province.trim());
+      formData.append("education_level", educationLevel);
+      formData.append("occupation", occupation.trim());
+      formData.append("is_government", String(isGovernment));
+      formData.append("office_phone", isGovernment ? officePhone.trim() : "");
+      formData.append("valid_id_name", validIdName);
+      formData.append("email", trimmedEmail);
+      formData.append("password", password);
+      formData.append("confirm_password", confirmPassword);
+      if (validIdFile) {
+        formData.append("valid_id", validIdFile);
+      }
+
       const res = await fetch("/api/auth/signup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstname: firstname.trim(),
-          lastname: lastname.trim(),
-          age: age.trim(),
-          gender,
-          phone: phone.trim(),
-          school: school.trim(),
-          city: city.trim(),
-          province: province.trim(),
-          education_level: educationLevel,
-          occupation: occupation.trim(),
-          is_government: isGovernment,
-          office_phone: isGovernment ? officePhone.trim() : "",
-          valid_id_name: validIdName,
-          email: trimmedEmail,
-          password,
-          confirm_password: confirmPassword,
-        }),
+        body: formData,
       });
 
       const data = (await res.json()) as {
@@ -393,6 +424,7 @@ export function SignupWizard({
                   type="number"
                   min={7}
                   max={120}
+                  step={1}
                   value={age}
                   onChange={(e) => setAge(e.target.value)}
                   placeholder="7–120"
@@ -540,36 +572,64 @@ export function SignupWizard({
                   <IdCard className="h-3.5 w-3.5 text-accent" />
                   Valid Government / School ID
                 </span>
-                <span className="font-normal text-white/40">JPG, PNG, WEBP, PDF · max 5 MB</span>
+                <span className="font-normal text-white/40">JPG, PNG, WEBP, PDF · max 2 MB</span>
               </label>
 
               <input
                 ref={fileInputRef}
                 type="file"
+                aria-label="Upload Valid Government or School ID"
                 accept="image/jpeg,image/png,image/webp,application/pdf"
                 onChange={(e) => handleFileChange(e.target.files?.[0])}
                 className="hidden"
               />
 
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex w-full items-center gap-3 rounded-xl border border-dashed border-accent/35 bg-white/[0.04] px-3.5 py-2.5 text-left transition hover:border-accent/65 hover:bg-white/[0.07] cursor-pointer"
+              <div
+                className={`flex w-full items-center gap-2 rounded-xl border border-dashed bg-white/[0.04] px-3.5 py-2.5 transition ${
+                  validIdError
+                    ? "border-danger/70 bg-danger/10"
+                    : "border-accent/35 hover:border-accent/65 hover:bg-white/[0.07]"
+                }`}
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent">
-                  <FileUp className="h-4.5 w-4.5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-xs font-semibold text-white">
-                    {validIdName || "Attach Valid ID for Patron Verification"}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left cursor-pointer"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent">
+                    <FileUp className="h-4.5 w-4.5" />
                   </div>
-                  <div className="text-[0.68rem] text-tl/65">
-                    {validIdSizeLabel
-                      ? `Selected (${validIdSizeLabel}) — Click to replace`
-                      : "National ID, Student ID, Passport, or Driver's License"}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-semibold text-white">
+                      {validIdName || "Attach Valid ID for Patron Verification"}
+                    </div>
+                    <div className="text-[0.68rem] text-tl/65">
+                      {validIdSizeLabel
+                        ? `Selected (${validIdSizeLabel}) — Click to replace`
+                        : "National ID, Student ID, Passport, or Driver's License"}
+                    </div>
                   </div>
-                </div>
-              </button>
+                </button>
+                {validIdFile && (
+                  <button
+                    type="button"
+                    aria-label="Remove selected valid ID"
+                    onClick={() => {
+                      clearSelectedValidId();
+                      onError(null);
+                    }}
+                    className="shrink-0 rounded-lg px-2 py-1 text-[0.68rem] font-semibold text-tl/80 hover:bg-white/10 hover:text-white cursor-pointer"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              {validIdError && (
+                <p role="alert" className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-danger">
+                  <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span>{validIdError}</span>
+                </p>
+              )}
             </div>
 
             {/* Government Employee Toggle + Optional Office Phone inline */}

@@ -58,6 +58,13 @@ export class ConflictError extends AppError {
   }
 }
 
+export class LockedError extends AppError {
+  constructor(message = "Account temporarily locked. Try again later.") {
+    super(message, 423, "ACCOUNT_LOCKED");
+    this.name = "LockedError";
+  }
+}
+
 export class RateLimitError extends AppError {
   readonly retryAfterSec: number;
 

@@ -4,6 +4,7 @@ import { STAFF_ROLES } from "@/config/constants";
 import { verifyRepositoryActor } from "@/lib/auth/rbac";
 import { maybeEncryptData, safeDecryptData } from "@/lib/crypto/fernet";
 import { isbnMatches, normalizeIsbn } from "@/lib/books/isbn";
+import { isReferenceSectionBook } from "@/lib/circulation/rules";
 import { mapDatabaseError } from "@/lib/errors";
 import { AdminMutationError } from "@/repositories/shared";
 import {
@@ -361,13 +362,21 @@ export async function mutateBooks(
     String(data.inventory_status ?? data.status ?? "Available").trim() || "Available";
 
   const rawBorrowable = data.is_borrowable;
-  const isBorrowable =
+  const requestedBorrowable =
     rawBorrowable === undefined
       ? true
       : rawBorrowable !== false &&
         rawBorrowable !== "false" &&
         rawBorrowable !== 0 &&
         rawBorrowable !== "0";
+  const isBorrowable = isReferenceSectionBook({
+    is_borrowable: requestedBorrowable,
+    category,
+    class: genreClass,
+    shelf_location: shelfLocation,
+  })
+    ? false
+    : requestedBorrowable;
 
   const bookData: Record<string, unknown> = {
     title,

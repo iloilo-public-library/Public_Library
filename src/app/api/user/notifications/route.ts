@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth/session";
+import { touchSessionActivity } from "@/lib/auth/rbac";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 import { getMemberNotifications, updateMemberNotificationState } from "@/repositories/member";
-import { AdminMutationError } from "@/repositories/shared";
+import { toErrorResponse } from "@/lib/errors";
 import { userNotificationActionSchema } from "@/validators/user";
 
 export async function GET() {
@@ -13,6 +14,14 @@ export async function GET() {
       { status: 401 }
     );
   }
+  if (session.role !== "user") {
+    return NextResponse.json(
+      { ok: false, error: "Forbidden — member access required." },
+      { status: 403 }
+    );
+  }
+  void touchSessionActivity(session);
+
   if (!getSupabaseSecretKey()) {
     return NextResponse.json(
       { ok: false, error: "SUPABASE_SECRET_KEY is not configured." },
@@ -22,11 +31,10 @@ export async function GET() {
 
   const supabase = createSupabaseServerClient(true);
   try {
-    const result = await getMemberNotifications(supabase, session.userId);
+    const result = await getMemberNotifications(supabase, session.userId, session.sessionToken);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to load notifications.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return toErrorResponse(err);
   }
 }
 
@@ -38,12 +46,13 @@ export async function PUT(request: Request) {
       { status: 401 }
     );
   }
-  if (!getSupabaseSecretKey()) {
+  if (session.role !== "user") {
     return NextResponse.json(
-      { ok: false, error: "SUPABASE_SECRET_KEY is not configured." },
-      { status: 503 }
+      { ok: false, error: "Forbidden — member access required." },
+      { status: 403 }
     );
   }
+  void touchSessionActivity(session);
 
   let rawBody: unknown;
   try {
@@ -54,9 +63,13 @@ export async function PUT(request: Request) {
 
   const parsed = userNotificationActionSchema.safeParse(rawBody);
   if (!parsed.success) {
+    return toErrorResponse(parsed.error);
+  }
+
+  if (!getSupabaseSecretKey()) {
     return NextResponse.json(
-      { ok: false, error: parsed.error.issues[0]?.message || "Invalid notification action." },
-      { status: 400 }
+      { ok: false, error: "SUPABASE_SECRET_KEY is not configured." },
+      { status: 503 }
     );
   }
 
@@ -68,12 +81,11 @@ export async function PUT(request: Request) {
       supabase,
       session.userId,
       data.action,
-      announcementId
+      announcementId,
+      session.sessionToken
     );
     return NextResponse.json(result);
   } catch (err) {
-    const status = err instanceof AdminMutationError ? err.status : 500;
-    const message = err instanceof Error ? err.message : "Failed to update notification.";
-    return NextResponse.json({ ok: false, error: message }, { status });
+    return toErrorResponse(err);
   }
 }

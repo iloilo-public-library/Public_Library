@@ -4,6 +4,7 @@ import { verifyRepositoryActor } from "@/lib/auth/rbac";
 import { STAFF_ROLES } from "@/config/constants";
 import { safeDecryptPii } from "@/lib/crypto/fernet";
 import { mapDatabaseError } from "@/lib/errors";
+import { CIRCULATION_RULES } from "@/lib/circulation/rules";
 import { AdminMutationError, formatFullName } from "@/repositories/shared";
 import { mutateLibraryCards } from "@/repositories/library-cards";
 import { returnItemDeleteSchema } from "@/validators/admin";
@@ -15,6 +16,7 @@ export interface ReturnsQueryOptions {
   q?: string;
   from?: string;
   to?: string;
+  format?: "json" | "csv";
   sort?: string;
   order?: "asc" | "desc";
   sessionRole?: string | null;
@@ -35,10 +37,13 @@ export async function queryReturns(
     STAFF_ROLES,
     options.sessionToken
   );
+  const isCsv = options.format === "csv";
+  const maxPageLimit = isCsv ? CIRCULATION_RULES.MAX_CSV_EXPORT_ROWS : MAX_PAGE_SIZE;
+  const fetchCap = isCsv ? Math.max(DB_FETCH_CAP, CIRCULATION_RULES.MAX_CSV_EXPORT_ROWS) : DB_FETCH_CAP;
   const page = Math.max(1, Math.trunc(options.page ?? 1));
   const pageSize = Math.min(
-    MAX_PAGE_SIZE,
-    Math.max(1, Math.trunc(options.pageSize ?? MAX_PAGE_SIZE))
+    maxPageLimit,
+    Math.max(1, Math.trunc(options.pageSize ?? maxPageLimit))
   );
   const q = (options.q ?? "").trim().toLowerCase();
   const fromDate = (options.from ?? "").trim();
@@ -107,19 +112,21 @@ export async function queryReturns(
           "id, return_id, card_book_id, book_title, book_author, book_isbn, qty_returned, return_condition, condition_notes"
         )
         .order("id", { ascending: false })
-        .limit(DB_FETCH_CAP),
+        .limit(fetchCap),
       supabase
         .from("book_returns")
         .select(
           "id, card_id, return_date, processed_by, overdue_days, fine_amount, fine_paid, fine_waived, created_at"
         )
-        .limit(DB_FETCH_CAP),
+        .limit(fetchCap),
       supabase
         .from("library_cards")
         .select("id, firstname, lastname, phone_number, date_issued, card_type_category")
-        .limit(DB_FETCH_CAP),
+        .limit(fetchCap),
     ]);
     if (itemsRes.error) throw mapDatabaseError(itemsRes.error, "Failed to load return history.");
+    if (returnsRes.error) throw mapDatabaseError(returnsRes.error, "Failed to load return history.");
+    if (cardsRes.error) throw mapDatabaseError(cardsRes.error, "Failed to load return history.");
     itemsData = (itemsRes.data ?? []) as ReturnItemRow[];
     returnsData = (returnsRes.data ?? []) as Array<Record<string, unknown>>;
     cardsData = (cardsRes.data ?? []) as Array<Record<string, unknown>>;
@@ -225,9 +232,8 @@ export async function mutateReturns(
   id: number | null,
   payload: Record<string, unknown>
 ) {
-  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES, session.sessionToken);
-
   if (action === "delete") {
+    await verifyRepositoryActor(supabase, session.userId, ["admin"], session.sessionToken);
     const parsedDel = returnItemDeleteSchema.safeParse(payload);
     if (!parsedDel.success) {
       throw new AdminMutationError(
@@ -241,9 +247,11 @@ export async function mutateReturns(
     return {
       ok: true,
       deletedId: id,
-      audit_details: `action=delete_return_item id=${id}`,
+      audit_details: `action=delete_return_item id=${id} actor_id=${session.userId}`,
     };
   }
+
+  await verifyRepositoryActor(supabase, session.userId, STAFF_ROLES, session.sessionToken);
 
   if (action === "create") {
     const cardId = Number(payload.card_id);

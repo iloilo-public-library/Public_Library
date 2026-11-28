@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowUpDown,
   BookmarkCheck,
   BookOpen,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 import { MemberShell } from "@/components/layout/MemberShell";
 import { Button } from "@/components/ui/button";
+import { formatPhp } from "@/components/circulation/types";
 import { apiMutate, swrPrivateConfig } from "@/lib/api";
 
 interface BorrowedBookItem {
@@ -32,13 +34,38 @@ interface BorrowedBookItem {
   date_issued: string | null;
   date_return: string | null;
   card_type_category: string;
+  loan_status?: "borrowed" | "overdue" | "returned" | "lost" | string;
+  overdue_days?: number;
+  fine_amount?: number;
   can_renew: boolean;
+  renew_block_reason?: string | null;
   has_pending_renewal: boolean;
 }
 
 interface BorrowedResponse {
   ok: boolean;
   borrowedBooks: BorrowedBookItem[];
+}
+
+function getRenewBlockLabel(reason?: string | null): string {
+  switch (reason) {
+    case "pending_renewal":
+      return "Renewal pending staff approval";
+    case "expired":
+      return "Card expired — renew at library";
+    case "overdue":
+      return "Overdue — return at library";
+    case "unpaid_fines":
+      return "Blocked by unpaid fines";
+    case "max_renewals":
+      return "Max renewals (2) used";
+    case "reserved":
+      return "Reserved by another patron";
+    case "returned":
+      return "Loan already closed";
+    default:
+      return reason || "Not eligible for renewal";
+  }
 }
 
 export default function UserBorrowedPage() {
@@ -49,16 +76,30 @@ export default function UserBorrowedPage() {
   const [renewingCardId, setRenewingCardId] = useState<number | null>(null);
   const [banner, setBanner] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "renewable" | "pending_renewal">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "renewable" | "pending_renewal" | "overdue">("all");
   const [sortBy, setSortBy] = useState<"due" | "title">("due");
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const books = data?.borrowedBooks ?? [];
+  useEffect(() => {
+    const onGlobalKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onGlobalKey);
+    return () => window.removeEventListener("keydown", onGlobalKey);
+  }, []);
+
+  const books = useMemo(() => data?.borrowedBooks ?? [], [data?.borrowedBooks]);
 
   const filteredBooks = useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = books.filter((item) => {
+      const isOverdue = item.loan_status === "overdue" || Number(item.overdue_days ?? 0) > 0;
       if (statusFilter === "renewable" && !item.can_renew) return false;
       if (statusFilter === "pending_renewal" && !item.has_pending_renewal) return false;
+      if (statusFilter === "overdue" && !isOverdue) return false;
       if (!q) return true;
       return (
         item.book_title.toLowerCase().includes(q) ||
@@ -111,7 +152,7 @@ export default function UserBorrowedPage() {
             My <span className="text-accent">Borrowed Books</span>
           </h1>
           <p className="mt-1 text-sm text-tl/80">
-            Track active loans, due dates, and library card renewal eligibility.
+            Track active loans, due dates, overdue fines, and library card renewal eligibility.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -140,10 +181,12 @@ export default function UserBorrowedPage() {
           <div className="relative flex h-[48px] items-center rounded-2xl border border-white/12 bg-bg1/90 px-4 shadow-[0_8px_30px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-all duration-200 focus-within:border-accent/50 focus-within:bg-bg1">
             <Search className="h-4.5 w-4.5 shrink-0 text-accent/80" />
             <input
+              ref={searchInputRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search borrowed books by title, author, ISBN, or Card #..."
+              placeholder="Search borrowed books by title, author, ISBN, or Card #…"
+              aria-label="Search borrowed books"
               className="w-full bg-transparent py-2 pl-3 pr-3 text-[0.9rem] text-white placeholder:text-white/38 focus:outline-none"
             />
             {query ? (
@@ -169,6 +212,7 @@ export default function UserBorrowedPage() {
               { id: "all", label: "All Loans" },
               { id: "renewable", label: "Eligible to Renew" },
               { id: "pending_renewal", label: "Pending Approval" },
+              { id: "overdue", label: "Overdue" },
             ] as const
           ).map((pill) => {
             const active = statusFilter === pill.id;
@@ -176,10 +220,13 @@ export default function UserBorrowedPage() {
               <button
                 key={pill.id}
                 type="button"
+                aria-pressed={active}
                 onClick={() => setStatusFilter(pill.id)}
                 className={`inline-flex h-[48px] cursor-pointer items-center gap-2 rounded-2xl border px-4 text-xs font-semibold transition-all ${
                   active
-                    ? "border-accent/45 bg-accent/15 text-accent shadow-[0_0_20px_rgba(147,197,253,0.14)]"
+                    ? pill.id === "overdue"
+                      ? "border-danger/45 bg-danger/15 text-danger"
+                      : "border-accent/45 bg-accent/15 text-accent shadow-[0_0_20px_rgba(147,197,253,0.14)]"
                     : "border-white/12 bg-bg1/85 text-white/80 hover:border-white/22 hover:bg-white/8 hover:text-white"
                 }`}
               >
@@ -210,6 +257,8 @@ export default function UserBorrowedPage() {
 
       {banner && (
         <div
+          role="status"
+          aria-live="polite"
           className={`mb-4 flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs ${
             banner.type === "ok"
               ? "border-accent2/30 bg-accent2/12 text-accent2"
@@ -226,8 +275,14 @@ export default function UserBorrowedPage() {
       )}
 
       {error ? (
-        <div className="rounded-2xl border border-danger/25 bg-danger/10 p-6 text-xs text-danger">
-          Unable to load borrowed books. Please make sure you are signed in.
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-danger/25 bg-danger/10 p-6 text-xs text-danger"
+        >
+          <span>Unable to load borrowed books. Please try again.</span>
+          <Button variant="secondary" size="sm" onClick={() => mutate()}>
+            <RefreshCw className="h-3.5 w-3.5" /> Retry
+          </Button>
         </div>
       ) : isLoading ? (
         <div className="space-y-3">
@@ -254,62 +309,89 @@ export default function UserBorrowedPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {filteredBooks.map((item) => (
-            <article
-              key={`${item.card_id}-${item.id}`}
-              className="flex flex-col justify-between rounded-[22px] border border-white/10 bg-white/[0.035] p-5 backdrop-blur-md transition duration-200 hover:border-white/20"
-            >
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="whitespace-nowrap rounded-full border border-accent/25 bg-accent/10 px-2.5 py-0.5 font-mono text-[0.68rem] font-semibold text-accent">
-                    Card #{item.card_id}
-                    {item.book_id ? ` · Book #${item.book_id}` : ""} · Qty {item.quantity}
+          {filteredBooks.map((item) => {
+            const overdueDays = Number(item.overdue_days ?? 0);
+            const fineAmount = Number(item.fine_amount ?? 0);
+            const isOverdue = item.loan_status === "overdue" || overdueDays > 0;
+
+            return (
+              <article
+                key={`${item.card_id}-${item.id}`}
+                className="flex flex-col justify-between rounded-[22px] border border-white/10 bg-white/[0.035] p-5 backdrop-blur-md transition duration-200 hover:border-white/20"
+              >
+                <div>
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <span className="whitespace-nowrap rounded-full border border-accent/25 bg-accent/10 px-2.5 py-0.5 font-mono text-[0.68rem] font-semibold text-accent">
+                      Card #{item.card_id}
+                      {item.book_id ? ` · Book #${item.book_id}` : ""} · Qty {item.quantity}
+                    </span>
+
+                    <div className="flex items-center gap-2">
+                      {isOverdue ? (
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-danger/35 bg-danger/12 px-2.5 py-0.5 font-mono text-[0.68rem] font-semibold text-danger">
+                          <AlertTriangle className="h-3 w-3" />
+                          {overdueDays > 0 ? `${overdueDays}d Overdue` : "Overdue"}
+                        </span>
+                      ) : (
+                        <span className="whitespace-nowrap rounded-full border border-accent2/30 bg-accent2/10 px-2.5 py-0.5 font-mono text-[0.68rem] font-semibold text-accent2">
+                          {item.loan_status === "borrowed" ? "Borrowed" : item.loan_status || "Active"}
+                        </span>
+                      )}
+
+                      {item.date_return && (
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap font-mono text-[0.72rem] text-warn">
+                          <CalendarClock className="h-3.5 w-3.5" />
+                          Due {item.date_return}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <h2 className="text-base font-bold text-white">{item.book_title}</h2>
+                  <p className="mt-0.5 text-xs text-tl/80">{item.book_author}</p>
+                  {item.book_isbn && (
+                    <p className="mt-1 font-mono text-[0.7rem] text-white/45">
+                      ISBN {item.book_isbn}
+                    </p>
+                  )}
+                  {fineAmount > 0 && (
+                    <p className="mt-2 font-mono text-xs font-semibold text-danger">
+                      Unpaid Fine: {formatPhp(fineAmount)}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/8 pt-3">
+                  <span className="font-mono text-[0.7rem] text-white/50">
+                    Issued {item.date_issued || "—"}
                   </span>
-                  {item.date_return && (
-                    <span className="inline-flex items-center gap-1 whitespace-nowrap font-mono text-[0.72rem] text-warn">
-                      <CalendarClock className="h-3.5 w-3.5" />
-                      Due {item.date_return}
+
+                  {item.has_pending_renewal ? (
+                    <span className="whitespace-nowrap rounded-lg border border-warn/30 bg-warn/12 px-2.5 py-1 text-[0.7rem] font-semibold text-warn">
+                      Renewal Pending Approval
+                    </span>
+                  ) : item.can_renew ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={renewingCardId === item.card_id}
+                      onClick={() => handleRenew(item.card_id)}
+                    >
+                      {renewingCardId === item.card_id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RotateCw className="h-3.5 w-3.5" />
+                      )}
+                      Request Renewal
+                    </Button>
+                  ) : (
+                    <span className="text-[0.7rem] text-tl/70">
+                      {getRenewBlockLabel(item.renew_block_reason)}
                     </span>
                   )}
                 </div>
-                <h2 className="text-base font-bold text-white">{item.book_title}</h2>
-                <p className="mt-0.5 text-xs text-tl/80">{item.book_author}</p>
-                {item.book_isbn && (
-                  <p className="mt-1 font-mono text-[0.7rem] text-white/45">
-                    ISBN {item.book_isbn}
-                  </p>
-                )}
-              </div>
-
-              <div className="mt-4 flex items-center justify-between border-t border-white/8 pt-3">
-                <span className="font-mono text-[0.7rem] text-white/50">
-                  Issued {item.date_issued || "—"}
-                </span>
-
-                {item.has_pending_renewal ? (
-                  <span className="whitespace-nowrap rounded-lg border border-warn/30 bg-warn/12 px-2.5 py-1 text-[0.7rem] font-semibold text-warn">
-                    Renewal Pending Approval
-                  </span>
-                ) : item.can_renew ? (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={renewingCardId === item.card_id}
-                    onClick={() => handleRenew(item.card_id)}
-                  >
-                    {renewingCardId === item.card_id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <RotateCw className="h-3.5 w-3.5" />
-                    )}
-                    Request Renewal
-                  </Button>
-                ) : (
-                  <span className="text-[0.7rem] text-white/40">Max renewals used</span>
-                )}
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
     </MemberShell>

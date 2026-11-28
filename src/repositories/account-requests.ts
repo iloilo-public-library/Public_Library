@@ -4,6 +4,8 @@ import { verifyRepositoryActor } from "@/lib/auth/rbac";
 import { STAFF_ROLES } from "@/config/constants";
 import { safeDecryptPii } from "@/lib/crypto/fernet";
 import { sendRegistrationDecisionEmail } from "@/lib/email";
+import { getManilaTodayISO } from "@/lib/circulation/rules";
+import { renewLibraryCardAtomically } from "@/repositories/library-cards";
 import {
   AdminMutationError,
   assertLibrarianRenewalOnly,
@@ -228,16 +230,11 @@ export async function mutateAccountRequests(
       const { error } = await supabase.from("users").delete().eq("id", targetUserId);
       if (error) throw new AdminMutationError(error.message, 500);
     } else if (reqType === "renew" && reqRow.card_id) {
-      const { error } = await supabase
-        .from("library_cards")
-        .update({
-          renewal1_checked: Boolean(reqRow.renewal1_checked),
-          renewal1_date: reqRow.renewal1_date,
-          renewal2_checked: Boolean(reqRow.renewal2_checked),
-          renewal2_date: reqRow.renewal2_date,
-        })
-        .eq("id", reqRow.card_id);
-      if (error) throw new AdminMutationError(error.message, 500);
+      await renewLibraryCardAtomically(
+        supabase,
+        Number(reqRow.card_id),
+        getManilaTodayISO()
+      );
     }
 
     const { error: reviewError } = await supabase

@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth/session";
+import { touchSessionActivity } from "@/lib/auth/rbac";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 import {
   addMemberSearchHistory,
   clearMemberSearchHistory,
   getMemberSearchHistory,
 } from "@/repositories/member";
+import { toErrorResponse } from "@/lib/errors";
 import { userSearchHistorySchema } from "@/validators/user";
 
 export async function GET() {
@@ -16,6 +18,14 @@ export async function GET() {
       { status: 401 }
     );
   }
+  if (session.role !== "user") {
+    return NextResponse.json(
+      { ok: false, error: "Forbidden — member access required." },
+      { status: 403 }
+    );
+  }
+  void touchSessionActivity(session);
+
   if (!getSupabaseSecretKey()) {
     return NextResponse.json(
       { ok: false, error: "SUPABASE_SECRET_KEY is not configured." },
@@ -25,11 +35,10 @@ export async function GET() {
 
   const supabase = createSupabaseServerClient(true);
   try {
-    const result = await getMemberSearchHistory(supabase, session.userId);
+    const result = await getMemberSearchHistory(supabase, session.userId, session.sessionToken);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to load search history.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return toErrorResponse(err);
   }
 }
 
@@ -41,12 +50,13 @@ export async function POST(request: Request) {
       { status: 401 }
     );
   }
-  if (!getSupabaseSecretKey()) {
+  if (session.role !== "user") {
     return NextResponse.json(
-      { ok: false, error: "SUPABASE_SECRET_KEY is not configured." },
-      { status: 503 }
+      { ok: false, error: "Forbidden — member access required." },
+      { status: 403 }
     );
   }
+  void touchSessionActivity(session);
 
   let rawBody: unknown;
   try {
@@ -57,19 +67,27 @@ export async function POST(request: Request) {
 
   const parsed = userSearchHistorySchema.safeParse(rawBody);
   if (!parsed.success) {
+    return toErrorResponse(parsed.error);
+  }
+
+  if (!getSupabaseSecretKey()) {
     return NextResponse.json(
-      { ok: false, error: parsed.error.issues[0]?.message || "Invalid search query." },
-      { status: 400 }
+      { ok: false, error: "SUPABASE_SECRET_KEY is not configured." },
+      { status: 503 }
     );
   }
 
   const supabase = createSupabaseServerClient(true);
   try {
-    const result = await addMemberSearchHistory(supabase, session.userId, parsed.data.query);
+    const result = await addMemberSearchHistory(
+      supabase,
+      session.userId,
+      parsed.data.query,
+      session.sessionToken
+    );
     return NextResponse.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to record search history.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return toErrorResponse(err);
   }
 }
 
@@ -81,6 +99,14 @@ export async function DELETE() {
       { status: 401 }
     );
   }
+  if (session.role !== "user") {
+    return NextResponse.json(
+      { ok: false, error: "Forbidden — member access required." },
+      { status: 403 }
+    );
+  }
+  void touchSessionActivity(session);
+
   if (!getSupabaseSecretKey()) {
     return NextResponse.json(
       { ok: false, error: "SUPABASE_SECRET_KEY is not configured." },
@@ -90,10 +116,9 @@ export async function DELETE() {
 
   const supabase = createSupabaseServerClient(true);
   try {
-    const result = await clearMemberSearchHistory(supabase, session.userId);
+    const result = await clearMemberSearchHistory(supabase, session.userId, session.sessionToken);
     return NextResponse.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to clear search history.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return toErrorResponse(err);
   }
 }

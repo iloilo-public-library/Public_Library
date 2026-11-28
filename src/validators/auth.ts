@@ -5,6 +5,11 @@ export const loginSchema = z
   .object({
     email: emailSchema,
     password: z.string().min(1, "Password is required.").max(128, "Password is too long."),
+    captcha_token: z
+      .string()
+      .trim()
+      .min(10, "CAPTCHA verification is required.")
+      .max(512, "Invalid CAPTCHA verification token."),
   })
   .strict();
 
@@ -63,11 +68,11 @@ export const signupSchema = z
       }
       const rawAge = data.age !== undefined && data.age !== null ? String(data.age).trim() : "";
       const numAge = Number(rawAge);
-      if (!rawAge || Number.isNaN(numAge) || numAge < 7 || numAge > 120) {
+      if (!rawAge || !Number.isInteger(numAge) || numAge < 7 || numAge > 120) {
         ctx.addIssue({
           code: "custom",
           path: ["age"],
-          message: "Please enter a valid age between 7 and 120.",
+          message: "Please enter a valid whole-number age between 7 and 120.",
         });
       }
       const phoneStr = (data.phone || data.phone_number || "").trim();
@@ -177,22 +182,16 @@ export const verifyCaptchaSchema = z
 export const verifyOtpSchema = z
   .object({
     otp: otpCodeSchema,
-    email: emailSchema.optional(),
   })
   .strict();
 
 export const verifyPinSchema = z
   .object({
     pin: pinCodeSchema,
-    email: emailSchema.optional(),
   })
   .strict();
 
-export const resendOtpSchema = z
-  .object({
-    email: emailSchema.optional(),
-  })
-  .strict();
+export const resendOtpSchema = z.object({}).strict();
 
 export type LoginInput = z.infer<typeof loginSchema>;
 export type SignupInput = z.infer<typeof signupSchema>;

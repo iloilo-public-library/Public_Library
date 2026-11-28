@@ -74,7 +74,7 @@ export async function touchSessionActivity(
         .is("logout_at", null),
       supabase
         .from("users")
-        .update({ last_seen: nowIso })
+        .update({ last_seen: nowIso, status: "active" })
         .eq("id", session.userId)
         .eq("is_active", true)
         .eq("is_approved", true),

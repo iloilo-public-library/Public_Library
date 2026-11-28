@@ -1,11 +1,19 @@
+import { CIRCULATION_POLICY } from "@/lib/circulation/policy";
+export { CIRCULATION_POLICY };
+
 export interface CardBookItem {
   id: number;
   card_id?: number;
   book_id: number | null;
+  copy_id?: number | null;
   book_title: string;
   book_author: string;
   book_isbn: string | null;
   quantity: number;
+  loan_status?: "borrowed" | "overdue" | "returned" | "lost" | "damaged" | string;
+  fine_amount?: number;
+  fine_paid?: boolean;
+  fine_waived?: boolean;
 }
 
 export interface LibraryCardRow {
@@ -15,8 +23,8 @@ export interface LibraryCardRow {
   firstname: string;
   lastname: string;
   fullname: string;
-  phone_number: string;
-  address: string;
+  phone_number?: string;
+  address?: string;
   date_issued: string;
   date_return: string | null;
   renewal1_checked: boolean;
@@ -26,10 +34,17 @@ export interface LibraryCardRow {
   card_type: string;
   valid_until: string | null;
   photo_path: string | null;
+  photo_url?: string;
   registered_by: number | string | null;
+  registered_by_name?: string;
   created_at: string;
   books: CardBookItem[];
   books_count: number;
+  is_returned?: boolean;
+  status?: "active" | "overdue" | "returned" | "lost" | string;
+  overdue_days?: number;
+  fine_amount?: number;
+  fine_waived?: boolean;
 }
 
 export interface ReturnItemRow {
@@ -41,9 +56,16 @@ export interface ReturnItemRow {
   book_author: string;
   book_isbn: string | null;
   qty_returned: number;
+  return_condition?: string;
+  condition_notes?: string | null;
+  date_issued?: string;
   return_date: string;
   borrower_name: string;
   card_category: string;
+  processed_by_name?: string;
+  overdue_days?: number;
+  fine_amount?: number;
+  fine_waived?: boolean;
 }
 
 export interface PickerMember {
@@ -65,6 +87,7 @@ export interface CatalogBookCopy {
   condition?: string;
   circulation_status?: string;
   shelf_location?: string;
+  is_borrowable?: boolean;
 }
 
 export interface CatalogBook {
@@ -146,4 +169,15 @@ export function formatCardTypeLabel(ct: string | null | undefined): string {
   if (ct === "city_govt") return "LGU";
   if (ct === "regular") return "Regular";
   return "—";
+}
+
+export function addDaysToIsoDate(isoDate: string, days: number): string {
+  const baseMs = Date.parse(`${isoDate}T00:00:00Z`);
+  if (!Number.isFinite(baseMs)) return isoDate;
+  return new Date(baseMs + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+export function formatPhp(amount: number | null | undefined): string {
+  const val = Number(amount ?? 0);
+  return `₱${(Number.isFinite(val) ? val : 0).toFixed(2)}`;
 }

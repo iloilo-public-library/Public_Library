@@ -14,6 +14,7 @@ export const ADMIN_RESOURCES = [
   "events",
   "event_categories",
   "announcements",
+  "library_holidays",
   "system_settings",
   "backup_logs",
   "admin_profile",
@@ -32,8 +33,8 @@ export const adminQuerySchema = z
     from: z.string().trim().max(32).optional(),
     to: z.string().trim().max(32).optional(),
     page: z.coerce.number().int().min(1).optional(),
-    limit: z.coerce.number().int().min(1).max(200).optional(),
-    pageSize: z.coerce.number().int().min(1).max(200).optional(),
+    limit: z.coerce.number().int().min(1).max(5000).optional(),
+    pageSize: z.coerce.number().int().min(1).max(5000).optional(),
     q: z.string().trim().max(120).optional(),
     status: z.string().trim().max(40).optional(),
     category: z.string().trim().max(120).optional(),
@@ -45,7 +46,24 @@ export const adminQuerySchema = z
     sort: z.string().trim().max(64).optional(),
     order: z.enum(["asc", "desc"]).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((data, ctx) => {
+    const maxAllowed = data.format === "csv" ? 5000 : 200;
+    if (data.limit !== undefined && data.limit > maxAllowed) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["limit"],
+        message: `Limit must be ${maxAllowed} or fewer.`,
+      });
+    }
+    if (data.pageSize !== undefined && data.pageSize > maxAllowed) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["pageSize"],
+        message: `Page size must be ${maxAllowed} or fewer.`,
+      });
+    }
+  });
 
 export const adminMutationSchema = z
   .object({
@@ -479,6 +497,12 @@ export const libraryCardCreateSchema = z
     copy_id: nullableIdSchema,
     quantity: z.coerce.number().int().min(1).max(100).optional().default(1),
     book_ids: z.array(libraryCardBookItemSchema).optional(),
+    backdate_reason: z
+      .string()
+      .trim()
+      .min(3, "Backdate reason must be at least 3 characters.")
+      .max(300, "Backdate reason must be 300 characters or fewer.")
+      .optional(),
   })
   .strict();
 
@@ -498,6 +522,12 @@ export const libraryCardUpdateSchema = z
     renewal2_checked: z.union([z.boolean(), z.string(), z.number()]).optional(),
     renewal2_date: nullableOptStr.optional(),
     book_ids: z.array(libraryCardBookItemSchema).optional(),
+    backdate_reason: z
+      .string()
+      .trim()
+      .min(3, "Backdate reason must be at least 3 characters.")
+      .max(300, "Backdate reason must be 300 characters or fewer.")
+      .optional(),
   })
   .strict();
 
@@ -511,6 +541,7 @@ export const libraryCardReturnItemSchema = z
       .optional()
       .default("Good"),
     condition_notes: nullableOptStr.optional(),
+    affidavit_reference: nullableOptStr.optional(),
   })
   .strict();
 
@@ -519,6 +550,12 @@ export const libraryCardReturnSchema = z
     return_date: nullableOptStr.optional(),
     card_id: nullableIdSchema,
     items: z.array(libraryCardReturnItemSchema).optional(),
+    backdate_reason: z
+      .string()
+      .trim()
+      .min(3, "Backdate reason must be at least 3 characters.")
+      .max(300, "Backdate reason must be 300 characters or fewer.")
+      .optional(),
   })
   .strict();
 
@@ -532,6 +569,24 @@ export const libraryCardMarkIncidentSchema = z
       .min(3, "A reason (at least 3 characters) is required.")
       .max(300, "Reason must be 300 characters or fewer."),
     condition_notes: nullableOptStr.optional(),
+    affidavit_reference: nullableOptStr.optional(),
+  })
+  .strict();
+
+export const libraryCardResolveReplacementSchema = z
+  .object({
+    card_book_id: z.coerce.number().int().positive(),
+    resolution: z.enum(["replaced", "paid_equivalent", "waived"]),
+    reason: z.string().trim().min(3).max(300),
+    replacement_accession_number: nullableOptStr.optional(),
+    replacement_condition: z.enum(["Good", "Fair"]).optional(),
+    replacement_notes: nullableOptStr.optional(),
+    shelf_location: nullableOptStr.optional(),
+    amount: z.coerce.number().positive().max(100000).optional(),
+    payment_method: z.enum(["cash", "gcash", "bank", "other"]).optional(),
+    idempotency_key: z.string().trim().min(8).max(128).optional(),
+    approved_by_city_librarian: z.boolean().optional(),
+    note: nullableOptStr.optional(),
   })
   .strict();
 
@@ -544,6 +599,24 @@ export const libraryCardWaiveFineSchema = z
       .trim()
       .min(3, "A waiver reason (at least 3 characters) is required.")
       .max(300, "Waiver reason must be 300 characters or fewer."),
+  })
+  .strict();
+
+export const libraryCardRecordFinePaymentSchema = z
+  .object({
+    return_id: z.coerce.number().int().positive().optional(),
+    card_book_id: z.coerce.number().int().positive().optional(),
+    amount: z.coerce
+      .number()
+      .positive("Payment amount must be greater than zero.")
+      .max(100000, "Payment amount is too large."),
+    payment_method: z.enum(["cash", "gcash", "bank", "other"]).optional().default("cash"),
+    idempotency_key: z
+      .string()
+      .trim()
+      .min(8, "An idempotency key (at least 8 characters) is required.")
+      .max(128, "Idempotency key must be 128 characters or fewer."),
+    note: nullableOptStr.optional(),
   })
   .strict();
 
@@ -605,3 +678,49 @@ export const backupRestoreSchema = z
     reason: z.string().trim().min(3, "A restore reason is required.").max(300).optional(),
   })
   .strict();
+
+function isValidCalendarIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return (
+    dt.getUTCFullYear() === y &&
+    dt.getUTCMonth() + 1 === m &&
+    dt.getUTCDate() === d
+  );
+}
+
+const holidayIsoDateSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Holiday date must use YYYY-MM-DD format.")
+  .refine(isValidCalendarIsoDate, "Holiday date must be a valid calendar date.");
+
+export const libraryHolidayCreateSchema = z
+  .object({
+    holiday_date: holidayIsoDateSchema,
+    name: z
+      .string()
+      .trim()
+      .min(2, "Holiday name must be at least 2 characters.")
+      .max(160, "Holiday name must be 160 characters or fewer."),
+  })
+  .strict();
+
+export const libraryHolidayUpdateSchema = z
+  .object({
+    holiday_date: holidayIsoDateSchema.optional(),
+    name: z
+      .string()
+      .trim()
+      .min(2, "Holiday name must be at least 2 characters.")
+      .max(160, "Holiday name must be 160 characters or fewer.")
+      .optional(),
+  })
+  .strict()
+  .refine(
+    (d) => d.holiday_date !== undefined || d.name !== undefined,
+    { message: "At least one field (holiday_date or name) is required." }
+  );
+
+export const libraryHolidayDeleteSchema = z.object({}).strict();

@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import {
   AlertCircle,
   AlertTriangle,
   ArrowDownLeft,
+  Banknote,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -13,7 +14,9 @@ import {
   Download,
   Eye,
   Pencil,
+  RotateCw,
   Search,
+  ShieldAlert,
   Table as TableIcon,
   Trash2,
   UserCheck,
@@ -27,14 +30,22 @@ import {
   type LibraryCardRow,
   type ReturnItemRow,
   formatCardTypeLabel,
+  formatPhp,
   getDaysOverdue,
   getManilaTodayISO,
 } from "./types";
 import {
   CardDetailModal,
   DeleteCardModal,
+  DeleteReturnModal,
   EditCardModal,
+  type EditCardPayload,
+  MarkIncidentModal,
   ProcessReturnModal,
+  type ProcessReturnPayload,
+  RecordPaymentModal,
+  RenewLoanModal,
+  WaiveFineModal,
 } from "./BorrowHistoryModals";
 import "./circulation.css";
 
@@ -50,22 +61,43 @@ export interface BorrowHistoryViewProps {
   canDelete?: boolean;
 }
 
+interface PaginatedCardsResponse {
+  rows?: LibraryCardRow[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+  totalPages?: number;
+}
+
+interface PaginatedReturnsResponse {
+  rows?: ReturnItemRow[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+  totalPages?: number;
+}
+
+type CardFilterValue = "" | "member" | "borrower" | "active" | "overdue" | "returned" | "lost";
+
 export function BorrowHistoryView({
   role = "admin",
   canReturn = true,
   canRenew = true,
-  canMarkLost = false,
-  canWaiveFine = false,
+  canMarkLost,
+  canWaiveFine,
   canExport = true,
   canDelete = true,
 }: BorrowHistoryViewProps = {}) {
   const todayISO = useMemo(() => getManilaTodayISO(), []);
   const isLibrarian = role === "librarian";
-  void canMarkLost;
-  void canWaiveFine;
+
+  // Hard RBAC guards matching backend rules
+  const effectiveCanMarkLost = canMarkLost ?? true;
+  const effectiveCanWaiveFine = !isLibrarian && (canWaiveFine ?? true);
+  const effectiveCanDeleteReturn = !isLibrarian && canDelete;
 
   const [activeTab, setActiveTab] = useState<"all" | "returns">("all");
-  const [typeFilter, setTypeFilter] = useState<"" | "member" | "borrower" | "overdue">("");
+  const [typeFilter, setTypeFilter] = useState<CardFilterValue>("");
   const [searchInput, setSearchInput] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -75,17 +107,61 @@ export function BorrowHistoryView({
   const [viewCard, setViewCard] = useState<LibraryCardRow | null>(null);
   const [returnCard, setReturnCard] = useState<LibraryCardRow | null>(null);
   const [editCard, setEditCard] = useState<LibraryCardRow | null>(null);
+  const [renewCard, setRenewCard] = useState<LibraryCardRow | null>(null);
+  const [incidentCard, setIncidentCard] = useState<LibraryCardRow | null>(null);
+  const [waiveCard, setWaiveCard] = useState<LibraryCardRow | null>(null);
+  const [paymentCard, setPaymentCard] = useState<LibraryCardRow | null>(null);
   const [deleteCard, setDeleteCard] = useState<LibraryCardRow | null>(null);
+  const [deleteReturnItem, setDeleteReturnItem] = useState<ReturnItemRow | null>(null);
+
   const [mutating, setMutating] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState<CirculationToast | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const cardsQueryUrl = useMemo(() => {
+    const params = new URLSearchParams({
+      resource: "library_cards",
+      page: String(page),
+      pageSize: String(PAGE_SIZE),
+    });
+    if (debouncedQ) params.set("q", debouncedQ);
+    if (
+      typeFilter === "member" ||
+      typeFilter === "borrower" ||
+      typeFilter === "active" ||
+      typeFilter === "returned" ||
+      typeFilter === "lost"
+    ) {
+      params.set("status", typeFilter);
+    }
+    if (typeFilter === "overdue") {
+      params.set("overdue", "true");
+    }
+    if (dateFrom) params.set("from", dateFrom);
+    if (dateTo) params.set("to", dateTo);
+    return `/api/admin/data?${params.toString()}`;
+  }, [page, debouncedQ, typeFilter, dateFrom, dateTo]);
+
+  const returnsQueryUrl = useMemo(() => {
+    const params = new URLSearchParams({
+      resource: "returns",
+      page: String(page),
+      pageSize: String(PAGE_SIZE),
+    });
+    if (debouncedQ) params.set("q", debouncedQ);
+    if (dateFrom) params.set("from", dateFrom);
+    if (dateTo) params.set("to", dateTo);
+    return `/api/admin/data?${params.toString()}`;
+  }, [page, debouncedQ, dateFrom, dateTo]);
 
   const {
     data: cardsData,
     error: cardsError,
     isLoading: cardsLoading,
     mutate: mutateCards,
-  } = useSWR<{ rows?: LibraryCardRow[] }>(
-    "/api/admin/data?resource=library_cards",
+  } = useSWR<PaginatedCardsResponse>(
+    activeTab === "all" ? cardsQueryUrl : null,
     swrPrivateConfig
   );
 
@@ -94,22 +170,70 @@ export function BorrowHistoryView({
     error: returnsError,
     isLoading: returnsLoading,
     mutate: mutateReturns,
-  } = useSWR<{ rows?: ReturnItemRow[] }>(
-    "/api/admin/data?resource=returns",
+  } = useSWR<PaginatedReturnsResponse>(
+    activeTab === "returns" ? returnsQueryUrl : null,
     swrPrivateConfig
   );
 
+  // Lightweight server totals for KPI cards and tab counts
+  const { data: totalStat, mutate: mutateTotalStat } = useSWR<PaginatedCardsResponse>(
+    "/api/admin/data?resource=library_cards&page=1&pageSize=1",
+    swrPrivateConfig
+  );
+  const { data: memberStat, mutate: mutateMemberStat } = useSWR<PaginatedCardsResponse>(
+    "/api/admin/data?resource=library_cards&page=1&pageSize=1&status=member",
+    swrPrivateConfig
+  );
+  const { data: borrowerStat, mutate: mutateBorrowerStat } = useSWR<PaginatedCardsResponse>(
+    "/api/admin/data?resource=library_cards&page=1&pageSize=1&status=borrower",
+    swrPrivateConfig
+  );
+  const { data: returnStat, mutate: mutateReturnStat } = useSWR<PaginatedReturnsResponse>(
+    "/api/admin/data?resource=returns&page=1&pageSize=1",
+    swrPrivateConfig
+  );
+
+  const revalidateAll = useCallback(async () => {
+    await Promise.all([
+      mutateCards(),
+      mutateReturns(),
+      mutateTotalStat(),
+      mutateMemberStat(),
+      mutateBorrowerStat(),
+      mutateReturnStat(),
+    ]);
+  }, [
+    mutateCards,
+    mutateReturns,
+    mutateTotalStat,
+    mutateMemberStat,
+    mutateBorrowerStat,
+    mutateReturnStat,
+  ]);
+
+  // Cmd/Ctrl+K shortcut focuses search input
+  useEffect(() => {
+    const onGlobalKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onGlobalKey);
+    return () => window.removeEventListener("keydown", onGlobalKey);
+  }, []);
+
   useEffect(() => {
     const t = window.setTimeout(() => {
-      setDebouncedQ(searchInput.trim().toLowerCase());
+      setDebouncedQ(searchInput.trim());
       setPage(1);
-    }, 300);
+    }, 280);
     return () => window.clearTimeout(t);
   }, [searchInput]);
 
   useEffect(() => {
     if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), 3500);
+    const t = window.setTimeout(() => setToast(null), 4000);
     return () => window.clearTimeout(t);
   }, [toast]);
 
@@ -117,19 +241,11 @@ export function BorrowHistoryView({
     setToast({ id: Date.now(), message, tone });
   }, []);
 
-  const allCards = useMemo(() => cardsData?.rows ?? [], [cardsData?.rows]);
-  const allReturns = useMemo(() => returnsData?.rows ?? [], [returnsData?.rows]);
-
-  const returnedCardIds = useMemo(
-    () => new Set(allReturns.map((r) => r.card_id).filter((id): id is number => id !== null)),
-    [allReturns]
-  );
-
   const stats = useMemo(() => {
-    const total = allCards.length;
-    const members = allCards.filter((c) => c.card_type_category === "member").length;
-    const borrowers = allCards.filter((c) => c.card_type_category === "borrower").length;
-    const returned = allReturns.length;
+    const total = Number(totalStat?.total ?? 0);
+    const members = Number(memberStat?.total ?? 0);
+    const borrowers = Number(borrowerStat?.total ?? 0);
+    const returned = Number(returnStat?.total ?? 0);
     return {
       total,
       members,
@@ -139,60 +255,43 @@ export function BorrowHistoryView({
       borrowerPct: total ? Math.round((borrowers / total) * 100) : 0,
       returnPct: total ? Math.min(100, Math.round((returned / total) * 100)) : 0,
     };
-  }, [allCards, allReturns]);
+  }, [totalStat?.total, memberStat?.total, borrowerStat?.total, returnStat?.total]);
 
-  const filteredCards = useMemo(() => {
-    return allCards.filter((c) => {
-      if (typeFilter === "member" && c.card_type_category !== "member") return false;
-      if (typeFilter === "borrower" && c.card_type_category !== "borrower") return false;
-      if (typeFilter === "overdue") {
-        const overdue = getDaysOverdue(c.date_return, todayISO) > 0 && !returnedCardIds.has(c.id);
-        if (!overdue) return false;
-      }
-      if (dateFrom && (c.date_issued || "") < dateFrom) return false;
-      if (dateTo && (c.date_issued || "") > dateTo) return false;
-      if (!debouncedQ) return true;
-      const includePhone = !(isLibrarian && c.card_type_category === "member");
-      const hay = `${c.fullname} ${includePhone ? c.phone_number || "" : ""} ${(c.books ?? [])
-        .map((b) => `${b.book_title} ${b.book_isbn || ""}`)
-        .join(" ")}`.toLowerCase();
-      return hay.includes(debouncedQ);
-    });
-  }, [allCards, typeFilter, dateFrom, dateTo, debouncedQ, todayISO, returnedCardIds, isLibrarian]);
-
-  const filteredReturns = useMemo(() => {
-    return allReturns.filter((r) => {
-      if (dateFrom && (r.return_date || "") < dateFrom) return false;
-      if (dateTo && (r.return_date || "") > dateTo) return false;
-      if (!debouncedQ) return true;
-      const hay = `${r.borrower_name} ${r.book_title} ${r.book_author || ""} ${r.book_isbn || ""}`.toLowerCase();
-      return hay.includes(debouncedQ);
-    });
-  }, [allReturns, dateFrom, dateTo, debouncedQ]);
-
-  const activeList = activeTab === "all" ? filteredCards : filteredReturns;
-  const totalPages = Math.max(1, Math.ceil(activeList.length / PAGE_SIZE));
+  const pagedCards = useMemo(() => cardsData?.rows ?? [], [cardsData?.rows]);
+  const pagedReturns = useMemo(() => returnsData?.rows ?? [], [returnsData?.rows]);
+  const activeTotal =
+    activeTab === "all"
+      ? Number(cardsData?.total ?? pagedCards.length)
+      : Number(returnsData?.total ?? pagedReturns.length);
+  const totalPages =
+    activeTab === "all"
+      ? Math.max(1, Number(cardsData?.totalPages ?? 1))
+      : Math.max(1, Number(returnsData?.totalPages ?? 1));
   const safePage = Math.min(page, totalPages);
   const startIdx = (safePage - 1) * PAGE_SIZE;
 
-  const pagedCards = filteredCards.slice(startIdx, startIdx + PAGE_SIZE);
-  const pagedReturns = filteredReturns.slice(startIdx, startIdx + PAGE_SIZE);
-
-  const handleConfirmReturn = async (card: LibraryCardRow, returnDate: string) => {
+  const handleConfirmReturn = async (card: LibraryCardRow, payload: ProcessReturnPayload) => {
     setMutating(true);
     try {
-      await apiMutate("/api/admin/data", {
+      const res = (await apiMutate("/api/admin/data", {
         method: "PUT",
         body: {
           resource: "library_cards",
           action: "return_books",
           id: card.id,
-          payload: { return_date: returnDate },
+          payload,
         },
-      });
-      await Promise.all([mutateCards(), mutateReturns()]);
+      })) as { overdue_days?: number; fine_amount?: number };
+      await revalidateAll();
       setReturnCard(null);
-      showToast("Books returned successfully!", "success");
+      const fine = Number(res.fine_amount ?? 0);
+      const overdue = Number(res.overdue_days ?? 0);
+      showToast(
+        fine > 0
+          ? `Books returned (${overdue}d overdue · Fine ${formatPhp(fine)}).`
+          : "Books returned successfully!",
+        "success"
+      );
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Return failed.", "danger");
     } finally {
@@ -200,17 +299,7 @@ export function BorrowHistoryView({
     }
   };
 
-  const handleSaveEdit = async (
-    card: LibraryCardRow,
-    payload: {
-      date_return: string;
-      valid_until: string;
-      renewal1_checked: boolean;
-      renewal1_date: string;
-      renewal2_checked: boolean;
-      renewal2_date: string;
-    }
-  ) => {
+  const handleSaveEdit = async (card: LibraryCardRow, payload: EditCardPayload) => {
     setMutating(true);
     try {
       await apiMutate("/api/admin/data", {
@@ -222,11 +311,126 @@ export function BorrowHistoryView({
           payload,
         },
       });
-      await mutateCards();
+      await revalidateAll();
       setEditCard(null);
       showToast("Record updated!", "success");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Update failed.", "danger");
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const handleConfirmRenew = async (card: LibraryCardRow) => {
+    setMutating(true);
+    try {
+      const res = (await apiMutate("/api/admin/data", {
+        method: "PUT",
+        body: {
+          resource: "library_cards",
+          action: "renew",
+          id: card.id,
+          payload: {},
+        },
+      })) as { date_return?: string };
+      await revalidateAll();
+      setRenewCard(null);
+      showToast(
+        res.date_return
+          ? `Loan renewed — new due date: ${res.date_return}`
+          : "Loan renewed successfully!",
+        "success"
+      );
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Renewal failed.", "danger");
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const handleConfirmIncident = async (
+    card: LibraryCardRow,
+    payload: { kind: "damaged" | "lost"; card_book_id: number; reason: string; condition_notes?: string }
+  ) => {
+    setMutating(true);
+    try {
+      const action = payload.kind === "lost" ? "mark_lost" : "mark_damaged";
+      const res = (await apiMutate("/api/admin/data", {
+        method: "PUT",
+        body: {
+          resource: "library_cards",
+          action,
+          id: card.id,
+          payload: {
+            card_book_id: payload.card_book_id,
+            reason: payload.reason,
+            ...(payload.condition_notes ? { condition_notes: payload.condition_notes } : {}),
+          },
+        },
+      })) as { fee_amount?: number };
+      await revalidateAll();
+      setIncidentCard(null);
+      showToast(
+        `Marked ${payload.kind} — assessed fee: ${formatPhp(res.fee_amount ?? 0)}.`,
+        "success"
+      );
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to record incident.", "danger");
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const handleConfirmWaive = async (card: LibraryCardRow, reason: string) => {
+    setMutating(true);
+    try {
+      await apiMutate("/api/admin/data", {
+        method: "PUT",
+        body: {
+          resource: "library_cards",
+          action: "waive_fine",
+          id: card.id,
+          payload: { reason },
+        },
+      });
+      await revalidateAll();
+      setWaiveCard(null);
+      showToast(`Fine waived for Card #${card.id}.`, "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to waive fine.", "danger");
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const handleConfirmPayment = async (
+    card: LibraryCardRow,
+    payload: {
+      amount: number;
+      payment_method: "cash" | "gcash" | "bank" | "other";
+      idempotency_key: string;
+      note?: string;
+    }
+  ) => {
+    setMutating(true);
+    try {
+      const res = (await apiMutate("/api/admin/data", {
+        method: "PUT",
+        body: {
+          resource: "library_cards",
+          action: "record_fine_payment",
+          id: card.id,
+          payload,
+        },
+      })) as { amount_paid?: number; remaining_balance?: number };
+      await revalidateAll();
+      setPaymentCard(null);
+      showToast(
+        `Recorded payment ${formatPhp(res.amount_paid ?? payload.amount)} · Remaining: ${formatPhp(res.remaining_balance ?? 0)}.`,
+        "success"
+      );
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Payment failed.", "danger");
     } finally {
       setMutating(false);
     }
@@ -244,7 +448,7 @@ export function BorrowHistoryView({
           payload: {},
         },
       });
-      await mutateCards();
+      await revalidateAll();
       setDeleteCard(null);
       showToast("Record deleted.", "success");
     } catch (err) {
@@ -254,50 +458,80 @@ export function BorrowHistoryView({
     }
   };
 
-  const handleExportCSV = () => {
-    if (activeTab === "returns") {
-      if (!filteredReturns.length) {
-        showToast("Nothing to export.", "danger");
-        return;
-      }
-      const rows = [
-        "Borrower,Type,Book Title,Qty Returned,Date Returned",
-        ...filteredReturns.map(
-          (r) =>
-            `"${r.borrower_name.replace(/"/g, '""')}","${r.card_category}","${r.book_title.replace(/"/g, '""')}","${r.qty_returned}","${r.return_date || ""}"`
-        ),
-      ].join("\n");
-      const a = document.createElement("a");
-      a.href = `data:text/csv;charset=utf-8,${encodeURIComponent(rows)}`;
-      a.download = `return_history_${todayISO}.csv`;
-      a.click();
-      showToast("CSV exported!", "success");
-      return;
+  const handleConfirmDeleteReturn = async (item: ReturnItemRow) => {
+    setMutating(true);
+    try {
+      await apiMutate("/api/admin/data", {
+        method: "DELETE",
+        body: {
+          resource: "returns",
+          action: "delete",
+          id: item.id,
+          payload: {},
+        },
+      });
+      await revalidateAll();
+      setDeleteReturnItem(null);
+      showToast("Return item deleted.", "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to delete return record.", "danger");
+    } finally {
+      setMutating(false);
     }
+  };
 
-    if (!filteredCards.length) {
-      showToast("Nothing to export.", "danger");
-      return;
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams({
+        resource: activeTab === "returns" ? "returns" : "library_cards",
+        format: "csv",
+      });
+      if (debouncedQ) params.set("q", debouncedQ);
+      if (activeTab === "all") {
+        if (
+          typeFilter === "member" ||
+          typeFilter === "borrower" ||
+          typeFilter === "active" ||
+          typeFilter === "returned" ||
+          typeFilter === "lost"
+        ) {
+          params.set("status", typeFilter);
+        }
+        if (typeFilter === "overdue") {
+          params.set("overdue", "true");
+        }
+      }
+      if (dateFrom) params.set("from", dateFrom);
+      if (dateTo) params.set("to", dateTo);
+
+      const res = await fetch(`/api/admin/data?${params.toString()}`, {
+        credentials: "same-origin",
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "CSV export failed.");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${activeTab === "returns" ? "return_history" : "library_records"}_${todayISO}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast("Server CSV exported!", "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "CSV export failed.", "danger");
+    } finally {
+      setExporting(false);
     }
-    const rows = [
-      "Card ID,Name,Type,Books,Date Issued,Due Date,Card Type,Valid Until",
-      ...filteredCards.map(
-        (c) =>
-          `"${c.id}","${c.fullname.replace(/"/g, '""')}","${c.card_type_category}","${(c.books ?? [])
-            .map((b) => `${b.book_title}${b.quantity > 1 ? ` x${b.quantity}` : ""}`)
-            .join("; ")
-            .replace(/"/g, '""')}","${c.date_issued || ""}","${c.date_return || ""}","${formatCardTypeLabel(c.card_type)}","${(c.valid_until || "").replace(/"/g, '""')}"`
-      ),
-    ].join("\n");
-    const a = document.createElement("a");
-    a.href = `data:text/csv;charset=utf-8,${encodeURIComponent(rows)}`;
-    a.download = `library_records_${todayISO}.csv`;
-    a.click();
-    showToast("CSV exported!", "success");
   };
 
   const activeError = activeTab === "all" ? cardsError : returnsError;
   const activeLoading = activeTab === "all" ? cardsLoading : returnsLoading;
+  const currentListCount = activeTab === "all" ? pagedCards.length : pagedReturns.length;
 
   return (
     <StaffShell title="Borrow History" role={role}>
@@ -315,25 +549,34 @@ export function BorrowHistoryView({
           </div>
 
           {canExport && (
-            <button type="button" className="circ-btn export" onClick={handleExportCSV}>
-              <Download className="h-4 w-4" aria-hidden="true" /> Export CSV
+            <button type="button" className="circ-btn export" disabled={exporting} onClick={handleExportCSV}>
+              <Download className="h-4 w-4" aria-hidden="true" />
+              {exporting ? "Exporting…" : "Export CSV"}
             </button>
           )}
         </header>
 
         {/* 4 Stat Cards */}
         <section className="circ-stats-grid" aria-label="Circulation summary statistics">
-          <div className="circ-stat-card">
+          <button
+            type="button"
+            className="circ-stat-card"
+            onClick={() => {
+              setActiveTab("all");
+              setTypeFilter("");
+              setPage(1);
+            }}
+          >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <CreditCard className="h-5 w-5" style={{ color: "var(--circ-tl)" }} aria-hidden="true" />
               <span className="circ-badge" style={{ background: "rgba(218, 232, 245, 0.12)" }}>All</span>
             </div>
-            <div className="circ-stat-num">{cardsLoading ? "—" : stats.total}</div>
+            <div className="circ-stat-num">{totalStat ? stats.total : "—"}</div>
             <div style={{ fontSize: "0.78rem", color: "var(--circ-muted)" }}>Total Library Cards</div>
             <div className="circ-stat-bar">
               <div style={{ height: "100%", width: "100%", background: "var(--circ-tl)" }} />
             </div>
-          </div>
+          </button>
 
           <button
             type="button"
@@ -349,7 +592,7 @@ export function BorrowHistoryView({
               <span className="circ-badge" style={{ background: "rgba(159, 193, 225, 0.14)", color: "var(--circ-accent)" }}>Members</span>
             </div>
             <div className="circ-stat-num" style={{ color: "var(--circ-accent)" }}>
-              {cardsLoading ? "—" : stats.members}
+              {memberStat ? stats.members : "—"}
             </div>
             <div style={{ fontSize: "0.78rem", color: "var(--circ-muted)" }}>Registered Members</div>
             <div className="circ-stat-bar">
@@ -371,7 +614,7 @@ export function BorrowHistoryView({
               <span className="circ-badge" style={{ background: "rgba(72, 199, 142, 0.14)", color: "var(--circ-accent2)" }}>Borrowers</span>
             </div>
             <div className="circ-stat-num" style={{ color: "var(--circ-accent2)" }}>
-              {cardsLoading ? "—" : stats.borrowers}
+              {borrowerStat ? stats.borrowers : "—"}
             </div>
             <div style={{ fontSize: "0.78rem", color: "var(--circ-muted)" }}>Walk-In Borrowers</div>
             <div className="circ-stat-bar">
@@ -392,9 +635,9 @@ export function BorrowHistoryView({
               <span className="circ-badge" style={{ background: "rgba(255, 152, 0, 0.14)", color: "var(--circ-warn)" }}>Returns</span>
             </div>
             <div className="circ-stat-num" style={{ color: "var(--circ-warn)" }}>
-              {returnsLoading ? "—" : stats.returned}
+              {returnStat ? stats.returned : "—"}
             </div>
-            <div style={{ fontSize: "0.78rem", color: "var(--circ-muted)" }}>Books Returned</div>
+            <div style={{ fontSize: "0.78rem", color: "var(--circ-muted)" }}>Returned Items</div>
             <div className="circ-stat-bar">
               <div style={{ height: "100%", width: `${stats.returnPct}%`, background: "var(--circ-warn)" }} />
             </div>
@@ -417,7 +660,7 @@ export function BorrowHistoryView({
               <TableIcon className="h-4 w-4" aria-hidden="true" />
               All Records
               <span className="circ-badge" style={{ background: "rgba(159, 193, 225, 0.16)" }}>
-                {filteredCards.length}
+                {activeTab === "all" ? activeTotal : stats.total}
               </span>
             </button>
 
@@ -434,12 +677,12 @@ export function BorrowHistoryView({
               <ArrowDownLeft className="h-4 w-4" aria-hidden="true" />
               Return History
               <span className="circ-badge" style={{ background: "rgba(72, 199, 142, 0.16)" }}>
-                {filteredReturns.length}
+                {activeTab === "returns" ? activeTotal : stats.returned}
               </span>
             </button>
           </div>
 
-          {/* Unified Browse-Catalog Command Search & Filter Toolbar */}
+          {/* Search & Server Filters Toolbar */}
           <div className="p-4 border-b border-white/8 space-y-2.5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="group relative flex-1">
@@ -447,13 +690,14 @@ export function BorrowHistoryView({
                 <div className="relative flex h-[48px] items-center rounded-2xl border border-white/12 bg-bg1/90 px-4 shadow-[0_8px_30px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-all duration-200 focus-within:border-accent/50 focus-within:bg-bg1">
                   <Search className="h-4.5 w-4.5 shrink-0 text-accent/80" aria-hidden="true" />
                   <input
+                    ref={searchInputRef}
                     type="text"
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     placeholder={
                       activeTab === "all"
-                        ? "Search borrower name, book title, Book ID, or ISBN..."
-                        : "Search borrower name, returned book title, or ISBN..."
+                        ? "Search borrower name, book title, or ISBN… (⌘K)"
+                        : "Search borrower name, returned book title, or ISBN… (⌘K)"
                     }
                     aria-label="Search records"
                     className="w-full bg-transparent py-2 pl-3 pr-3 text-[0.9rem] text-white placeholder:text-white/38 focus:outline-none"
@@ -480,10 +724,13 @@ export function BorrowHistoryView({
                   <div className="flex flex-wrap items-center gap-1.5">
                     {(
                       [
-                        { key: "", label: "All Records" },
+                        { key: "", label: "All" },
                         { key: "member", label: "Members" },
                         { key: "borrower", label: "Borrowers" },
+                        { key: "active", label: "Active" },
                         { key: "overdue", label: "Overdue" },
+                        { key: "returned", label: "Returned" },
+                        { key: "lost", label: "Lost" },
                       ] as const
                     ).map((f) => {
                       const active = typeFilter === f.key;
@@ -496,11 +743,11 @@ export function BorrowHistoryView({
                             setTypeFilter(f.key);
                             setPage(1);
                           }}
-                          className={`inline-flex h-[48px] cursor-pointer items-center gap-2 rounded-2xl border px-4 text-xs font-semibold transition-all ${
+                          className={`inline-flex h-[42px] cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all ${
                             active
-                              ? f.key === "overdue"
+                              ? f.key === "overdue" || f.key === "lost"
                                 ? "border-danger/45 bg-danger/15 text-danger"
-                                : "border-accent/45 bg-accent/15 text-accent shadow-[0_0_20px_rgba(147,197,253,0.14)]"
+                                : "border-accent/45 bg-accent/15 text-accent"
                               : "border-white/12 bg-bg1/85 text-white/80 hover:border-white/22 hover:bg-white/8 hover:text-white"
                           }`}
                         >
@@ -520,7 +767,7 @@ export function BorrowHistoryView({
                       setPage(1);
                     }}
                     aria-label="Filter from date"
-                    className="h-[48px] rounded-2xl border border-white/12 bg-bg1/85 px-3 text-xs font-medium text-white focus:border-accent/50 focus:outline-none"
+                    className="h-[42px] rounded-xl border border-white/12 bg-bg1/85 px-3 text-xs font-medium text-white focus:border-accent/50 focus:outline-none"
                   />
                   <span className="text-xs text-tl/60">to</span>
                   <input
@@ -531,15 +778,15 @@ export function BorrowHistoryView({
                       setPage(1);
                     }}
                     aria-label="Filter to date"
-                    className="h-[48px] rounded-2xl border border-white/12 bg-bg1/85 px-3 text-xs font-medium text-white focus:border-accent/50 focus:outline-none"
+                    className="h-[42px] rounded-xl border border-white/12 bg-bg1/85 px-3 text-xs font-medium text-white focus:border-accent/50 focus:outline-none"
                   />
                 </div>
 
-                <div className="ml-auto flex h-[48px] items-center gap-1.5 rounded-2xl border border-white/8 bg-white/[0.03] px-3.5 text-xs text-tl lg:ml-0">
+                <div className="ml-auto flex h-[42px] items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.03] px-3.5 text-xs text-tl lg:ml-0">
                   <span className="whitespace-nowrap">
-                    <strong className="font-semibold text-white">{activeList.length}</strong>{" "}
+                    <strong className="font-semibold text-white">{activeTotal}</strong>{" "}
                     {activeTab === "all" ? "record" : "return"}
-                    {activeList.length === 1 ? "" : "s"}
+                    {activeTotal === 1 ? "" : "s"}
                   </span>
                 </div>
               </div>
@@ -564,7 +811,7 @@ export function BorrowHistoryView({
                 <div key={i} style={{ height: 48, borderRadius: 10, background: "rgba(159, 193, 225, 0.1)" }} />
               ))}
             </div>
-          ) : activeList.length === 0 ? (
+          ) : currentListCount === 0 ? (
             <div style={{ padding: 48, textAlign: "center", color: "var(--circ-muted)", fontSize: "0.88rem" }}>
               {activeTab === "all" ? "No records found." : "No return records yet."}
             </div>
@@ -578,25 +825,40 @@ export function BorrowHistoryView({
                       <th scope="col">Name</th>
                       <th scope="col">Type</th>
                       <th scope="col">Books Borrowed</th>
-                      <th scope="col">Issued</th>
-                      <th scope="col">Due Date</th>
+                      <th scope="col">Issued / Due</th>
                       <th scope="col">Status</th>
-                      <th scope="col">Card</th>
-                      <th scope="col">Valid Until</th>
+                      <th scope="col">Fine</th>
+                      <th scope="col">Registered By</th>
                       <th scope="col">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {pagedCards.map((c) => {
-                      const isReturned = returnedCardIds.has(c.id);
-                      const overdueDays = isReturned ? 0 : getDaysOverdue(c.date_return, todayISO);
-                      const hasBooks = (c.books ?? []).length > 0;
+                      const books = c.books ?? [];
+                      const hasBooks = books.length > 0;
+                      const isReturned = Boolean(c.is_returned || c.status === "returned");
+                      const isLost = c.status === "lost";
+                      const isClosed = isReturned || isLost;
+                      const hasActiveBooks = books.some((b) => {
+                        const ls = String(b.loan_status ?? "borrowed");
+                        return ls === "borrowed" || ls === "overdue";
+                      });
+                      const overdueDays =
+                        typeof c.overdue_days === "number"
+                          ? c.overdue_days
+                          : isReturned
+                            ? 0
+                            : getDaysOverdue(c.date_return, todayISO);
+                      const status = c.status ?? (isReturned ? "returned" : overdueDays > 0 ? "overdue" : "active");
+                      const fineVal = Number(c.fine_amount ?? 0);
+                      const renewalsUsed = (c.renewal1_checked ? 1 : 0) + (c.renewal2_checked ? 1 : 0);
+
                       return (
                         <tr key={c.id}>
                           <td>
                             <div style={{ fontWeight: 700 }}>{c.fullname}</div>
                             <div style={{ fontSize: "0.73rem", color: "var(--circ-tl)" }}>
-                              Card #{c.id}
+                              Card #{c.id} · {formatCardTypeLabel(c.card_type)}
                             </div>
                           </td>
                           <td>
@@ -614,42 +876,68 @@ export function BorrowHistoryView({
                           <td>
                             {hasBooks ? (
                               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                {c.books.slice(0, 3).map((b, i) => (
+                                {books.slice(0, 2).map((b, i) => (
                                   <div key={b.id ?? i} style={{ fontSize: "0.78rem" }}>
-                                    • {b.book_id ? `[#${b.book_id}] ` : ""}{b.book_title}{" "}
-                                    {b.quantity > 1 ? `(×${b.quantity})` : ""}
+                                    • {b.book_id ? `[#${b.book_id}] ` : ""}
+                                    {b.book_title}
+                                    {b.quantity > 1 ? ` (×${b.quantity})` : ""}
                                   </div>
                                 ))}
+                                {books.length > 2 && (
+                                  <span
+                                    className="circ-badge"
+                                    style={{
+                                      width: "fit-content",
+                                      fontSize: "0.68rem",
+                                      background: "rgba(159, 193, 225, 0.14)",
+                                      color: "var(--circ-accent)",
+                                    }}
+                                  >
+                                    +{books.length - 2} more
+                                  </span>
+                                )}
                               </div>
                             ) : (
                               "—"
                             )}
                           </td>
-                          <td style={{ fontFamily: "var(--font-mono), monospace", fontSize: "0.78rem" }}>
-                            {c.date_issued || "—"}
-                          </td>
-                          <td style={{ fontFamily: "var(--font-mono), monospace", fontSize: "0.78rem" }}>
-                            {c.date_return || "—"}
+                          <td style={{ fontFamily: "var(--font-mono), monospace", fontSize: "0.75rem" }}>
+                            <div>{c.date_issued || "—"}</div>
+                            <div style={{ color: "var(--circ-tl)" }}>Due: {c.date_return || "—"}</div>
                           </td>
                           <td>
-                            {isReturned ? (
+                            {status === "returned" ? (
                               <span className="circ-badge" style={{ background: "rgba(72, 199, 142, 0.15)", color: "var(--circ-accent2)" }}>
                                 <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> Returned
                               </span>
-                            ) : overdueDays > 0 ? (
+                            ) : status === "lost" ? (
+                              <span className="circ-badge" style={{ background: "rgba(255, 99, 99, 0.18)", color: "var(--circ-danger)" }}>
+                                <ShieldAlert className="h-3 w-3" aria-hidden="true" /> Lost
+                              </span>
+                            ) : status === "overdue" || overdueDays > 0 ? (
                               <span className="circ-badge" style={{ background: "rgba(255, 99, 99, 0.16)", color: "var(--circ-danger)" }}>
                                 <AlertTriangle className="h-3 w-3" aria-hidden="true" /> Overdue ({overdueDays}d)
                               </span>
                             ) : (
                               <span className="circ-badge" style={{ background: "rgba(159, 193, 225, 0.14)", color: "var(--circ-accent)" }}>
-                                Borrowed
+                                Active
                               </span>
                             )}
                           </td>
-                          <td>{formatCardTypeLabel(c.card_type)}</td>
-                          <td style={{ fontSize: "0.76rem", maxWidth: 140 }}>{c.valid_until || "—"}</td>
+                          <td style={{ fontFamily: "var(--font-mono), monospace", fontSize: "0.78rem", fontWeight: 600 }}>
+                            {c.fine_waived ? (
+                              <span style={{ color: "var(--circ-accent2)" }}>Waived</span>
+                            ) : fineVal > 0 ? (
+                              <span style={{ color: "var(--circ-danger)" }}>{formatPhp(fineVal)}</span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td style={{ fontSize: "0.76rem", color: "var(--circ-tl)" }}>
+                            {c.registered_by_name || "—"}
+                          </td>
                           <td>
-                            <div style={{ display: "flex", gap: 6 }}>
+                            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                               <button
                                 type="button"
                                 className="circ-icon-btn view"
@@ -659,7 +947,7 @@ export function BorrowHistoryView({
                               >
                                 <Eye className="h-4 w-4" aria-hidden="true" />
                               </button>
-                              {canReturn && !isReturned && hasBooks && (
+                              {canReturn && !isClosed && hasActiveBooks && (
                                 <button
                                   type="button"
                                   className="circ-icon-btn ret"
@@ -670,15 +958,59 @@ export function BorrowHistoryView({
                                   <ArrowDownLeft className="h-4 w-4" aria-hidden="true" />
                                 </button>
                               )}
-                              {canRenew && (
+                              {canRenew && !isClosed && hasActiveBooks && renewalsUsed < 2 && (
+                                <button
+                                  type="button"
+                                  className="circ-icon-btn view"
+                                  onClick={() => setRenewCard(c)}
+                                  aria-label={`Renew loan for ${c.fullname}`}
+                                  title="Renew Loan"
+                                >
+                                  <RotateCw className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                              )}
+                              {canRenew && !isClosed && (
                                 <button
                                   type="button"
                                   className="circ-icon-btn edit"
                                   onClick={() => setEditCard(c)}
-                                  aria-label={`Edit or renew card for ${c.fullname}`}
-                                  title="Edit / Renew"
+                                  aria-label={`Edit card for ${c.fullname}`}
+                                  title="Edit Card"
                                 >
                                   <Pencil className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                              )}
+                              {effectiveCanMarkLost && !isClosed && hasActiveBooks && (
+                                <button
+                                  type="button"
+                                  className="circ-icon-btn del"
+                                  onClick={() => setIncidentCard(c)}
+                                  aria-label={`Report damaged or lost book for ${c.fullname}`}
+                                  title="Report Damaged / Lost"
+                                >
+                                  <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                              )}
+                              {fineVal > 0 && !c.fine_waived && (
+                                <button
+                                  type="button"
+                                  className="circ-icon-btn ret"
+                                  onClick={() => setPaymentCard(c)}
+                                  aria-label={`Record fine payment for ${c.fullname}`}
+                                  title="Record Fine Payment"
+                                >
+                                  <Banknote className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                              )}
+                              {effectiveCanWaiveFine && fineVal > 0 && !c.fine_waived && (
+                                <button
+                                  type="button"
+                                  className="circ-icon-btn view"
+                                  onClick={() => setWaiveCard(c)}
+                                  aria-label={`Waive fine for ${c.fullname}`}
+                                  title="Waive Fine (Admin)"
+                                >
+                                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                                 </button>
                               )}
                               {canDelete && (
@@ -704,35 +1036,74 @@ export function BorrowHistoryView({
               {/* Mobile Stacked Cards (<640px) */}
               <div className="circ-mobile-cards">
                 {pagedCards.map((c) => {
-                  const isReturned = returnedCardIds.has(c.id);
-                  const overdueDays = isReturned ? 0 : getDaysOverdue(c.date_return, todayISO);
+                  const books = c.books ?? [];
+                  const isReturned = Boolean(c.is_returned || c.status === "returned");
+                  const isClosed = isReturned || c.status === "lost";
+                  const hasActiveBooks = books.some((b) => {
+                    const ls = String(b.loan_status ?? "borrowed");
+                    return ls === "borrowed" || ls === "overdue";
+                  });
+                  const overdueDays =
+                    typeof c.overdue_days === "number"
+                      ? c.overdue_days
+                      : isReturned
+                        ? 0
+                        : getDaysOverdue(c.date_return, todayISO);
+                  const fineVal = Number(c.fine_amount ?? 0);
+                  const renewalsUsed = (c.renewal1_checked ? 1 : 0) + (c.renewal2_checked ? 1 : 0);
+
                   return (
                     <div key={c.id} className="circ-mobile-card">
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                         <strong>{c.fullname}</strong>
-                        <span style={{ fontSize: "0.75rem", fontWeight: 700, color: overdueDays > 0 ? "var(--circ-danger)" : "var(--circ-accent2)" }}>
-                          {isReturned ? "Returned" : overdueDays > 0 ? `Overdue (${overdueDays}d)` : "Borrowed"}
+                        <span style={{ fontSize: "0.75rem", fontWeight: 700, color: overdueDays > 0 || c.status === "lost" ? "var(--circ-danger)" : "var(--circ-accent2)" }}>
+                          {isReturned ? "Returned" : c.status === "lost" ? "Lost" : overdueDays > 0 ? `Overdue (${overdueDays}d)` : "Active"}
                         </span>
                       </div>
                       <div style={{ fontSize: "0.78rem", color: "var(--circ-tl)" }}>
-                        Issued: {c.date_issued || "—"} · Due: {c.date_return || "—"}
+                        Card #{c.id} · Issued: {c.date_issued || "—"} · Due: {c.date_return || "—"}
+                        {fineVal > 0 && !c.fine_waived ? ` · Fine: ${formatPhp(fineVal)}` : c.fine_waived ? " · Waived" : ""}
                       </div>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-                        <button type="button" className="circ-btn" style={{ minHeight: 38, fontSize: "0.78rem" }} onClick={() => setViewCard(c)}>
+                      <div style={{ fontSize: "0.76rem", opacity: 0.85 }}>
+                        {books.slice(0, 2).map((b) => b.book_title).join(", ")}
+                        {books.length > 2 ? ` (+${books.length - 2} more)` : ""}
+                      </div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                        <button type="button" className="circ-btn" style={{ minHeight: 36, fontSize: "0.75rem" }} onClick={() => setViewCard(c)}>
                           View
                         </button>
-                        {canReturn && !isReturned && (c.books ?? []).length > 0 && (
-                          <button type="button" className="circ-btn" style={{ minHeight: 38, fontSize: "0.78rem", color: "var(--circ-warn)" }} onClick={() => setReturnCard(c)}>
+                        {canReturn && !isClosed && hasActiveBooks && (
+                          <button type="button" className="circ-btn" style={{ minHeight: 36, fontSize: "0.75rem", color: "var(--circ-warn)" }} onClick={() => setReturnCard(c)}>
                             Return
                           </button>
                         )}
-                        {canRenew && (
-                          <button type="button" className="circ-btn" style={{ minHeight: 38, fontSize: "0.78rem" }} onClick={() => setEditCard(c)}>
+                        {canRenew && !isClosed && hasActiveBooks && renewalsUsed < 2 && (
+                          <button type="button" className="circ-btn" style={{ minHeight: 36, fontSize: "0.75rem" }} onClick={() => setRenewCard(c)}>
+                            Renew
+                          </button>
+                        )}
+                        {canRenew && !isClosed && (
+                          <button type="button" className="circ-btn" style={{ minHeight: 36, fontSize: "0.75rem" }} onClick={() => setEditCard(c)}>
                             Edit
                           </button>
                         )}
+                        {effectiveCanMarkLost && !isClosed && hasActiveBooks && (
+                          <button type="button" className="circ-btn" style={{ minHeight: 36, fontSize: "0.75rem", color: "var(--circ-danger)" }} onClick={() => setIncidentCard(c)}>
+                            Incident
+                          </button>
+                        )}
+                        {fineVal > 0 && !c.fine_waived && (
+                          <button type="button" className="circ-btn" style={{ minHeight: 36, fontSize: "0.75rem", color: "var(--circ-accent2)" }} onClick={() => setPaymentCard(c)}>
+                            Pay Fine
+                          </button>
+                        )}
+                        {effectiveCanWaiveFine && fineVal > 0 && !c.fine_waived && (
+                          <button type="button" className="circ-btn" style={{ minHeight: 36, fontSize: "0.75rem" }} onClick={() => setWaiveCard(c)}>
+                            Waive
+                          </button>
+                        )}
                         {canDelete && (
-                          <button type="button" className="circ-btn" style={{ minHeight: 38, fontSize: "0.78rem", color: "var(--circ-danger)" }} onClick={() => setDeleteCard(c)}>
+                          <button type="button" className="circ-btn" style={{ minHeight: 36, fontSize: "0.75rem", color: "var(--circ-danger)" }} onClick={() => setDeleteCard(c)}>
                             Delete
                           </button>
                         )}
@@ -750,21 +1121,23 @@ export function BorrowHistoryView({
                   <thead>
                     <tr>
                       <th scope="col">Borrower</th>
-                      <th scope="col">Type</th>
                       <th scope="col">Book Returned</th>
                       <th scope="col">Qty</th>
+                      <th scope="col">Condition</th>
                       <th scope="col">Date Returned</th>
-                      <th scope="col">Status</th>
+                      <th scope="col">Overdue / Fine</th>
+                      <th scope="col">Processed By</th>
+                      {effectiveCanDeleteReturn && <th scope="col">Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {pagedReturns.map((r) => (
                       <tr key={r.id}>
-                        <td style={{ fontWeight: 700 }}>{r.borrower_name}</td>
                         <td>
-                          <span className="circ-badge" style={{ background: "rgba(159, 193, 225, 0.14)", color: "var(--circ-accent)" }}>
-                            {r.card_category === "member" ? "Member" : "Borrower"}
-                          </span>
+                          <div style={{ fontWeight: 700 }}>{r.borrower_name}</div>
+                          <div style={{ fontSize: "0.72rem", color: "var(--circ-tl)" }}>
+                            Card #{r.card_id ?? "—"} · {r.card_category === "member" ? "Member" : "Borrower"}
+                          </div>
                         </td>
                         <td>
                           <div style={{ fontWeight: 600 }}>{r.book_title}</div>
@@ -773,14 +1146,53 @@ export function BorrowHistoryView({
                         <td style={{ fontFamily: "var(--font-mono), monospace", fontWeight: 700 }}>
                           ×{r.qty_returned}
                         </td>
+                        <td>
+                          <span
+                            className="circ-badge"
+                            style={
+                              r.return_condition === "Damaged" ||
+                              r.return_condition === "Destroyed" ||
+                              r.return_condition === "Lost"
+                                ? { background: "rgba(255, 99, 99, 0.16)", color: "var(--circ-danger)" }
+                                : { background: "rgba(72, 199, 142, 0.15)", color: "var(--circ-accent2)" }
+                            }
+                          >
+                            {r.return_condition || "Good"}
+                          </span>
+                        </td>
                         <td style={{ fontFamily: "var(--font-mono), monospace", fontSize: "0.78rem", color: "var(--circ-accent2)" }}>
                           {r.return_date || "—"}
                         </td>
-                        <td>
-                          <span className="circ-badge" style={{ background: "rgba(72, 199, 142, 0.15)", color: "var(--circ-accent2)" }}>
-                            <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> Returned
-                          </span>
+                        <td style={{ fontFamily: "var(--font-mono), monospace", fontSize: "0.76rem" }}>
+                          {r.fine_waived ? (
+                            <span style={{ color: "var(--circ-accent2)" }}>Waived</span>
+                          ) : Number(r.fine_amount ?? 0) > 0 ? (
+                            <span style={{ color: "var(--circ-danger)" }}>
+                              {r.overdue_days ? `${r.overdue_days}d · ` : ""}
+                              {formatPhp(r.fine_amount)}
+                            </span>
+                          ) : r.overdue_days && r.overdue_days > 0 ? (
+                            `${r.overdue_days}d`
+                          ) : (
+                            "On time"
+                          )}
                         </td>
+                        <td style={{ fontSize: "0.76rem", color: "var(--circ-tl)" }}>
+                          {r.processed_by_name || "—"}
+                        </td>
+                        {effectiveCanDeleteReturn && (
+                          <td>
+                            <button
+                              type="button"
+                              className="circ-icon-btn del"
+                              onClick={() => setDeleteReturnItem(r)}
+                              aria-label={`Delete return item ${r.book_title}`}
+                              title="Delete Return Record (Admin)"
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -790,19 +1202,37 @@ export function BorrowHistoryView({
               <div className="circ-mobile-cards">
                 {pagedReturns.map((r) => (
                   <div key={r.id} className="circ-mobile-card">
-                    <strong>{r.borrower_name}</strong>
-                    <div style={{ fontSize: "0.8rem" }}>{r.book_title} (×{r.qty_returned})</div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--circ-accent2)" }}>
-                      Returned on {r.return_date || "—"}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <strong>{r.borrower_name}</strong>
+                      <span style={{ fontSize: "0.74rem", fontWeight: 600 }}>{r.return_condition || "Good"}</span>
                     </div>
+                    <div style={{ fontSize: "0.8rem" }}>{r.book_title} (×{r.qty_returned})</div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--circ-tl)" }}>
+                      Returned: {r.return_date || "—"} · By: {r.processed_by_name || "—"}
+                      {r.fine_waived
+                        ? " · Fine waived"
+                        : Number(r.fine_amount ?? 0) > 0
+                          ? ` · Fine: ${formatPhp(r.fine_amount)}`
+                          : ""}
+                    </div>
+                    {effectiveCanDeleteReturn && (
+                      <button
+                        type="button"
+                        className="circ-btn"
+                        style={{ minHeight: 34, fontSize: "0.74rem", color: "var(--circ-danger)", width: "fit-content" }}
+                        onClick={() => setDeleteReturnItem(r)}
+                      >
+                        Delete Return
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
             </>
           )}
 
-          {/* Pagination */}
-          {!activeLoading && activeList.length > 0 && (
+          {/* Server Pagination */}
+          {!activeLoading && currentListCount > 0 && (
             <div
               style={{
                 display: "flex",
@@ -815,8 +1245,8 @@ export function BorrowHistoryView({
               }}
             >
               <span style={{ fontSize: "0.78rem", color: "var(--circ-muted)" }}>
-                Showing {startIdx + 1}–{Math.min(startIdx + PAGE_SIZE, activeList.length)} of{" "}
-                {activeList.length} records
+                Showing {startIdx + 1}–{Math.min(startIdx + currentListCount, activeTotal)} of{" "}
+                {activeTotal} records
               </span>
               <div style={{ display: "flex", gap: 6 }}>
                 <button
@@ -850,15 +1280,44 @@ export function BorrowHistoryView({
       <CardDetailModal card={viewCard} role={role} onClose={() => setViewCard(null)} />
       <ProcessReturnModal
         card={returnCard}
+        role={role}
         busy={mutating}
         onClose={() => setReturnCard(null)}
         onConfirm={handleConfirmReturn}
       />
       <EditCardModal
         card={editCard}
+        role={role}
         busy={mutating}
         onClose={() => setEditCard(null)}
         onSave={handleSaveEdit}
+        onRequestRenew={canRenew ? (card) => setRenewCard(card) : undefined}
+      />
+      <RenewLoanModal
+        card={renewCard}
+        busy={mutating}
+        onClose={() => setRenewCard(null)}
+        onConfirm={handleConfirmRenew}
+      />
+      <MarkIncidentModal
+        card={incidentCard}
+        busy={mutating}
+        onClose={() => setIncidentCard(null)}
+        onConfirm={handleConfirmIncident}
+      />
+      {effectiveCanWaiveFine && (
+        <WaiveFineModal
+          card={waiveCard}
+          busy={mutating}
+          onClose={() => setWaiveCard(null)}
+          onConfirm={handleConfirmWaive}
+        />
+      )}
+      <RecordPaymentModal
+        card={paymentCard}
+        busy={mutating}
+        onClose={() => setPaymentCard(null)}
+        onConfirm={handleConfirmPayment}
       />
       <DeleteCardModal
         card={deleteCard}
@@ -866,6 +1325,14 @@ export function BorrowHistoryView({
         onClose={() => setDeleteCard(null)}
         onConfirm={handleConfirmDelete}
       />
+      {effectiveCanDeleteReturn && (
+        <DeleteReturnModal
+          item={deleteReturnItem}
+          busy={mutating}
+          onClose={() => setDeleteReturnItem(null)}
+          onConfirm={handleConfirmDeleteReturn}
+        />
+      )}
 
       {toast && (
         <div className="circ-toast" role="status" aria-live="polite">

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSessionToken, signSession } from "@/lib/auth/session";
+import { enforceSystemMode } from "@/lib/auth/system-mode";
 import { resolveEmail } from "@/repositories/shared";
 
 export const QR_TOKEN_TTL_SEC = 60;
@@ -106,7 +107,7 @@ export async function consumeConfirmedQrToken(supabase: SupabaseClient, row: QrT
 
   const { data: user, error: userErr } = await supabase
     .from("users")
-    .select("id, username, email_display, role, is_active, is_approved")
+    .select("id, username, email_display, role, is_active, is_approved, is_locked, lock_until")
     .eq("id", row.user_id)
     .single();
 
@@ -117,10 +118,26 @@ export async function consumeConfirmedQrToken(supabase: SupabaseClient, row: QrT
     return { ok: false as const, reason: "Account is inactive or pending approval." };
   }
 
+  const isCurrentlyLocked =
+    Boolean(user.is_locked) &&
+    (!user.lock_until || Date.parse(String(user.lock_until)) > Date.now());
+  if (isCurrentlyLocked) {
+    return { ok: false as const, reason: "Account is temporarily locked." };
+  }
+
   const nowIso = new Date().toISOString();
   const sessionToken = createSessionToken();
   const role = user.role as "admin" | "librarian" | "user";
   const email = resolveEmail(user.email_display, user.username);
+
+  try {
+    await enforceSystemMode(supabase, role);
+  } catch (err) {
+    return {
+      ok: false as const,
+      reason: err instanceof Error ? err.message : "System is temporarily unavailable.",
+    };
+  }
 
   await Promise.all([
     supabase

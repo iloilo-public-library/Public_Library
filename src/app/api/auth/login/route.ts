@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
-import { SESSION_COOKIE_NAME } from "@/lib/auth/session";
+import {
+  PENDING_MFA_COOKIE_NAME,
+  PENDING_MFA_MAX_AGE_SEC,
+  SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_SEC,
+} from "@/lib/auth/session";
 import { getClientIp } from "@/lib/auth/rate-limit";
 import { AppError, toErrorResponse } from "@/lib/errors";
 import { authenticateUserLogin } from "@/services/auth.service";
@@ -38,6 +43,24 @@ export async function POST(request: Request) {
       getClientIp(request)
     );
 
+    if (result.mfa_required) {
+      const response = NextResponse.json({
+        ok: true,
+        mfa_required: true,
+        methods: result.methods,
+      });
+
+      response.cookies.set(PENDING_MFA_COOKIE_NAME, result.pendingMfaCookie, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: PENDING_MFA_MAX_AGE_SEC,
+      });
+
+      return response;
+    }
+
     const response = NextResponse.json({
       ok: true,
       redirectTo: result.redirectTo,
@@ -49,7 +72,7 @@ export async function POST(request: Request) {
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
-      maxAge: 3600,
+      maxAge: SESSION_MAX_AGE_SEC,
     });
 
     return response;

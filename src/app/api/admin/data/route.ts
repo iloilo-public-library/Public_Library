@@ -16,7 +16,10 @@ import {
   getAdminResourceData,
 } from "@/services/admin.service";
 import { adminMutationSchema, adminQuerySchema } from "@/validators/admin";
-import { buildBorrowHistoryCsv } from "@/lib/circulation/rules";
+import {
+  buildBorrowHistoryCsv,
+  CIRCULATION_RULES,
+} from "@/lib/circulation/rules";
 import {
   clearAllErrorLogs,
   deleteErrorLog,
@@ -329,6 +332,7 @@ export async function GET(request: Request) {
   const adminOnlyReadResources = new Set([
     "admins",
     "librarians",
+    "library_holidays",
     "system_settings",
     "error_logs",
     "backup_logs",
@@ -370,6 +374,14 @@ export async function GET(request: Request) {
     const parseBoolParam = (v?: string) =>
       v === undefined ? undefined : v === "true" || v === "1";
 
+    const effectivePageSize =
+      format === "csv" && (resource === "library_cards" || resource === "returns")
+        ? Math.min(
+            CIRCULATION_RULES.MAX_CSV_EXPORT_ROWS,
+            pageSize ?? limit ?? CIRCULATION_RULES.MAX_CSV_EXPORT_ROWS
+          )
+        : pageSize ?? limit;
+
     const payload = await getAdminResourceData(
       supabase,
       resource,
@@ -382,7 +394,7 @@ export async function GET(request: Request) {
         sessionRole: session?.role ?? null,
         sessionToken: isStaff && session ? session.sessionToken : null,
         page,
-        pageSize: pageSize ?? limit,
+        pageSize: effectivePageSize,
         q,
         isbn,
         status,
@@ -484,12 +496,17 @@ async function processMutationRequest(
       "librarians",
       "admins",
       "event_categories",
+      "library_holidays",
       "system_settings",
       "error_logs",
     ]);
     if (
       (adminOnlyWriteResources.has(resource) ||
-        (resource === "library_cards" && action === "waive_fine")) &&
+        (resource === "library_cards" && action === "waive_fine") ||
+        (resource === "library_cards" &&
+          action === "resolve_replacement" &&
+          payload?.resolution === "waived") ||
+        (resource === "returns" && action === "delete")) &&
       !isAdminRole(session.role)
     ) {
       return NextResponse.json(

@@ -48,6 +48,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { Reveal, StaggerGroup, StaggerItem } from "@/components/ui/motion";
+import { CIRCULATION_POLICY } from "@/components/circulation/types";
 
 const QUALITY_POLICY_ITEMS = [
   "Acquire and generate relevant library resources.",
@@ -119,7 +120,7 @@ const LIBRARY_SECTIONS = [
   {
     icon: ArrowLeftRight,
     title: "Circulation Section",
-    desc: "Located on the 2nd floor of the building, this section manages the borrowing and returning of library materials. Up to 2 books may be loaned out for 3 days, with renewals available.",
+    desc: `Located on the 2nd floor of the building, this section manages the borrowing and returning of library materials. Up to ${CIRCULATION_POLICY.MAX_ACTIVE_BORROWS} books may be loaned out for ${CIRCULATION_POLICY.DEFAULT_LOAN_DAYS} days (max ${CIRCULATION_POLICY.MAX_LOAN_DAYS} days), with up to ${CIRCULATION_POLICY.MAX_RENEWALS} renewals available.`,
   },
   {
     icon: Briefcase,
@@ -187,7 +188,7 @@ const GENERAL_GUIDELINES = [
   },
   {
     icon: CalendarCheck,
-    text: "A maximum of two (2) books are allowed for home reading for three (3) days. Books are renewable for loan-out.",
+    text: `A maximum of ${CIRCULATION_POLICY.MAX_ACTIVE_BORROWS} active books are allowed for home reading for ${CIRCULATION_POLICY.DEFAULT_LOAN_DAYS} days (up to ${CIRCULATION_POLICY.MAX_LOAN_DAYS} days max), renewable up to ${CIRCULATION_POLICY.MAX_RENEWALS} times when eligible.`,
   },
   {
     icon: Lock,
@@ -594,10 +595,14 @@ export function AboutUsContent() {
                   <Clock className="h-3 w-3" /> Overdue
                 </div>
                 <h3 className="mb-1 text-[0.98rem] font-bold text-white">Late Return</h3>
-                <div className="my-2 font-mono text-2xl font-bold text-warn">₱10.00 / day</div>
+                <div className="my-2 font-mono text-2xl font-bold text-warn">
+                  ₱{CIRCULATION_POLICY.DAILY_OVERDUE_FINE_PHP.toFixed(2)} / day
+                </div>
                 <p className="text-[0.82rem] leading-[1.7] text-tl/85">
-                  A ten-peso charge per day is applied for every overdue book from the Circulation
-                  section. Counting covers working days only, excluding holidays.
+                  A ₱{CIRCULATION_POLICY.DAILY_OVERDUE_FINE_PHP.toFixed(2)} charge per{" "}
+                  {CIRCULATION_POLICY.FINE_DAY_MODE} day (grace period:{" "}
+                  {CIRCULATION_POLICY.GRACE_PERIOD_DAYS} days, no cap) is applied for overdue
+                  Circulation books.
                 </p>
               </div>
             </StaggerItem>
@@ -610,10 +615,9 @@ export function AboutUsContent() {
                 </div>
                 <h3 className="mb-2 text-[0.98rem] font-bold text-white">Lost Materials</h3>
                 <p className="text-[0.82rem] leading-[1.7] text-tl/85">
-                  Immediately report the loss to the City Librarian and execute an Affidavit of
-                  Loss. The book may be replaced with the same copy/edition, the current/updated
-                  edition, or a related title as assessed and approved by the City Librarian,
-                  subject to Commission on Audit rules.
+                  Immediately report the loss to the City Librarian, execute an Affidavit of Loss,
+                  and replace the copy or pay its assessed equivalent as approved by the City
+                  Librarian.
                 </p>
               </div>
             </StaggerItem>
@@ -626,9 +630,8 @@ export function AboutUsContent() {
                 </div>
                 <h3 className="mb-2 text-[0.98rem] font-bold text-white">Damaged Materials</h3>
                 <p className="text-[0.82rem] leading-[1.7] text-tl/85">
-                  Tampered or torn materials will be confiscated by the City Librarian. The
-                  borrower must replace the item with the same title, updated edition, or a
-                  related subject title as approved by the City Librarian.
+                  Tampered or torn materials require replacement or equivalent fee as
+                  assessed and approved by the City Librarian.
                 </p>
               </div>
             </StaggerItem>

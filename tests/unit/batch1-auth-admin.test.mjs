@@ -45,6 +45,7 @@ test("1. Strict Zod validation rejects unknown fields across Batch 1 auth and ad
   const loginRes = loginSchema.safeParse({
     email: "admin@iloilolibrary.gov.ph",
     password: "Admin@123",
+    captcha_token: "valid-captcha-token-123456",
     extraField: "hack",
   });
   assert.equal(loginRes.success, false);
@@ -226,42 +227,52 @@ test("3. Auth validators enforce signup, OTP, PIN, CAPTCHA, QR, and reset rules"
 });
 
 test("4. Session signing, tamper rejection, and RBAC role guards work deterministically", () => {
-  const sessionToken = createSessionToken();
-  assert.equal(sessionToken.length, 32);
+  const prevSecret = process.env.SECRET_KEY;
+  process.env.SECRET_KEY = "unit-test-signing-secret-key-0123456789";
+  try {
+    const sessionToken = createSessionToken();
+    assert.equal(sessionToken.length, 32);
 
-  const signed = signSession({
-    userId: 1,
-    role: "admin",
-    email: "anthonyojera47@gmail.com",
-    sessionToken,
-  });
+    const signed = signSession({
+      userId: 1,
+      role: "admin",
+      email: "anthonyojera47@gmail.com",
+      sessionToken,
+    });
 
-  const verified = verifySession(signed);
-  assert.ok(verified);
-  assert.equal(verified.userId, 1);
-  assert.equal(verified.role, "admin");
-  assert.equal(verified.sessionToken, sessionToken);
+    const verified = verifySession(signed);
+    assert.ok(verified);
+    assert.equal(verified.userId, 1);
+    assert.equal(verified.role, "admin");
+    assert.equal(verified.sessionToken, sessionToken);
 
-  // Tampered signature must be rejected
-  const tampered = `${signed.slice(0, -3)}abc`;
-  assert.equal(verifySession(tampered), null);
+    // Tampered signature must be rejected
+    const tampered = `${signed.slice(0, -3)}abc`;
+    assert.equal(verifySession(tampered), null);
 
-  // Role helpers
-  assert.equal(isAdminRole("admin"), true);
-  assert.equal(isAdminRole("librarian"), false);
-  assert.equal(isStaffRole("admin"), true);
-  assert.equal(isStaffRole("librarian"), true);
-  assert.equal(isStaffRole("user"), false);
+    // Role helpers
+    assert.equal(isAdminRole("admin"), true);
+    assert.equal(isAdminRole("librarian"), false);
+    assert.equal(isStaffRole("admin"), true);
+    assert.equal(isStaffRole("librarian"), true);
+    assert.equal(isStaffRole("user"), false);
 
-  const userSession = {
-    userId: 73,
-    role: "user",
-    email: "juan@example.com",
-    sessionToken,
-    exp: Math.floor(Date.now() / 1000) + 3600,
-  };
-  assert.equal(hasRole(userSession, ["admin", "librarian"]), false);
-  assert.equal(hasRole(verified, ["admin", "librarian"]), true);
+    const userSession = {
+      userId: 73,
+      role: "user",
+      email: "juan@example.com",
+      sessionToken,
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    };
+    assert.equal(hasRole(userSession, ["admin", "librarian"]), false);
+    assert.equal(hasRole(verified, ["admin", "librarian"]), true);
+  } finally {
+    if (prevSecret === undefined) {
+      delete process.env.SECRET_KEY;
+    } else {
+      process.env.SECRET_KEY = prevSecret;
+    }
+  }
 });
 
 test("5. Abuse rate limiter blocks after maxAttempts and reports retryAfterSec", async () => {

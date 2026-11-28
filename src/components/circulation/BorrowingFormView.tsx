@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
+  Upload,
   UserCheck,
   UserPlus,
   X,
@@ -21,15 +22,36 @@ import {
 import { StaffShell } from "@/components/layout/StaffShell";
 import { apiMutate, swrPrivateConfig } from "@/lib/api";
 import {
+  CIRCULATION_POLICY,
   type CatalogBook,
+  type CatalogBookCopy,
   type CirculationToast,
   type LibraryCardRow,
   type PickerMember,
+  addDaysToIsoDate,
   computeAutoValidUntil,
+  formatPhp,
   getManilaLongDate,
   getManilaTodayISO,
 } from "./types";
 import "./circulation.css";
+
+interface SelectedBookEntry {
+  key: string;
+  book: CatalogBook;
+  copy_id: number | null;
+  accession_number?: string;
+  quantity: number;
+}
+
+interface ReceiptBookItem {
+  bookId: number;
+  title: string;
+  author: string;
+  isbn: string;
+  accessionNumber?: string;
+  quantity: number;
+}
 
 interface ReceiptData {
   cardId: number;
@@ -39,9 +61,7 @@ interface ReceiptData {
   dateReturn: string;
   cardType: string;
   validUntil: string;
-  bookTitle: string;
-  bookAuthor: string;
-  quantity: number;
+  books: ReceiptBookItem[];
 }
 
 export interface BorrowingFormViewProps {
@@ -49,14 +69,33 @@ export interface BorrowingFormViewProps {
   canBorrow?: boolean;
 }
 
+function isBorrowableCopy(cp: CatalogBookCopy): boolean {
+  const statusOk = String(cp.circulation_status ?? "Available") === "Available";
+  const cond = String(cp.condition ?? "Good");
+  const condOk = cond === "Good" || cond === "Fair";
+  return statusOk && condOk && cp.is_borrowable !== false;
+}
+
 function getAvailableCopyCount(b: CatalogBook): number {
   if (Array.isArray(b.copies) && b.copies.length > 0) {
-    const fromCopies = b.copies.filter(
-      (cp) => String(cp.circulation_status ?? "Available") === "Available"
-    ).length;
-    return Math.min(Number(b.available_copies ?? fromCopies), fromCopies || Number(b.available_copies ?? 0));
+    return b.copies.filter(isBorrowableCopy).length;
   }
-  return Number(b.available_copies ?? 0);
+  if (b.is_borrowable === false) return 0;
+  return Math.max(0, Number(b.available_copies ?? 0));
+}
+
+function formatBorrowErrorMessage(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (lower.includes("unpaid fine")) {
+    return `Borrowing blocked: ${raw} Record payment or request an admin waiver before issuing a new loan.`;
+  }
+  if (lower.includes("maximum") || lower.includes("limit") || lower.includes("5 book")) {
+    return `Borrowing limit reached: ${raw}`;
+  }
+  if (lower.includes("expired")) {
+    return `Library card expired: ${raw}`;
+  }
+  return raw;
 }
 
 export function BorrowingFormView({
@@ -65,6 +104,7 @@ export function BorrowingFormView({
 }: BorrowingFormViewProps = {}) {
   const todayISO = useMemo(() => getManilaTodayISO(), []);
   const todayLong = useMemo(() => getManilaLongDate(), []);
+  const isAdmin = role === "admin";
   const isLibrarian = role === "librarian";
 
   const [tab, setTab] = useState<"member" | "borrower">("member");
@@ -82,18 +122,25 @@ export function BorrowingFormView({
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
 
-  // Book search combobox (supports barcode scanner Enter on ISBN)
+  // Multi-book picker (supports Book ID, title, author, ISBN, and accession scan)
   const [bookQuery, setBookQuery] = useState("");
   const [debouncedBookQ, setDebouncedBookQ] = useState("");
   const [bookDropOpen, setBookDropOpen] = useState(false);
   const [bookHighlight, setBookHighlight] = useState(0);
-  const [selectedBook, setSelectedBook] = useState<CatalogBook | null>(null);
-  const [quantity, setQuantity] = useState(1);
+  const [selectedBooks, setSelectedBooks] = useState<SelectedBookEntry[]>([]);
 
-  // Card & dates
-  const [dateReturn, setDateReturn] = useState("");
+  // Card & dates (server-owned unless admin backdating)
   const [cardType, setCardType] = useState("");
   const [validUntil, setValidUntil] = useState("");
+  const [adminBackdate, setAdminBackdate] = useState(false);
+  const [backdateIssued, setBackdateIssued] = useState(todayISO);
+  const [backdateReason, setBackdateReason] = useState("");
+
+  // 1x1 card photo upload
+  const [photoPath, setPhotoPath] = useState("");
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState("");
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   // Confirm modal, submission, receipt, toast
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -104,7 +151,28 @@ export function BorrowingFormView({
 
   const memberComboRef = useRef<HTMLDivElement>(null);
   const bookComboRef = useRef<HTMLDivElement>(null);
+  const bookInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const confirmModalRef = useRef<HTMLDivElement>(null);
+
+  const effectiveIssueISO = isAdmin && adminBackdate && backdateIssued ? backdateIssued : todayISO;
+  const expectedDueISO = useMemo(
+    () => addDaysToIsoDate(effectiveIssueISO, CIRCULATION_POLICY.DEFAULT_LOAN_DAYS),
+    [effectiveIssueISO]
+  );
+
+  // Cmd/Ctrl+K shortcut focuses book search
+  useEffect(() => {
+    const onGlobalKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        bookInputRef.current?.focus();
+        if (bookQuery.trim()) setBookDropOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onGlobalKey);
+    return () => window.removeEventListener("keydown", onGlobalKey);
+  }, [bookQuery]);
 
   // Focus trap and Esc close for confirmation modal
   useEffect(() => {
@@ -142,20 +210,20 @@ export function BorrowingFormView({
     };
   }, [confirmOpen, submitting]);
 
-  // Debounce member & book searches (300ms)
+  // Debounce member & book searches (280ms)
   useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedMemberQ(memberQuery.trim()), 300);
+    const t = window.setTimeout(() => setDebouncedMemberQ(memberQuery.trim()), 280);
     return () => window.clearTimeout(t);
   }, [memberQuery]);
 
   useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedBookQ(bookQuery.trim().toLowerCase()), 300);
+    const t = window.setTimeout(() => setDebouncedBookQ(bookQuery.trim().toLowerCase()), 280);
     return () => window.clearTimeout(t);
   }, [bookQuery]);
 
   useEffect(() => {
     if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), 3800);
+    const t = window.setTimeout(() => setToast(null), 4000);
     return () => window.clearTimeout(t);
   }, [toast]);
 
@@ -177,7 +245,7 @@ export function BorrowingFormView({
     setToast({ id: Date.now(), message, tone });
   }, []);
 
-  // Live member picker (minimal fields only — no contact/ID photos in dropdown)
+  // Live member picker (minimal fields only)
   const { data: memberData, isLoading: memberLoading } = useSWR<{ users?: PickerMember[] }>(
     tab === "member" && debouncedMemberQ.length > 0
       ? `/api/admin/users?role=member&mode=picker&limit=20&q=${encodeURIComponent(debouncedMemberQ)}`
@@ -185,27 +253,45 @@ export function BorrowingFormView({
     swrPrivateConfig
   );
 
-  // Catalog books & existing cards (to show member's current borrowed count)
-  const { data: booksData, isLoading: booksLoading } = useSWR<{ rows?: CatalogBook[] }>(
-    "/api/admin/data?resource=books",
+  // Catalog books (cached base + live server search)
+  const {
+    data: booksData,
+    isLoading: baseBooksLoading,
+    mutate: mutateBooks,
+  } = useSWR<{ rows?: CatalogBook[] }>(
+    "/api/admin/data?resource=books&pageSize=200",
+    swrPrivateConfig
+  );
+
+  const { data: liveBooksData, isLoading: liveBooksLoading } = useSWR<{ rows?: CatalogBook[] }>(
+    debouncedBookQ.length > 0
+      ? `/api/admin/data?resource=books&pageSize=30&q=${encodeURIComponent(debouncedBookQ)}`
+      : null,
     swrPrivateConfig
   );
 
   const { data: cardsData, mutate: mutateCards } = useSWR<{ rows?: LibraryCardRow[] }>(
-    "/api/admin/data?resource=library_cards",
+    "/api/admin/data?resource=library_cards&pageSize=200",
     swrPrivateConfig
   );
 
   const memberResults = useMemo(() => memberData?.users ?? [], [memberData?.users]);
-  const allBooks = useMemo(() => booksData?.rows ?? [], [booksData?.rows]);
+  const allBooks = useMemo(() => {
+    const byId = new Map<number, CatalogBook>();
+    for (const b of booksData?.rows ?? []) byId.set(b.id, b);
+    for (const b of liveBooksData?.rows ?? []) byId.set(b.id, b);
+    return Array.from(byId.values());
+  }, [booksData?.rows, liveBooksData?.rows]);
+  const booksLoading = baseBooksLoading || liveBooksLoading;
 
   const filteredBooks = useMemo(() => {
     if (!debouncedBookQ) return [];
     const cleanIdQ = debouncedBookQ.replace(/^#/, "");
+    const numericMatch = /^\d+$/.test(cleanIdQ) ? cleanIdQ : "";
     return allBooks
       .filter(
         (b) =>
-          String(b.id) === cleanIdQ ||
+          (numericMatch && String(b.id) === numericMatch) ||
           (b.title || "").toLowerCase().includes(debouncedBookQ) ||
           (b.author || "").toLowerCase().includes(debouncedBookQ) ||
           (b.isbn || "").toLowerCase().includes(debouncedBookQ) ||
@@ -214,29 +300,76 @@ export function BorrowingFormView({
             (cp.accession_number || "").toLowerCase().includes(debouncedBookQ)
           )
       )
-      .slice(0, 20);
+      .slice(0, 25);
   }, [allBooks, debouncedBookQ]);
 
-  const memberBorrowedCount = useMemo(() => {
-    if (!selectedMember) return 0;
-    return (cardsData?.rows ?? [])
-      .filter((c) => c.user_id === selectedMember.id)
-      .reduce((sum, c) => sum + Number(c.books_count ?? 0), 0);
+  const { memberBorrowedCount, memberUnpaidFine } = useMemo(() => {
+    if (!selectedMember) return { memberBorrowedCount: 0, memberUnpaidFine: 0 };
+    let activeCount = 0;
+    let unpaidFine = 0;
+    for (const c of cardsData?.rows ?? []) {
+      if (c.user_id !== selectedMember.id) continue;
+      if (!c.fine_waived && Number(c.fine_amount ?? 0) > 0) {
+        unpaidFine += Number(c.fine_amount ?? 0);
+      }
+      if (c.is_returned) continue;
+      const activeCardBooks = (c.books ?? []).filter((b) => {
+        const ls = String(b.loan_status ?? "borrowed");
+        return ls === "borrowed" || ls === "overdue";
+      });
+      if (activeCardBooks.length > 0) {
+        activeCount += activeCardBooks.reduce((s, b) => s + Math.max(1, Number(b.quantity ?? 1) || 1), 0);
+      } else if (c.status !== "lost") {
+        activeCount += Math.max(0, Number(c.books_count ?? 0));
+      }
+    }
+    return {
+      memberBorrowedCount: activeCount,
+      memberUnpaidFine: Number(unpaidFine.toFixed(2)),
+    };
   }, [cardsData?.rows, selectedMember]);
 
   const memberBlockedReason = useMemo(() => {
     if (!selectedMember) return null;
     if (selectedMember.is_active === false) return "Member account is inactive.";
     if (selectedMember.is_approved === false) return "Member account is pending approval.";
+    if (memberUnpaidFine >= CIRCULATION_POLICY.BLOCKING_UNPAID_FINE_PHP) {
+      return `Member has ${formatPhp(memberUnpaidFine)} in unpaid fines. Settle or waive fines before issuing new books.`;
+    }
+    if (memberBorrowedCount >= CIRCULATION_POLICY.MAX_ACTIVE_BORROWS) {
+      return `Member has reached the ${CIRCULATION_POLICY.MAX_ACTIVE_BORROWS}-book active borrow limit.`;
+    }
     return null;
-  }, [selectedMember]);
+  }, [selectedMember, memberUnpaidFine, memberBorrowedCount]);
 
-  const qtyExceedsStock =
-    selectedBook !== null &&
-    typeof selectedBook.available_copies === "number" &&
-    quantity > selectedBook.available_copies;
+  const maxAddable = useMemo(() => {
+    if (tab === "member" && selectedMember) {
+      return Math.max(0, CIRCULATION_POLICY.MAX_ACTIVE_BORROWS - memberBorrowedCount);
+    }
+    return CIRCULATION_POLICY.MAX_ACTIVE_BORROWS;
+  }, [tab, selectedMember, memberBorrowedCount]);
 
-  const isDueDateInPast = Boolean(dateReturn && dateReturn < todayISO);
+  const selectedTotalQty = useMemo(
+    () => selectedBooks.reduce((sum, entry) => sum + entry.quantity, 0),
+    [selectedBooks]
+  );
+
+  const getSelectedQtyForBook = useCallback(
+    (bookId: number) =>
+      selectedBooks
+        .filter((entry) => entry.book.id === bookId)
+        .reduce((s, entry) => s + entry.quantity, 0),
+    [selectedBooks]
+  );
+
+  const stockProblemEntry = useMemo(() => {
+    return selectedBooks.find((entry) => getSelectedQtyForBook(entry.book.id) > getAvailableCopyCount(entry.book)) ?? null;
+  }, [selectedBooks, getSelectedQtyForBook]);
+
+  const limitExceeded =
+    (tab === "member"
+      ? memberBorrowedCount + selectedTotalQty > CIRCULATION_POLICY.MAX_ACTIVE_BORROWS
+      : selectedTotalQty > CIRCULATION_POLICY.MAX_ACTIVE_BORROWS);
 
   const handleSelectMember = (m: PickerMember) => {
     setSelectedMember(m);
@@ -257,23 +390,155 @@ export function BorrowingFormView({
     setAddress("");
   };
 
-  const handleSelectBook = (b: CatalogBook) => {
-    if ((b.available_copies ?? 0) <= 0) return;
-    setSelectedBook(b);
-    setQuantity(1);
+  const handleAddBook = (b: CatalogBook, specificCopy?: CatalogBookCopy) => {
+    const avail = getAvailableCopyCount(b);
+    if (avail <= 0) {
+      showToast(`"${b.title}" has no borrowable copies available.`, "danger");
+      return;
+    }
+    if (selectedTotalQty + 1 > maxAddable) {
+      const msg =
+        tab === "member" && selectedMember
+          ? `Borrow limit exceeded: ${memberBorrowedCount} active + ${selectedTotalQty} selected reaches the ${CIRCULATION_POLICY.MAX_ACTIVE_BORROWS}-book limit.`
+          : `Borrow limit exceeded: maximum ${CIRCULATION_POLICY.MAX_ACTIVE_BORROWS} books per card.`;
+      setFormError(msg);
+      showToast(msg, "danger");
+      return;
+    }
+    const alreadyForBook = getSelectedQtyForBook(b.id);
+    if (alreadyForBook + 1 > avail) {
+      showToast(`All ${avail} borrowable copy/copies of "${b.title}" are already selected.`, "danger");
+      return;
+    }
+
+    if (specificCopy?.id) {
+      if (!isBorrowableCopy(specificCopy)) {
+        showToast("This copy is not available or not in Good/Fair condition.", "danger");
+        return;
+      }
+      const copyKey = `copy:${specificCopy.id}`;
+      if (selectedBooks.some((e) => e.key === copyKey)) {
+        showToast(`Copy ${specificCopy.accession_number || `#${specificCopy.id}`} is already selected.`, "info");
+        return;
+      }
+      setSelectedBooks((prev) => [
+        ...prev,
+        {
+          key: copyKey,
+          book: b,
+          copy_id: Number(specificCopy.id),
+          accession_number: specificCopy.accession_number,
+          quantity: 1,
+        },
+      ]);
+    } else {
+      const genericKey = `book:${b.id}`;
+      setSelectedBooks((prev) => {
+        const idx = prev.findIndex((e) => e.key === genericKey);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 };
+          return next;
+        }
+        return [...prev, { key: genericKey, book: b, copy_id: null, quantity: 1 }];
+      });
+    }
+
     setBookQuery("");
     setBookDropOpen(false);
     setFormError(null);
   };
 
+  const handleUpdateEntryQty = (key: string, nextQty: number) => {
+    const safeNext = Math.max(1, Math.trunc(nextQty) || 1);
+    setSelectedBooks((prev) =>
+      prev.map((entry) => {
+        if (entry.key !== key || entry.copy_id !== null) return entry;
+        const otherTotal = prev
+          .filter((e) => e.key !== key)
+          .reduce((s, e) => s + e.quantity, 0);
+        const otherSameBook = prev
+          .filter((e) => e.key !== key && e.book.id === entry.book.id)
+          .reduce((s, e) => s + e.quantity, 0);
+        const capByStock = Math.max(1, getAvailableCopyCount(entry.book) - otherSameBook);
+        const capByLimit = Math.max(1, maxAddable - otherTotal);
+        return { ...entry, quantity: Math.min(safeNext, capByStock, capByLimit) };
+      })
+    );
+  };
+
+  const handleRemoveEntry = (key: string) => {
+    setSelectedBooks((prev) => prev.filter((e) => e.key !== key));
+  };
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoError(null);
+
+    const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
+    if (!allowed.has(file.type)) {
+      setPhotoError("Invalid file type. Please choose a JPEG, PNG, or WebP image.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setPhotoError("Photo must be 2 MB or smaller.");
+      e.target.value = "";
+      return;
+    }
+
+    setPhotoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("folder", "card-photos");
+      formData.append("file", file);
+
+      const res = await fetch("/api/storage/upload", {
+        method: "POST",
+        credentials: "same-origin",
+        body: formData,
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        path?: string;
+        url?: string;
+        error?: string;
+      };
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || "Failed to upload card photo.");
+      }
+
+      const storedPath = json.path || json.url || "";
+      setPhotoPath(storedPath);
+      setPhotoPreviewUrl(json.url || URL.createObjectURL(file));
+      showToast("1×1 card photo uploaded.", "success");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Photo upload failed.";
+      setPhotoError(msg);
+      showToast(msg, "danger");
+    } finally {
+      setPhotoUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleClearPhoto = () => {
+    setPhotoPath("");
+    setPhotoPreviewUrl("");
+    setPhotoError(null);
+  };
+
   const handleReset = () => {
     handleClearMember();
-    setSelectedBook(null);
-    setQuantity(1);
+    setSelectedBooks([]);
     setBookQuery("");
-    setDateReturn("");
     setCardType("");
     setValidUntil("");
+    setAdminBackdate(false);
+    setBackdateIssued(todayISO);
+    setBackdateReason("");
+    handleClearPhoto();
     setFormError(null);
     setReceipt(null);
   };
@@ -305,21 +570,20 @@ export function BorrowingFormView({
       setFormError("Please select a Card Type.");
       return;
     }
-    if (tab === "borrower" && !dateReturn) {
-      setFormError("Date of Return is required for walk-in borrowers.");
+    if (selectedBooks.length === 0) {
+      setFormError("Please select at least one available book to borrow.");
       return;
     }
-    if (isDueDateInPast) {
-      setFormError("Date of Return cannot be in the past.");
-      return;
-    }
-    if (!selectedBook) {
-      setFormError("Please select an available book to borrow.");
-      return;
-    }
-    if (qtyExceedsStock) {
+    if (stockProblemEntry) {
+      const avail = getAvailableCopyCount(stockProblemEntry.book);
       setFormError(
-        `Cannot register — quantity (${quantity}) exceeds available stock (${selectedBook.available_copies}).`
+        `Cannot register — requested quantity for "${stockProblemEntry.book.title}" exceeds available Good/Fair copies (${avail}).`
+      );
+      return;
+    }
+    if (limitExceeded) {
+      setFormError(
+        `Borrow limit exceeded: maximum ${CIRCULATION_POLICY.MAX_ACTIVE_BORROWS} active borrowed books allowed.`
       );
       return;
     }
@@ -327,49 +591,76 @@ export function BorrowingFormView({
       setFormError(memberBlockedReason);
       return;
     }
+    if (isAdmin && adminBackdate) {
+      if (!backdateIssued || backdateIssued > todayISO) {
+        setFormError("Backdate issue date must be today or earlier.");
+        return;
+      }
+      if (backdateReason.trim().length < 3) {
+        setFormError("Admin backdating requires a reason (at least 3 characters).");
+        return;
+      }
+    }
     setConfirmOpen(true);
   };
 
   const handleConfirmSubmit = async () => {
-    if (!selectedBook) return;
+    if (selectedBooks.length === 0) return;
     setSubmitting(true);
     setFormError(null);
     try {
+      const bookIdsPayload = selectedBooks.map((entry) =>
+        entry.copy_id
+          ? { book_id: entry.book.id, copy_id: entry.copy_id, qty: 1 }
+          : { book_id: entry.book.id, qty: entry.quantity }
+      );
+
+      const payload: Record<string, unknown> = {
+        card_type_category: tab,
+        user_id: tab === "member" ? selectedMember?.id ?? null : null,
+        firstname: firstname.trim(),
+        lastname: lastname.trim(),
+        phone_number: phone.trim(),
+        address: address.trim(),
+        card_type: cardType,
+        valid_until: validUntil.trim() || null,
+        book_ids: bookIdsPayload,
+      };
+      if (photoPath) {
+        payload.photo_path = photoPath;
+      }
+      if (isAdmin && adminBackdate) {
+        payload.date_issued = backdateIssued;
+        payload.backdate_reason = backdateReason.trim();
+      }
+
       const res = (await apiMutate("/api/admin/data", {
         method: "POST",
         body: {
           resource: "library_cards",
           action: "create",
-          payload: {
-            card_type_category: tab,
-            user_id: tab === "member" ? selectedMember?.id ?? null : null,
-            firstname: firstname.trim(),
-            lastname: lastname.trim(),
-            phone_number: phone.trim(),
-            address: address.trim(),
-            date_issued: todayISO,
-            date_return: dateReturn || null,
-            card_type: cardType,
-            valid_until: validUntil.trim() || null,
-            book_id: selectedBook.id,
-            quantity,
-          },
+          payload,
         },
-      })) as { ok?: boolean; id?: number };
+      })) as { ok?: boolean; id?: number; date_return?: string };
 
-      await mutateCards();
+      await Promise.all([mutateCards(), mutateBooks()]);
       setConfirmOpen(false);
       setReceipt({
         cardId: res.id ?? 0,
         category: tab,
         fullname: `${firstname.trim()} ${lastname.trim()}`,
-        dateIssued: todayISO,
-        dateReturn: dateReturn || "—",
+        dateIssued: effectiveIssueISO,
+        dateReturn: res.date_return || expectedDueISO,
         cardType: cardType === "city_govt" ? "Iloilo City Government (LGU)" : "Regular / Student / Others",
         validUntil: validUntil.trim() || "—",
-        bookTitle: selectedBook.title,
-        bookAuthor: selectedBook.author,
-        quantity,
+        books: selectedBooks.map((entry) => ({
+          bookId: entry.book.id,
+          title: entry.book.title,
+          author: entry.book.author,
+          isbn: entry.book.isbn || "",
+          accessionNumber: entry.accession_number,
+          quantity: entry.quantity,
+        })),
       });
       showToast(
         tab === "member"
@@ -379,9 +670,10 @@ export function BorrowingFormView({
       );
     } catch (err) {
       setConfirmOpen(false);
-      const msg = err instanceof Error ? err.message : "Failed to register library card.";
-      setFormError(msg);
-      showToast(msg, "danger");
+      const rawMsg = err instanceof Error ? err.message : "Failed to register library card.";
+      const friendly = formatBorrowErrorMessage(rawMsg);
+      setFormError(friendly);
+      showToast(friendly, "danger");
     } finally {
       setSubmitting(false);
     }
@@ -391,7 +683,7 @@ export function BorrowingFormView({
     <StaffShell title="Borrowing Form" role={role}>
       <div className="admin-circulation-page">
         {/* Header */}
-        <header className="circ-phdr">
+        <header className="circ-phdr no-print">
           <div className="circ-phdr-left">
             <div className="circ-phdr-icon">
               <CreditCard className="h-6 w-6" aria-hidden="true" />
@@ -433,19 +725,36 @@ export function BorrowingFormView({
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, fontSize: "0.82rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, fontSize: "0.82rem", marginBottom: 12 }}>
               <div><strong>Cardholder:</strong> {receipt.fullname}</div>
               <div><strong>Date Issued:</strong> {receipt.dateIssued}</div>
-              <div><strong>Date of Return:</strong> {receipt.dateReturn}</div>
+              <div><strong>Due Date (Server):</strong> {receipt.dateReturn}</div>
               <div><strong>Card Type:</strong> {receipt.cardType}</div>
               <div><strong>Valid Until:</strong> {receipt.validUntil}</div>
-              <div><strong>Book:</strong> {receipt.bookTitle} (×{receipt.quantity})</div>
+              <div>
+                <strong>Total Books:</strong>{" "}
+                {receipt.books.reduce((s, b) => s + b.quantity, 0)}
+              </div>
+            </div>
+
+            <div style={{ borderTop: "1px solid var(--circ-border)", paddingTop: 10 }}>
+              <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", color: "var(--circ-muted)", marginBottom: 6 }}>
+                Borrowed Items
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: "0.82rem", display: "flex", flexDirection: "column", gap: 4 }}>
+                {receipt.books.map((item, idx) => (
+                  <li key={`${item.bookId}-${item.accessionNumber ?? idx}`}>
+                    <strong>#{item.bookId} · {item.title}</strong> ({item.author}) — ×{item.quantity}
+                    {item.accessionNumber ? ` · Copy ${item.accessionNumber}` : ""}
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         )}
 
         {/* Mode Tabs */}
-        <div className="circ-tabs" role="tablist" aria-label="Registration type">
+        <div className="circ-tabs no-print" role="tablist" aria-label="Registration type">
           <button
             type="button"
             role="tab"
@@ -469,7 +778,7 @@ export function BorrowingFormView({
         </div>
 
         {/* Mode Info Strip */}
-        <div className="circ-sc" style={{ padding: "14px 20px" }}>
+        <div className="circ-sc no-print" style={{ padding: "14px 20px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span
@@ -484,8 +793,8 @@ export function BorrowingFormView({
               </span>
               <span style={{ fontSize: "0.78rem", color: "var(--circ-tl)" }}>
                 {tab === "member"
-                  ? "Search a registered user to auto-fill their details."
-                  : "Manual entry — fill in all details by hand."}
+                  ? `Search a registered user to auto-fill · up to ${CIRCULATION_POLICY.MAX_ACTIVE_BORROWS} active books allowed.`
+                  : `Walk-in patron — up to ${CIRCULATION_POLICY.MAX_ACTIVE_BORROWS} books per card.`}
               </span>
             </div>
             <span style={{ fontSize: "0.76rem", color: "var(--circ-tl)", fontFamily: "var(--font-mono), monospace" }}>
@@ -497,6 +806,7 @@ export function BorrowingFormView({
         {formError && (
           <div
             role="alert"
+            aria-live="assertive"
             style={{
               marginBottom: 14,
               padding: "12px 16px",
@@ -516,7 +826,7 @@ export function BorrowingFormView({
           </div>
         )}
 
-        <form onSubmit={handleOpenConfirm}>
+        <form onSubmit={handleOpenConfirm} className="no-print">
           <div className="circ-form-cols">
             {/* LEFT COLUMN */}
             <div>
@@ -619,7 +929,7 @@ export function BorrowingFormView({
                     <div
                       style={{
                         marginTop: 10,
-                        padding: "9px 13px",
+                        padding: "10px 13px",
                         borderRadius: 10,
                         background: memberBlockedReason
                           ? "rgba(255, 99, 99, 0.12)"
@@ -627,16 +937,22 @@ export function BorrowingFormView({
                         border: `1px solid ${memberBlockedReason ? "rgba(255, 99, 99, 0.3)" : "rgba(72, 199, 142, 0.25)"}`,
                         fontSize: "0.8rem",
                         display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 8,
+                        flexDirection: "column",
+                        gap: 4,
                       }}
                     >
-                      <span>
-                        <strong>{selectedMember.fullname}</strong> · Current borrowed books:{" "}
-                        <strong>{memberBorrowedCount}</strong>
-                        {memberBlockedReason ? ` — ${memberBlockedReason}` : ""}
-                      </span>
+                      <div>
+                        <strong>{selectedMember.fullname}</strong> · Active borrowed books:{" "}
+                        <strong>
+                          {memberBorrowedCount} / {CIRCULATION_POLICY.MAX_ACTIVE_BORROWS}
+                        </strong>
+                        {memberUnpaidFine > 0 ? ` · Unpaid fines: ${formatPhp(memberUnpaidFine)}` : ""}
+                      </div>
+                      {memberBlockedReason && (
+                        <div style={{ color: "var(--circ-danger)", fontWeight: 600 }}>
+                          {memberBlockedReason}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -707,30 +1023,106 @@ export function BorrowingFormView({
                 )}
               </div>
 
-              {/* Legacy 1x1 Photo Box — disabled, no backend column in create */}
+              {/* 1x1 Card Photo Upload */}
               <div className="circ-sc">
                 <div className="circ-sh">
                   <div className="circ-shi si-b">
                     <ImageIcon className="h-4 w-4" aria-hidden="true" />
                   </div>
                   <div>
-                    <h2>1×1 Photo</h2>
-                    <p>Not available yet</p>
+                    <h2>1×1 Card Photo</h2>
+                    <p>Optional portrait photo (JPEG, PNG, or WebP · max 2 MB)</p>
                   </div>
                 </div>
-                <div className="circ-disabled-box" aria-disabled="true">
-                  <ImageIcon className="mx-auto mb-1.5 h-6 w-6 opacity-50" aria-hidden="true" />
-                  <div style={{ fontWeight: 700 }}>Not available yet</div>
-                  <div style={{ fontSize: "0.72rem", marginTop: 3 }}>
-                    1×1 card photo upload requires `photo_path` support in `library_cards` create API.
+
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handlePhotoChange}
+                  aria-label="Upload 1x1 library card photo"
+                  style={{ display: "none" }}
+                />
+
+                {photoPreviewUrl ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                    <img
+                      src={photoPreviewUrl}
+                      alt="1x1 Library card preview"
+                      style={{
+                        width: 72,
+                        height: 72,
+                        objectFit: "cover",
+                        borderRadius: 10,
+                        border: "1px solid var(--circ-border)",
+                      }}
+                    />
+                    <div style={{ flex: 1, minWidth: 160 }}>
+                      <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--circ-accent2)" }}>
+                        Photo attached
+                      </div>
+                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                        <button
+                          type="button"
+                          className="circ-btn"
+                          style={{ minHeight: 34, fontSize: "0.76rem" }}
+                          disabled={photoUploading || submitting}
+                          onClick={() => photoInputRef.current?.click()}
+                        >
+                          Replace
+                        </button>
+                        <button
+                          type="button"
+                          className="circ-btn danger"
+                          style={{ minHeight: 34, fontSize: "0.76rem" }}
+                          disabled={photoUploading || submitting}
+                          onClick={handleClearPhoto}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={photoUploading || submitting}
+                    onClick={() => photoInputRef.current?.click()}
+                    className="circ-disabled-box"
+                    style={{
+                      width: "100%",
+                      cursor: photoUploading ? "wait" : "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    {photoUploading ? (
+                      <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Upload className="h-5 w-5 opacity-75" aria-hidden="true" />
+                    )}
+                    <span style={{ fontWeight: 600, fontSize: "0.82rem" }}>
+                      {photoUploading ? "Uploading photo…" : "Click to upload 1×1 ID photo"}
+                    </span>
+                    <span style={{ fontSize: "0.72rem", opacity: 0.75 }}>
+                      JPEG, PNG, or WebP · Max 2 MB
+                    </span>
+                  </button>
+                )}
+
+                {photoError && (
+                  <div role="alert" style={{ marginTop: 8, fontSize: "0.78rem", color: "var(--circ-danger)", fontWeight: 600 }}>
+                    {photoError}
+                  </div>
+                )}
               </div>
             </div>
 
             {/* RIGHT COLUMN */}
             <div>
-              {/* Book Picker */}
+              {/* Multi-Book Picker */}
               <div className="circ-sc g">
                 <div className="circ-sh">
                   <div className="circ-shi si-g">
@@ -738,7 +1130,7 @@ export function BorrowingFormView({
                   </div>
                   <div>
                     <h2>Books Borrowed</h2>
-                    <p>Search by title, author, or scan ISBN barcode and press Enter</p>
+                    <p>Search by Book ID (#), title, author, ISBN, or scan accession/barcode (⌘K)</p>
                   </div>
                 </div>
 
@@ -746,11 +1138,12 @@ export function BorrowingFormView({
                   <div className="circ-search-bar green">
                     <Search className="h-4 w-4 shrink-0" style={{ color: "var(--circ-accent2)" }} aria-hidden="true" />
                     <input
+                      ref={bookInputRef}
                       type="text"
                       role="combobox"
                       aria-expanded={bookDropOpen}
                       aria-autocomplete="list"
-                      aria-label="Search books by title, author, or ISBN barcode"
+                      aria-label="Search books by ID, title, author, ISBN, or accession number"
                       value={bookQuery}
                       onChange={(e) => {
                         setBookQuery(e.target.value);
@@ -764,24 +1157,34 @@ export function BorrowingFormView({
                         if (e.key === "Enter") {
                           e.preventDefault();
                           const rawQ = bookQuery.trim().toLowerCase();
-                          const exactScan = allBooks.find(
+                          // Exact accession match selects the specific copy_id
+                          for (const b of allBooks) {
+                            const matchedCopy = (b.copies ?? []).find(
+                              (cp) =>
+                                (cp.accession_number || "").toLowerCase() === rawQ &&
+                                isBorrowableCopy(cp)
+                            );
+                            if (matchedCopy) {
+                              handleAddBook(b, matchedCopy);
+                              return;
+                            }
+                          }
+                          // Exact ISBN, catalog_code, or Book ID match
+                          const cleanIdQ = rawQ.replace(/^#/, "");
+                          const exactBook = allBooks.find(
                             (b) =>
                               getAvailableCopyCount(b) > 0 &&
                               ((b.isbn || "").toLowerCase() === rawQ ||
                                 (b.catalog_code || "").toLowerCase() === rawQ ||
-                                (b.copies ?? []).some(
-                                  (cp) =>
-                                    (cp.accession_number || "").toLowerCase() === rawQ &&
-                                    String(cp.circulation_status ?? "Available") === "Available"
-                                ))
+                                (/^\d+$/.test(cleanIdQ) && String(b.id) === cleanIdQ))
                           );
-                          if (exactScan) {
-                            handleSelectBook(exactScan);
+                          if (exactBook) {
+                            handleAddBook(exactBook);
                             return;
                           }
                           const picked = filteredBooks[bookHighlight];
                           if (picked && getAvailableCopyCount(picked) > 0) {
-                            handleSelectBook(picked);
+                            handleAddBook(picked);
                           }
                         } else if (e.key === "ArrowDown" && bookDropOpen) {
                           e.preventDefault();
@@ -793,23 +1196,25 @@ export function BorrowingFormView({
                           setBookDropOpen(false);
                         }
                       }}
-                      placeholder="Search title, author, or ISBN…"
+                      placeholder="Search Book ID (#), title, author, ISBN, or accession… (⌘K)"
                     />
                     <span
                       className="circ-badge"
                       style={{
-                        background: "rgba(72, 199, 142, 0.14)",
-                        color: "var(--circ-accent2)",
-                        border: "1px solid rgba(72, 199, 142, 0.28)",
+                        background: limitExceeded
+                          ? "rgba(255, 99, 99, 0.14)"
+                          : "rgba(72, 199, 142, 0.14)",
+                        color: limitExceeded ? "var(--circ-danger)" : "var(--circ-accent2)",
+                        border: `1px solid ${limitExceeded ? "rgba(255, 99, 99, 0.3)" : "rgba(72, 199, 142, 0.28)"}`,
                       }}
                     >
-                      {selectedBook ? "1 / 1 book" : "0 books"}
+                      {selectedTotalQty} / {maxAddable} books
                     </span>
                   </div>
 
                   {bookDropOpen && debouncedBookQ.length > 0 && (
                     <div className="circ-drop" role="listbox" aria-label="Book search results">
-                      {booksLoading ? (
+                      {booksLoading && filteredBooks.length === 0 ? (
                         <div style={{ padding: 14, textAlign: "center", fontSize: "0.82rem", color: "var(--circ-accent)" }}>
                           Searching books…
                         </div>
@@ -820,41 +1225,71 @@ export function BorrowingFormView({
                       ) : (
                         filteredBooks.map((b, idx) => {
                           const avail = getAvailableCopyCount(b);
-                          const outOfStock = avail <= 0;
-                          const sampleAccessions = (b.copies ?? [])
-                            .filter((cp) => String(cp.circulation_status ?? "Available") === "Available" && cp.accession_number)
-                            .slice(0, 2)
-                            .map((cp) => cp.accession_number)
-                            .join(", ");
+                          const alreadyChosen = getSelectedQtyForBook(b.id);
+                          const remaining = Math.max(0, avail - alreadyChosen);
+                          const outOfStock = remaining <= 0;
+                          const availableCopies = (b.copies ?? []).filter(
+                            (cp) =>
+                              isBorrowableCopy(cp) &&
+                              !selectedBooks.some((e) => e.copy_id === Number(cp.id))
+                          );
                           return (
-                            <button
+                            <div
                               key={b.id}
-                              type="button"
                               role="option"
-                              disabled={outOfStock}
                               aria-selected={idx === bookHighlight}
                               className={`circ-drop-item ${idx === bookHighlight ? "highlighted" : ""}`}
-                              onClick={() => handleSelectBook(b)}
+                              style={{ flexDirection: "column", alignItems: "stretch", gap: 6, cursor: outOfStock ? "not-allowed" : "pointer" }}
+                              onClick={() => {
+                                if (!outOfStock) handleAddBook(b);
+                              }}
                             >
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>{b.title}</div>
-                                <div style={{ fontSize: "0.72rem", color: "var(--circ-tl)" }}>
-                                  Book ID #{b.id} · {b.author}
-                                  {b.isbn ? ` · ISBN: ${b.isbn}` : ""}
-                                  {sampleAccessions ? ` · Copy: ${sampleAccessions}` : ""}
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>{b.title}</div>
+                                  <div style={{ fontSize: "0.72rem", color: "var(--circ-tl)" }}>
+                                    Book ID #{b.id} · {b.author}
+                                    {b.isbn ? ` · ISBN: ${b.isbn}` : ""}
+                                  </div>
                                 </div>
+                                <span
+                                  className="circ-badge"
+                                  style={
+                                    outOfStock
+                                      ? { background: "rgba(255, 99, 99, 0.14)", color: "var(--circ-danger)" }
+                                      : { background: "rgba(72, 199, 142, 0.14)", color: "var(--circ-accent2)" }
+                                  }
+                                >
+                                  {outOfStock ? "Unavailable" : `${remaining} available`}
+                                </span>
                               </div>
-                              <span
-                                className="circ-badge"
-                                style={
-                                  outOfStock
-                                    ? { background: "rgba(255, 99, 99, 0.14)", color: "var(--circ-danger)" }
-                                    : { background: "rgba(72, 199, 142, 0.14)", color: "var(--circ-accent2)" }
-                                }
-                              >
-                                {outOfStock ? "Out of stock" : `${avail} available`}
-                              </span>
-                            </button>
+                              {availableCopies.length > 0 && (
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                  {availableCopies.slice(0, 4).map((cp, ci) => (
+                                    <button
+                                      key={cp.id ?? ci}
+                                      type="button"
+                                      onClick={(ev) => {
+                                        ev.stopPropagation();
+                                        handleAddBook(b, cp);
+                                      }}
+                                      style={{
+                                        fontSize: "0.7rem",
+                                        padding: "2px 8px",
+                                        borderRadius: 6,
+                                        border: "1px solid rgba(72, 199, 142, 0.35)",
+                                        background: "rgba(72, 199, 142, 0.1)",
+                                        color: "var(--circ-accent2)",
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      + {cp.accession_number || `Copy #${cp.copy_number ?? ci + 1}`}
+                                      {cp.condition && cp.condition !== "Good" ? ` (${cp.condition})` : ""}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           );
                         })
                       )}
@@ -862,52 +1297,71 @@ export function BorrowingFormView({
                   )}
                 </div>
 
-                {selectedBook ? (
-                  <div className={`circ-book-chip ${qtyExceedsStock ? "warn" : ""}`}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: "0.86rem" }}>{selectedBook.title}</div>
-                      <div style={{ fontSize: "0.74rem", color: "var(--circ-tl)" }}>
-                        Book ID #{selectedBook.id} · by {selectedBook.author}
-                        {selectedBook.isbn ? ` · ISBN: ${selectedBook.isbn}` : ""}
-                      </div>
-                      <div style={{ fontSize: "0.72rem", marginTop: 3, color: qtyExceedsStock ? "var(--circ-danger)" : "var(--circ-accent2)", fontWeight: 600 }}>
-                        {qtyExceedsStock
-                          ? `Exceeds stock (${selectedBook.available_copies} available)`
-                          : `${selectedBook.available_copies} available`}
-                      </div>
-                    </div>
+                {selectedBooks.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+                    {selectedBooks.map((entry) => {
+                      const avail = getAvailableCopyCount(entry.book);
+                      const totalForBook = getSelectedQtyForBook(entry.book.id);
+                      const exceeds = totalForBook > avail;
+                      return (
+                        <div key={entry.key} className={`circ-book-chip ${exceeds ? "warn" : ""}`}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: "0.86rem" }}>
+                              {entry.book.title}
+                              {entry.accession_number ? (
+                                <span style={{ marginLeft: 8, fontSize: "0.72rem", color: "var(--circ-accent)" }}>
+                                  [{entry.accession_number}]
+                                </span>
+                              ) : null}
+                            </div>
+                            <div style={{ fontSize: "0.74rem", color: "var(--circ-tl)" }}>
+                              Book ID #{entry.book.id} · by {entry.book.author}
+                              {entry.book.isbn ? ` · ISBN: ${entry.book.isbn}` : ""}
+                            </div>
+                            <div style={{ fontSize: "0.72rem", marginTop: 3, color: exceeds ? "var(--circ-danger)" : "var(--circ-accent2)", fontWeight: 600 }}>
+                              {exceeds
+                                ? `Exceeds stock (${avail} Good/Fair available)`
+                                : entry.copy_id
+                                  ? `Specific Copy #${entry.copy_id} locked`
+                                  : `${avail} Good/Fair available`}
+                            </div>
+                          </div>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <label htmlFor="cf-qty" style={{ fontSize: "0.7rem", fontWeight: 700 }}>
-                        Qty
-                      </label>
-                      <input
-                        id="cf-qty"
-                        type="number"
-                        min={1}
-                        max={Math.max(1, selectedBook.available_copies)}
-                        value={quantity}
-                        onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
-                        style={{
-                          width: 56,
-                          minHeight: 38,
-                          textAlign: "center",
-                          borderRadius: 8,
-                          border: "1px solid var(--circ-border)",
-                          background: "var(--circ-input-bg)",
-                          color: "var(--circ-text)",
-                          fontWeight: 700,
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="circ-icon-btn del"
-                        aria-label={`Remove ${selectedBook.title}`}
-                        onClick={() => setSelectedBook(null)}
-                      >
-                        <X className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <label htmlFor={`cf-qty-${entry.key}`} style={{ fontSize: "0.7rem", fontWeight: 700 }}>
+                              Qty
+                            </label>
+                            <input
+                              id={`cf-qty-${entry.key}`}
+                              type="number"
+                              min={1}
+                              max={entry.copy_id ? 1 : Math.max(1, avail)}
+                              readOnly={entry.copy_id !== null}
+                              value={entry.quantity}
+                              onChange={(e) => handleUpdateEntryQty(entry.key, Number(e.target.value))}
+                              style={{
+                                width: 56,
+                                minHeight: 38,
+                                textAlign: "center",
+                                borderRadius: 8,
+                                border: "1px solid var(--circ-border)",
+                                background: "var(--circ-input-bg)",
+                                color: "var(--circ-text)",
+                                fontWeight: 700,
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="circ-icon-btn del"
+                              aria-label={`Remove ${entry.book.title}`}
+                              onClick={() => handleRemoveEntry(entry.key)}
+                            >
+                              <X className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div
@@ -920,12 +1374,13 @@ export function BorrowingFormView({
                       color: "var(--circ-muted)",
                     }}
                   >
-                    No books selected yet — search above to add
+                    No books selected yet — search above to add up to {maxAddable} book
+                    {maxAddable === 1 ? "" : "s"}
                   </div>
                 )}
               </div>
 
-              {/* Card & Dates */}
+              {/* Card & Server-Owned Dates */}
               <div className="circ-sc o">
                 <div className="circ-sh">
                   <div className="circ-shi si-o">
@@ -933,29 +1388,70 @@ export function BorrowingFormView({
                   </div>
                   <div>
                     <h2>Card &amp; Dates</h2>
-                    <p>Issuance, return, renewals, validity (Asia/Manila)</p>
+                    <p>Server-owned issue &amp; due dates (Asia/Manila)</p>
                   </div>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div className="circ-fg">
-                    <label htmlFor="cf-issued">Date Issued *</label>
-                    <input id="cf-issued" type="date" value={todayISO} readOnly required />
+                    <label htmlFor="cf-issued">Date Issued (Server)</label>
+                    <input id="cf-issued" type="date" value={effectiveIssueISO} readOnly />
                   </div>
                   <div className="circ-fg">
-                    <label htmlFor="cf-ret">
-                      Date of Return {tab === "borrower" ? "*" : ""}
-                    </label>
-                    <input
-                      id="cf-ret"
-                      type="date"
-                      min={todayISO}
-                      value={dateReturn}
-                      onChange={(e) => setDateReturn(e.target.value)}
-                      required={tab === "borrower"}
-                    />
+                    <label htmlFor="cf-due-ro">Due Date ({CIRCULATION_POLICY.DEFAULT_LOAN_DAYS} days)</label>
+                    <input id="cf-due-ro" type="date" value={expectedDueISO} readOnly />
                   </div>
                 </div>
+                <p style={{ margin: "-4px 0 12px", fontSize: "0.74rem", color: "var(--circ-muted)" }}>
+                  Due date is assigned automatically by the server ({CIRCULATION_POLICY.DEFAULT_LOAN_DAYS}-day loan, {CIRCULATION_POLICY.MAX_LOAN_DAYS}-day max).
+                </p>
+
+                {isAdmin && (
+                  <div
+                    style={{
+                      marginBottom: 14,
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      border: "1px solid var(--circ-border)",
+                      background: "rgba(255, 152, 0, 0.06)",
+                    }}
+                  >
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.8rem", fontWeight: 600, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={adminBackdate}
+                        onChange={(e) => setAdminBackdate(e.target.checked)}
+                      />
+                      Admin Backdate Issue Date (requires audit reason)
+                    </label>
+                    {adminBackdate && (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8, marginTop: 10 }}>
+                        <div className="circ-fg" style={{ marginBottom: 0 }}>
+                          <label htmlFor="cf-bd-date">Backdated Issue Date *</label>
+                          <input
+                            id="cf-bd-date"
+                            type="date"
+                            max={todayISO}
+                            value={backdateIssued}
+                            onChange={(e) => setBackdateIssued(e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div className="circ-fg" style={{ marginBottom: 0 }}>
+                          <label htmlFor="cf-bd-reason">Backdate Reason * (min 3 chars)</label>
+                          <input
+                            id="cf-bd-reason"
+                            type="text"
+                            value={backdateReason}
+                            onChange={(e) => setBackdateReason(e.target.value)}
+                            placeholder="Reason for backdating…"
+                            required
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="circ-fg">
                   <label htmlFor="cf-ctype">Card Type *</label>
@@ -973,14 +1469,6 @@ export function BorrowingFormView({
                     <option value="city_govt">Iloilo City Government (LGU)</option>
                     <option value="regular">Regular / Student / Others</option>
                   </select>
-                </div>
-
-                {/* Initial Renewals disabled on create — editable in Borrow History */}
-                <div className="circ-fg">
-                  <label>Renewed (Not available yet on initial issue — edit in Borrow History)</label>
-                  <div className="circ-disabled-box" style={{ padding: "10px 12px", textAlign: "left" }} aria-disabled="true">
-                    1st On / 2nd On renewal checkboxes are managed after issuance on the Borrow History page.
-                  </div>
                 </div>
 
                 <div
@@ -1022,7 +1510,7 @@ export function BorrowingFormView({
             <button
               type="submit"
               className={`circ-btn ${tab === "member" ? "primary" : "green"}`}
-              disabled={!canBorrow || submitting || qtyExceedsStock || isDueDateInPast}
+              disabled={!canBorrow || submitting || photoUploading || Boolean(stockProblemEntry) || limitExceeded || Boolean(memberBlockedReason)}
             >
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
               {tab === "member" ? "Register Member" : "Register Borrower"}
@@ -1032,9 +1520,9 @@ export function BorrowingFormView({
       </div>
 
       {/* Confirmation Modal */}
-      {confirmOpen && selectedBook && (
+      {confirmOpen && selectedBooks.length > 0 && (
         <div
-          className="circ-modal-backdrop"
+          className="circ-modal-backdrop no-print"
           role="presentation"
           onClick={(e) => {
             if (e.target === e.currentTarget && !submitting) setConfirmOpen(false);
@@ -1064,9 +1552,19 @@ export function BorrowingFormView({
             </div>
             <div className="circ-modal-body" style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: "0.86rem" }}>
               <div><strong>Cardholder:</strong> {firstname} {lastname}</div>
-              <div><strong>Book:</strong> {selectedBook.title} (Qty: {quantity})</div>
-              <div><strong>Date Issued:</strong> {todayISO}</div>
-              <div><strong>Date of Return:</strong> {dateReturn || "—"}</div>
+              <div>
+                <strong>Books ({selectedTotalQty}):</strong>
+                <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                  {selectedBooks.map((entry) => (
+                    <li key={entry.key}>
+                      {entry.book.title} (Qty: {entry.quantity}
+                      {entry.accession_number ? ` · ${entry.accession_number}` : ""})
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div><strong>Date Issued:</strong> {effectiveIssueISO}</div>
+              <div><strong>Expected Due Date:</strong> {expectedDueISO} (confirmed by server)</div>
               <div><strong>Valid Until:</strong> {validUntil || "—"}</div>
             </div>
             <div className="circ-modal-foot">
@@ -1095,7 +1593,7 @@ export function BorrowingFormView({
       )}
 
       {toast && (
-        <div className="circ-toast" role="status" aria-live="polite">
+        <div className="circ-toast no-print" role="status" aria-live="polite">
           <span>{toast.message}</span>
         </div>
       )}

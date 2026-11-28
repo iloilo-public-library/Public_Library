@@ -15,6 +15,7 @@ import {
   type QueryEventsOptions,
 } from "@/repositories/events";
 import { queryAnnouncements, mutateAnnouncements } from "@/repositories/announcements";
+import { queryLibraryHolidays, mutateLibraryHolidays } from "@/repositories/holidays";
 import {
   queryBackupLogs,
   queryErrorLogs,
@@ -32,6 +33,7 @@ export * from "@/repositories/users";
 export * from "@/repositories/account-requests";
 export * from "@/repositories/events";
 export * from "@/repositories/announcements";
+export * from "@/repositories/holidays";
 export * from "@/repositories/system-settings";
 export * from "@/repositories/admin-profile";
 
@@ -62,6 +64,7 @@ export async function queryAdminResource(
   const adminOnlyReadResources = new Set([
     "admins",
     "librarians",
+    "library_holidays",
     "system_settings",
     "error_logs",
     "backup_logs",
@@ -132,6 +135,15 @@ export async function queryAdminResource(
     case "announcements":
       return queryAnnouncements(supabase, actorId, sessionToken);
 
+    case "library_holidays":
+      return queryLibraryHolidays(supabase, {
+        actorId,
+        sessionToken,
+        from: queryOptions?.from,
+        to: queryOptions?.to,
+        q: queryOptions?.q,
+      });
+
     case "system_settings":
       return querySystemSettings(supabase, actorId, sessionToken);
 
@@ -187,6 +199,10 @@ export async function handleAdminMutation(
 
     case "announcements":
       return mutateAnnouncements(supabase, session, action, id, payload);
+
+    case "library_holidays":
+      requireAdminOnly(session);
+      return mutateLibraryHolidays(supabase, session, action, id, payload);
 
     case "system_settings":
       requireAdminOnly(session);

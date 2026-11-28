@@ -10,7 +10,12 @@ import { BookLoader } from "@/components/ui/book-loader";
 import { LibraryTooltip } from "@/components/ui/tooltip";
 import { AuthCard, type AuthMode } from "./AuthCard";
 import { Lamp } from "./Lamp";
-import { LoginPage, type LoginCredentials, type LoginResult } from "./LoginPage";
+import {
+  LoginPage,
+  type LoginCredentials,
+  type LoginNotice,
+  type LoginResult,
+} from "./LoginPage";
 import { SignUpPage } from "./SignUpPage";
 import "./library-login.css";
 
@@ -24,9 +29,15 @@ const LoginFloatingPropsCanvas = dynamic(
 
 export interface LibraryLoginPageProps {
   onLogin: (credentials: LoginCredentials) => Promise<LoginResult>;
+  initialNotice?: LoginNotice | null;
+  onMfaComplete?: (redirectUrl?: string) => void;
 }
 
-export function LibraryLoginPage({ onLogin }: LibraryLoginPageProps) {
+export function LibraryLoginPage({
+  onLogin,
+  initialNotice = null,
+  onMfaComplete,
+}: LibraryLoginPageProps) {
   const { theme } = useTheme();
   const isLight = theme === "light";
 
@@ -246,6 +257,8 @@ export function LibraryLoginPage({ onLogin }: LibraryLoginPageProps) {
                   onBusyChange={setIsSubmitting}
                   onAnnounce={setAnnouncement}
                   onLogin={onLogin}
+                  onMfaComplete={onMfaComplete}
+                  initialNotice={initialNotice}
                   externalSuccess={externalSuccess}
                   onClearExternalSuccess={() => setExternalSuccess(null)}
                 />

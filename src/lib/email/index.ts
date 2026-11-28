@@ -214,3 +214,78 @@ export async function sendRegistrationDecisionEmail({
     text: `${bodyText}${cleanNote ? `\n\n${noteLabel}: ${cleanNote}` : ""}\n\n${ctaUrl}`,
   });
 }
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export interface NewRegistrationAdminNotifyInput {
+  adminEmails: string[];
+  firstname: string;
+  lastname: string;
+  applicantEmail: string;
+  siteUrl?: string;
+}
+
+/**
+ * Matches `notify_admins_new_registration` in `legacy-flask/email_config/email_config.py`.
+ * Notifies active administrators when a new patron submits a registration request.
+ */
+export async function notifyAdminsNewRegistration({
+  adminEmails,
+  firstname,
+  lastname,
+  applicantEmail,
+  siteUrl,
+}: NewRegistrationAdminNotifyInput): Promise<void> {
+  const recipients = Array.from(
+    new Set(
+      adminEmails
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes("@"))
+    )
+  );
+  if (recipients.length === 0) return;
+
+  const fullName = `${firstname.trim()} ${lastname.trim()}`.trim() || "New Patron";
+  const cleanApplicantEmail = applicantEmail.trim();
+  const baseUrl =
+    siteUrl?.trim() ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    "http://localhost:3000";
+  const requestsUrl = `${baseUrl.replace(/\/+$/, "")}/admin/account-requests`;
+
+  const subject = "New Registration Request — Iloilo City Public Library";
+  const html = wrapEmailLayout(
+    "Admin Notification",
+    `<h2 style="margin:0 0 12px;color:#0f2d5e;font-size:18px;font-weight:700;">New Registration Request</h2>
+     <p style="margin:0 0 18px;">A new patron has signed up and is waiting for administrator approval:</p>
+     <div style="margin:0 0 22px;padding:14px 18px;background:#f8fbff;border:1px solid #d0e4f5;border-radius:10px;">
+       <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:4px;">Full Name</div>
+       <div style="font-size:15px;color:#0f172a;font-weight:600;margin-bottom:12px;">${escapeHtml(fullName)}</div>
+       <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:4px;">Email</div>
+       <div style="font-size:14px;color:#334155;">${escapeHtml(cleanApplicantEmail)}</div>
+     </div>
+     <p style="text-align:center;margin:0;">
+       <a href="${requestsUrl}" style="display:inline-block;background:#1a4fae;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 26px;border-radius:10px;">Review Request</a>
+     </p>`
+  );
+
+  const text = `New registration request: ${fullName} (${cleanApplicantEmail}). Review at: ${requestsUrl}`;
+
+  await Promise.allSettled(
+    recipients.map((to) =>
+      sendEmail({
+        to,
+        subject,
+        html,
+        text,
+      })
+    )
+  );
+}

@@ -247,9 +247,10 @@ test("2. Server-side due date, overdue days, and fine calculation in Asia/Manila
     dateReturn: validDue,
   });
 
+  // 2026-05-01 (Fri) -> 2026-05-05 (Tue) spans Sunday 2026-05-03 = 3 working days (Sat, Mon, Tue)
   const overdueDays = computeOverdueDays("2026-05-01", "2026-05-05");
-  assert.equal(overdueDays, 4);
-  assert.equal(computeOverdueFine(overdueDays), 4 * CIRCULATION_RULES.DAILY_OVERDUE_FINE_PHP);
+  assert.equal(overdueDays, 3);
+  assert.equal(computeOverdueFine(overdueDays), 3 * CIRCULATION_RULES.DAILY_OVERDUE_FINE_PHP);
 });
 
 test("3. Strict circulation schemas reject unknown fields & client-supplied fine_amount", () => {
@@ -318,11 +319,11 @@ test("4. Borrow eligibility enforces expired card, borrow limit, and unpaid fine
     (err) => err.status === 409 && /unpaid fines/i.test(err.message)
   );
 
-  // Borrow limit (5 active books) blocks 6th
+  // Borrow limit (2 active books) blocks 3rd
   const dbLimit = createCirculationMockDb({
     library_cards: [{ id: 203, user_id: 50, valid_until: addDaysToIsoDate(today, 30) }],
     library_card_books: [
-      { id: 401, card_id: 203, book_id: 10, quantity: 5, loan_status: "borrowed" },
+      { id: 401, card_id: 203, book_id: 10, quantity: 2, loan_status: "borrowed" },
     ],
   });
   await assert.rejects(
@@ -371,17 +372,18 @@ test("5. Return restores copy to Available and calculates server-side fine; Rene
     (err) => err.status === 409 && /overdue/i.test(err.message)
   );
 
-  // Return restores copy and calculates 3 days * PHP 5 = PHP 15
+  // Return restores copy and calculates working-day overdue fine at PHP 10/day
+  const expectedDays = computeOverdueDays(threeDaysAgo, today);
   const ret = await mutateLibraryCards(supabase, LIBRARIAN_SESSION, "return_books", 200, {
     return_date: today,
   });
   assert.equal(ret.ok, true);
-  assert.equal(ret.overdue_days, 3);
-  assert.equal(ret.fine_amount, 3 * CIRCULATION_RULES.DAILY_OVERDUE_FINE_PHP);
+  assert.equal(ret.overdue_days, expectedDays);
+  assert.equal(ret.fine_amount, expectedDays * CIRCULATION_RULES.DAILY_OVERDUE_FINE_PHP);
   assert.equal(supabase.db.book_copies[0].circulation_status, "Available");
 });
 
-test("6. Mark lost requires reason & applies fee; Waive fine is admin-only", async () => {
+test("6. Mark lost requires affidavit & sets replacement_pending (0 charge); Waive is admin-only", async () => {
   const supabase = createCirculationMockDb({
     book_copies: [
       { id: 100, book_id: 10, copy_number: 1, accession_number: "ACC-1", condition: "Good", circulation_status: "Borrowed" },
@@ -390,16 +392,28 @@ test("6. Mark lost requires reason & applies fee; Waive fine is admin-only", asy
     library_card_books: [{ id: 300, card_id: 200, book_id: 10, copy_id: 100, quantity: 1, loan_status: "borrowed" }],
   });
 
+  await assert.rejects(
+    () =>
+      mutateLibraryCards(supabase, LIBRARIAN_SESSION, "mark_lost", 200, {
+        card_book_id: 300,
+        reason: "Patron reported book lost on jeepney",
+      }),
+    (err) => err.status === 400 && /affidavit/i.test(err.message)
+  );
+
   const lostRes = await mutateLibraryCards(supabase, LIBRARIAN_SESSION, "mark_lost", 200, {
     card_book_id: 300,
     reason: "Patron reported book lost on jeepney",
+    affidavit_reference: "AFF-2026-001",
   });
   assert.equal(lostRes.ok, true);
-  assert.equal(lostRes.fee_amount, 750);
+  assert.equal(lostRes.loan_status, "replacement_pending");
+  assert.equal(supabase.db.library_card_books[0].loan_status, "replacement_pending");
+  assert.equal(supabase.db.library_card_books[0].fine_amount, 0);
   assert.equal(supabase.db.book_copies[0].condition, "Lost");
   assert.equal(supabase.db.book_copies[0].circulation_status, "Unusable");
 
-  // Librarian cannot waive fine -> 403
+  // Librarian cannot waive fine or resolve replacement as waived -> 403
   await assert.rejects(
     () =>
       mutateLibraryCards(supabase, LIBRARIAN_SESSION, "waive_fine", 200, {

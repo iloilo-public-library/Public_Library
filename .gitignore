@@ -6,6 +6,7 @@ key.pem
 
 # Sensitive data, vaults, backups & releases
 valid_id_vault/
+scripts/migration-mapping.json
 backups/
 restore/
 restore.zip

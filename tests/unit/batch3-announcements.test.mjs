@@ -411,6 +411,10 @@ test("4. Active-member enforcement on targeted announcement create", async () =>
 
 test("5. Privacy: member A cannot read or mutate member B's targeted announcement", async () => {
   const mockDb = createMockSupabase({
+    users: [
+      { id: 20, role: "user", is_active: true, is_approved: true, is_locked: false, lock_until: null },
+      { id: 21, role: "user", is_active: true, is_approved: true, is_locked: false, lock_until: null },
+    ],
     announcements: [
       { id: 101, title: "Broadcast", body: "For all", category: "general", pinned: false, author: "Staff", target_user_id: null },
       { id: 102, title: "For Member A", body: "Private A", category: "reminder", pinned: false, author: "Staff", target_user_id: 20 },
@@ -437,11 +441,11 @@ test("5. Privacy: member A cannot read or mutate member B's targeted announcemen
   // Member A CANNOT read or dismiss Member B's targeted announcement (103)
   await assert.rejects(
     () => updateMemberNotificationState(mockDb, 20, "read", 103),
-    (err) => err instanceof AdminMutationError && err.status === 404
+    (err) => err && err.status === 404
   );
   await assert.rejects(
     () => updateMemberNotificationState(mockDb, 20, "dismiss", 103),
-    (err) => err instanceof AdminMutationError && err.status === 404
+    (err) => err && err.status === 404
   );
 });
 

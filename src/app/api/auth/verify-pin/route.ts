@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "@/lib/auth/session";
+import {
+  getPendingMfaSession,
+  PENDING_MFA_COOKIE_NAME,
+  SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_SEC,
+} from "@/lib/auth/session";
 import { getClientIp } from "@/lib/auth/rate-limit";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
-import { toErrorResponse } from "@/lib/errors";
+import { AppError, toErrorResponse } from "@/lib/errors";
 import { verifyPinService } from "@/services/auth.service";
 import { verifyPinSchema } from "@/validators/auth";
 
@@ -16,11 +21,10 @@ export async function POST(request: Request) {
 
   try {
     const parsed = verifyPinSchema.parse(rawBody);
-    const session = await getServerSession();
-    const targetEmail = parsed.email?.trim().toLowerCase() || session?.email || "";
-    if (!session && !targetEmail) {
+    const pendingMfa = await getPendingMfaSession();
+    if (!pendingMfa) {
       return NextResponse.json(
-        { ok: false, error: "Unauthorized — sign in or supply your account email." },
+        { ok: false, error: "MFA verification session is missing or expired. Please sign in again." },
         { status: 401 }
       );
     }
@@ -33,14 +37,56 @@ export async function POST(request: Request) {
     }
 
     const supabase = createSupabaseServerClient(true);
+    const origin = new URL(request.url).origin;
     const result = await verifyPinService(
       supabase,
-      session,
+      pendingMfa,
       parsed,
+      origin,
       getClientIp(request)
     );
-    return NextResponse.json(result);
+
+    const response = NextResponse.json({
+      ok: true,
+      verified: true,
+      role: result.role,
+      redirectUrl: result.redirectUrl,
+    });
+
+    response.cookies.set(PENDING_MFA_COOKIE_NAME, "", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 0,
+    });
+
+    response.cookies.set(SESSION_COOKIE_NAME, result.signedCookie, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: SESSION_MAX_AGE_SEC,
+    });
+
+    return response;
   } catch (err) {
-    return toErrorResponse(err);
+    const response = toErrorResponse(err);
+    if (
+      err instanceof AppError &&
+      err.details &&
+      typeof err.details === "object" &&
+      "clearPendingMfa" in err.details &&
+      (err.details as { clearPendingMfa?: boolean }).clearPendingMfa
+    ) {
+      response.cookies.set(PENDING_MFA_COOKIE_NAME, "", {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 0,
+      });
+    }
+    return response;
   }
 }

@@ -2,19 +2,52 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient, getSupabaseSecretKey } from "@/lib/supabase/server";
 import { getServerSession } from "@/lib/auth/session";
 import { getClientIp } from "@/lib/auth/rate-limit";
-import { toErrorResponse } from "@/lib/errors";
+import { toErrorResponse, ValidationError } from "@/lib/errors";
 import { registerUserAccountService } from "@/services/auth.service";
 import { signupSchema } from "@/validators/auth";
 
 export async function POST(request: Request) {
   let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    return NextResponse.json(
-      { ok: false, error: "Invalid JSON payload." },
-      { status: 400 }
-    );
+  let validIdFile: File | null = null;
+  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
+
+  if (contentType.includes("multipart/form-data")) {
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch {
+      return NextResponse.json(
+        { ok: false, error: "Invalid multipart form-data payload." },
+        { status: 400 }
+      );
+    }
+
+    const fields: Record<string, string> = {};
+    for (const [key, value] of formData.entries()) {
+      if (key === "valid_id") {
+        if (value instanceof File) {
+          if (value.size > 0) {
+            validIdFile = value;
+          } else if (value.name.trim().length > 0) {
+            return toErrorResponse(new ValidationError("Uploaded valid ID file is empty."));
+          }
+        }
+        continue;
+      }
+      if (typeof value === "string") {
+        fields[key] = value;
+      }
+    }
+    rawBody = fields;
+  } else {
+    try {
+      rawBody = await request.json();
+    } catch {
+      return NextResponse.json(
+        { ok: false, error: "Invalid JSON payload." },
+        { status: 400 }
+      );
+    }
   }
 
   try {
@@ -52,7 +85,8 @@ export async function POST(request: Request) {
       supabase,
       parsed,
       actorSession,
-      getClientIp(request)
+      getClientIp(request),
+      validIdFile
     );
 
     return NextResponse.json(
